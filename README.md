@@ -11,7 +11,7 @@ Monorepo :
 ```bash
 composer install
 bin/agentic                          # l'aide en TUI (q, Échap ou Ctrl+C pour quitter)
-bin/agentic chat                     # discuter avec l'agent (Shift+Tab mode, Ctrl+X clore, Ctrl+C quitter)
+bin/agentic chat                     # discuter avec l'agent (Shift+Tab mode, ↑↓ historique, molette défilement, Ctrl+X clore, Ctrl+C quitter)
 php8.4 -S localhost:8000 -t public   # la version web : http://localhost:8000/agentic/
 ```
 
@@ -38,6 +38,9 @@ de Durable à chaque rafraîchissement, sans `messenger:consume` à côté.
 - Commandes du chat, tapées à la place d'un message (Tab complète le nom) :
   `/help`, `/mode [standard|edition|auto]`, `/model [nom]` (à partir du message suivant),
   `/tools` (et ce que la garde en fait dans le mode courant), `/clear` (nouvelle conversation).
+- La molette et Pg.Préc/Pg.Suiv font défiler le fil dans le chat : le terminal passe en mode souris
+  le temps du chat. Pour sélectionner du texte à la souris, maintenir Maj (la plupart des terminaux).
+- ↑/↓ rappellent les messages et commandes déjà envoyés, comme dans un shell.
 - **Hooks de décision** (`tool_rules` dans `config/packages/agentic.php`) : pour un outil (motif
   `fnmatch`) et, au besoin, des conditions sur ses arguments, `allow`, `ask` ou `deny`, avant le mode.
   Le refus l'emporte sur la demande, qui l'emporte sur l'accord ; `/tools` affiche les règles.

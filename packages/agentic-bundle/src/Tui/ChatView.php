@@ -29,7 +29,8 @@ use Symfony\Component\Tui\Widget\Util\StringUtils;
  *
  * L'écran n'a pas d'état de conversation à lui : il relit la projection du journal à chaque
  * rafraîchissement, après avoir fait avancer le worker. Quitter (Ctrl+C) ne clôt pas la
- * conversation ; Ctrl+X la clôt ; Shift+Tab fait tourner le mode, affiché en bas. Une ligne qui commence par `/` est une commande
+ * conversation ; Ctrl+X la clôt ; Shift+Tab fait tourner le mode, affiché en bas. La molette et
+ * Pg.Préc/Pg.Suiv font défiler le fil ; ↑/↓ rappellent les messages déjà envoyés, comme un shell. Une ligne qui commence par `/` est une commande
  * ({@see SlashCommands}), pas un message.
  */
 final class ChatView
@@ -38,6 +39,26 @@ final class ChatView
 
     /** Le tempo de la banane. */
     private const BEAT_SECONDS = 0.4;
+
+    /** Lignes parcourues par cran de molette. */
+    private const WHEEL_LINES = 3;
+
+    /**
+     * Le terminal envoie la molette à l'application plutôt qu'à son propre défilement : mode 1000
+     * (clics et molette, pas les mouvements), codage SGR 1006. Rétabli à la sortie.
+     */
+    private const MOUSE_ON = "\e[?1000h\e[?1006h";
+
+    private const MOUSE_OFF = "\e[?1006l\e[?1000l";
+
+    /**
+     * L'écran alternatif, celui de vim ou de less : pas d'historique de défilement propre au
+     * terminal, l'écran d'avant rendu tel quel à la sortie. Le curseur est ramené en haut à gauche,
+     * d'où le rendu part.
+     */
+    private const SCREEN_ON = "\e[?1049h\e[H";
+
+    private const SCREEN_OFF = "\e[?1049l";
 
     public readonly Tui $tui;
 
@@ -70,6 +91,15 @@ final class ChatView
 
     private ?Transcript $transcript = null;
 
+    /** @var list<string> ce que l'humain a déjà envoyé, messages et commandes, du plus ancien au plus récent */
+    private array $history = [];
+
+    /** Où en est le rappel par ↑/↓ ; `null` = on tape une ligne neuve. */
+    private ?int $recall = null;
+
+    /** La ligne en cours de frappe, mise de côté le temps de parcourir l'historique. */
+    private string $draft = '';
+
     public function __construct(
         private readonly Conversations $conversations,
         private readonly InProcessWorker $worker,
@@ -95,6 +125,10 @@ final class ChatView
             'mode' => ['shift+tab'],
             'close' => ['ctrl+x'],
             'complete' => ['tab'],
+            'history_previous' => ['up'],
+            'history_next' => ['down'],
+            'page_up' => ['page_up'],
+            'page_down' => ['page_down'],
         ]);
         $this->tui->getEventDispatcher()->addListener(InputEvent::class, $this->onKey(...));
     }
@@ -104,7 +138,17 @@ final class ChatView
         $this->refresh();
         $this->tui->scheduleInterval($this->refresh(...), self::REFRESH_SECONDS);
         $this->tui->scheduleInterval($this->dance(...), self::BEAT_SECONDS);
-        $this->tui->run();
+
+        $terminal = $this->tui->getTerminal();
+        $terminal->write(self::SCREEN_ON.self::MOUSE_ON);
+        try {
+            $this->tui->run();
+        } finally {
+            // Sans ça, le terminal resterait en mode souris et sur l'écran alternatif après la
+            // sortie : la molette y taperait des séquences, et le shell réapparaîtrait sur un écran
+            // sans historique.
+            $terminal->write(self::MOUSE_OFF.self::SCREEN_OFF);
+        }
     }
 
     /**
@@ -115,6 +159,14 @@ final class ChatView
         $this->worker->drain();
         $transcript = $this->conversations->transcript($this->conversation);
         $this->mode = $transcript->mode;
+        if (null === $this->transcript && [] === $this->history) {
+            // Une conversation reprise : ses messages sont l'historique de départ.
+            foreach ($transcript->messages as $message) {
+                if ($message->isUser() && '' !== trim((string) $message->content)) {
+                    $this->history[] = (string) $message->content;
+                }
+            }
+        }
         $this->transcript = $transcript;
 
         $rendered = json_encode($transcript, \JSON_THROW_ON_ERROR);
@@ -145,6 +197,38 @@ final class ChatView
     private function onKey(InputEvent $event): void
     {
         $data = $event->getData();
+
+        if (1 === preg_match('/^\e\[<(64|65);\d+;\d+[Mm]$/', $data, $wheel)) {
+            $event->stopPropagation();
+            $this->thread->scroll('64' === $wheel[1] ? self::WHEEL_LINES : -self::WHEEL_LINES);
+            $this->tui->requestRender();
+
+            return;
+        }
+
+        if (str_starts_with($data, "\e[<") || str_starts_with($data, "\e[M")) {
+            // Un clic, pas la molette : rien à en faire, mais il ne doit pas finir dans la saisie.
+            $event->stopPropagation();
+
+            return;
+        }
+
+        if ($this->keys->matches($data, 'page_up') || $this->keys->matches($data, 'page_down')) {
+            $event->stopPropagation();
+            $page = max(1, $this->tui->getTerminal()->getRows() - Banana::height() - 6);
+            $this->thread->scroll($this->keys->matches($data, 'page_up') ? $page : -$page);
+            $this->tui->requestRender();
+
+            return;
+        }
+
+        if (null !== $this->input && $this->tui->getFocus() === $this->input
+            && ($this->keys->matches($data, 'history_previous') || $this->keys->matches($data, 'history_next'))) {
+            $event->stopPropagation();
+            $this->recallHistory($this->keys->matches($data, 'history_previous') ? -1 : 1);
+
+            return;
+        }
 
         if ($this->keys->matches($data, 'quit')) {
             $event->stopPropagation();
@@ -221,7 +305,7 @@ final class ChatView
         };
 
         return \sprintf(
-            "%s● mode %s\e[0m \e[2m· ⇧Tab mode · / commandes · ^X clore · ^C quitter\e[0m",
+            "%s● mode %s\e[0m \e[2m· ⇧Tab mode · ↑↓ historique · / cmd · ^X clore · ^C quitter\e[0m",
             $color,
             $this->mode->value,
         );
@@ -292,6 +376,8 @@ final class ChatView
                 return;
             }
             $input->setValue('');
+            $this->remember($event->getValue());
+            $this->thread->scrollToBottom();
 
             if (SlashCommands::isCommand($event->getValue())) {
                 $this->command($event->getValue());
@@ -305,6 +391,46 @@ final class ChatView
         $this->input = $input;
 
         return [$input];
+    }
+
+    /**
+     * Comme un shell : ↑ remonte vers les lignes plus anciennes, ↓ redescend, et au-delà de la plus
+     * récente on retrouve ce qu'on était en train de taper.
+     */
+    private function recallHistory(int $direction): void
+    {
+        if ([] === $this->history || null === $this->input) {
+            return;
+        }
+
+        if (null === $this->recall) {
+            if ($direction > 0) {
+                return;
+            }
+            $this->draft = $this->input->getValue();
+            $this->recall = \count($this->history);
+        }
+
+        $this->recall += $direction;
+        if ($this->recall >= \count($this->history)) {
+            $this->recall = null;
+            $this->input->setValue($this->draft);
+        } else {
+            $this->recall = max(0, $this->recall);
+            $this->input->setValue($this->history[$this->recall]);
+        }
+
+        $this->showSuggestions($this->input->getValue());
+    }
+
+    private function remember(string $line): void
+    {
+        // Deux fois la même ligne d'affilée n'en fait qu'une, comme dans un shell.
+        if ($line !== ($this->history[\count($this->history) - 1] ?? null)) {
+            $this->history[] = $line;
+        }
+        $this->recall = null;
+        $this->draft = '';
     }
 
     private function command(string $line): void

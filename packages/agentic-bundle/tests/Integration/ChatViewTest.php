@@ -112,6 +112,71 @@ final class ChatViewTest extends KernelTestCase
         self::assertNotSame('', $this->terminal->consumeOutput(), 'Un temps de danse redessine l’en-tête.');
     }
 
+    public function testTheWheelScrollsTheThreadNotTheTerminal(): void
+    {
+        $view = $this->open();
+        foreach (['Paris', 'Lyon', 'Marseille', 'Paris', 'Lyon', 'Marseille'] as $city) {
+            $this->type($view, "Quel temps fait-il à $city ?\r");
+        }
+        $this->terminal->consumeOutput();
+
+        $this->key($view, "\e[<64;10;10M");
+        self::assertStringContainsString('lignes plus récentes', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
+
+        $this->key($view, "\e[<65;10;10M");
+        self::assertStringNotContainsString('plus récentes', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
+    }
+
+    public function testAClickNeverReachesTheInput(): void
+    {
+        $view = $this->open();
+
+        $this->key($view, "\e[<0;12;3M");
+        $this->type($view, "\r");
+
+        self::assertSame([], self::getContainer()->get(Conversations::class)->transcript($view->conversation)->messages);
+    }
+
+    public function testPageUpScrollsToo(): void
+    {
+        $view = $this->open();
+        foreach (['Paris', 'Lyon', 'Marseille', 'Paris', 'Lyon', 'Marseille'] as $city) {
+            $this->type($view, "Quel temps fait-il à $city ?\r");
+        }
+        $this->terminal->consumeOutput();
+
+        $this->key($view, "\e[5~");
+
+        self::assertStringContainsString('lignes plus récentes', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
+    }
+
+    /**
+     * Comme un shell : ↑ remonte, ↓ redescend, et on retrouve ce qu'on était en train de taper.
+     */
+    public function testArrowsRecallPreviousMessagesAndKeepTheDraft(): void
+    {
+        $view = $this->open();
+        $this->type($view, "Quel temps fait-il à Paris ?\r");
+        $this->type($view, "/tools\r");
+        $this->type($view, 'brouillon');
+
+        $this->key($view, "\e[A");
+        self::assertStringContainsString('› /tools', $this->terminal->consumeOutput());
+
+        $this->key($view, "\e[A");
+        self::assertStringContainsString('› Quel temps fait-il à Paris ?', $this->terminal->consumeOutput());
+
+        $this->key($view, "\e[B");
+        $this->key($view, "\e[B");
+        self::assertStringContainsString('› brouillon', $this->terminal->consumeOutput());
+
+        // Rappeler n'envoie rien : seul Entrée envoie.
+        self::assertCount(1, array_filter(
+            self::getContainer()->get(Conversations::class)->transcript($view->conversation)->messages,
+            static fn ($message): bool => $message->isUser(),
+        ));
+    }
+
     public function testCtrlCQuitsWithoutClosingTheConversation(): void
     {
         $view = $this->open();
@@ -132,6 +197,16 @@ final class ChatViewTest extends KernelTestCase
         $view->tui->tick();
 
         return $view;
+    }
+
+    /**
+     * Une séquence d'échappement arrive d'un bloc, pas caractère par caractère.
+     */
+    private function key(ChatView $view, string $sequence): void
+    {
+        $this->terminal->simulateInput($sequence);
+        $view->refresh();
+        $view->tui->tick();
     }
 
     private function type(ChatView $view, string $keys): void
