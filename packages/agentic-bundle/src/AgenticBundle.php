@@ -139,6 +139,7 @@ final class AgenticBundle extends AbstractBundle
                                     ->floatNode('timeout_seconds')->defaultValue(300.0)->end()
                                     ->scalarNode('description')->defaultValue('')->info('What the model reads about the layer.')->end()
                                     ->scalarNode('tests')->defaultValue('')->info('Where the tests of this layer live, and how they are named — the agent places its new tests by it.')->end()
+                                    ->arrayNode('review')->info('The layers to run once this one is green: those a change here can break, and the static ones.')->scalarPrototype()->end()->end()
                                 ->end()
                             ->end()
                         ->end()
@@ -196,7 +197,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string}>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {

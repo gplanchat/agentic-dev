@@ -34,12 +34,20 @@ final readonly class RunChecksTool implements WorkspaceTool
     private const OUTPUT_TAIL_BYTES = 3_000;
 
     /**
-     * @param array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests?: string}> $layers
+     * @param array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests?: string, review?: list<string>}> $layers
+     *
+     * @throws \InvalidArgumentException when a layer's review names a layer that does not exist
      */
     public function __construct(
         private Workspaces $workspaces,
         private array $layers,
     ) {
+        foreach ($layers as $name => $layer) {
+            // A typo here would send the model after a layer run_checks refuses, at the worst moment.
+            if ([] !== $unknown = array_diff($layer['review'] ?? [], array_keys($layers))) {
+                throw new \InvalidArgumentException(\sprintf('The review of the check layer "%s" names unknown layers: %s.', $name, implode(', ', $unknown)));
+            }
+        }
     }
 
     public function definition(): ToolDefinition
@@ -135,28 +143,42 @@ final readonly class RunChecksTool implements WorkspaceTool
             return \sprintf("RED — %s: exit code %d although no test failed.\n%s\nThe end of the output:\n%s", $heading, $status, $text, $this->tail((string) ($run['output'] ?? ''), $root));
         }
 
-        return \sprintf("%s — %s\n%s\n\n%s", $green ? 'GREEN' : 'RED', $heading, $text, $green ? self::AFTER_GREEN : self::AFTER_RED);
+        return \sprintf("%s — %s\n%s\n\n%s", $green ? 'GREEN' : 'RED', $heading, $text, $green ? self::afterGreen($name, $layer['review'] ?? [], '' !== $filter) : self::AFTER_RED);
+    }
+
+    /**
+     * The review, named layer by layer: left to the model, "the layers the change reaches" was the
+     * step it skipped.
+     *
+     * @param list<string> $review
+     */
+    private static function afterGreen(string $layer, array $review, bool $filtered): string
+    {
+        $runs = [...($filtered ? [\sprintf('`%s` without a filter', $layer)] : []), ...array_map(static fn (string $name): string => \sprintf('`%s`', $name), $review)];
+
+        return 'TDD: green is not done. Review: '
+            .([] === $runs ? '' : 'run '.implode(', then ', $runs).'; ')
+            .'refactor with the tests green; never weaken a test to make it pass.';
     }
 
     /** The next step of the cycle, said where the model reads the verdict. */
     private const AFTER_RED = 'TDD: a test you just wrote must fail on its assertion. If it fails on a missing class or method, add the empty shell and run again; if on a typo, fix the test. Then write the least code that makes it pass, and run the same filter again.';
 
-    private const AFTER_GREEN = 'TDD: green is not done. Review: run the whole layer, the layers above it that the change reaches, and the static ones; refactor with the tests green; never weaken a test to make it pass.';
-
     /**
      * How to work with these layers — appended to the system prompt, so the agent organises what it
      * writes along the pyramid and the TDD cycle from its first turn, not after its first mistake.
      *
-     * @param array<string, array{description: string, tests?: string}> $layers
+     * @param array<string, array{description: string, tests?: string, review?: list<string>}> $layers
      */
     public static function method(array $layers): string
     {
         $lines = array_map(
             static fn (string $name, array $layer): string => \sprintf(
-                '- `%s`%s%s',
+                '- `%s`%s%s%s',
                 $name,
                 '' === $layer['description'] ? '' : ': '.$layer['description'],
                 '' === ($layer['tests'] ?? '') ? '' : '. Its tests: '.$layer['tests'],
+                [] === ($layer['review'] ?? []) ? '' : '. Once green, review with: '.implode(', ', $layer['review']),
             ),
             array_keys($layers),
             $layers,
@@ -173,7 +195,7 @@ final readonly class RunChecksTool implements WorkspaceTool
             'Work in cycles, one behaviour at a time:',
             '1. RED — write the test first. Run its layer with a filter on it: it must fail on its assertion (a missing class or method: add the empty shell, run again).',
             '2. GREEN — write the least code that makes it pass. Run the same filter until it is green.',
-            '3. REVIEW — run the whole layer, the layers above it that the change reaches, and the static ones. Refactor with the tests green. Never weaken or delete a test to make it pass: fix the code, or say why the test is wrong.',
+            '3. REVIEW — run the whole layer, then the layers its review names (each layer above lists them; the green verdict repeats them). Refactor with the tests green. Never weaken or delete a test to make it pass: fix the code, or say why the test is wrong.',
             'Do not write production code that no failing test asked for.',
         ]);
     }

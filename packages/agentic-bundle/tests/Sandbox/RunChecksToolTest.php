@@ -52,14 +52,19 @@ final class RunChecksToolTest extends TestCase
 
     public function testARedLayerListsItsFailuresAndAFilterNarrowsIt(): void
     {
-        $tool = $this->tool(['unit' => ['command' => 'php checker.php {report}', 'filter_option' => '--filter']]);
+        $tool = $this->tool([
+            'unit' => ['command' => 'php checker.php {report}', 'filter_option' => '--filter', 'review' => ['functional', 'static']],
+            'functional' => ['command' => 'true'],
+            'static' => ['command' => 'true'],
+        ]);
 
         $red = $tool(['layer' => 'unit']);
         self::assertStringStartsWith("RED — unit\n2 tests, 1 failed, 0.20 s.\n\n✗ CartTest::testTwo — CartTest.php:7 (failure)\n  Failed asserting that false is true.\n\nTDD: ", $red);
         self::assertStringContainsString('least code that makes it pass', $red, 'The verdict says the next step of the cycle.');
 
         $green = $tool(['layer' => 'unit', 'filter' => 'testOne']);
-        self::assertStringStartsWith("GREEN — unit (filter: testOne)\n1 test, 0 failed, 0.10 s.\n\nTDD: green is not done.", $green);
+        self::assertStringEndsWith("\n\nTDD: green is not done. Review: run `unit` without a filter, then `functional`, then `static`; refactor with the tests green; never weaken a test to make it pass.", $green);
+        self::assertStringStartsWith("GREEN — unit (filter: testOne)\n1 test, 0 failed, 0.10 s.", $green);
     }
 
     public function testWhatTheReportDoesNotSayComesFromTheOutput(): void
@@ -92,13 +97,20 @@ final class RunChecksToolTest extends TestCase
     public function testTheMethodNamesTheLayersWhereTheirTestsGoAndTheCycle(): void
     {
         $method = RunChecksTool::method([
-            'unit' => ['description' => 'domain logic, in memory', 'tests' => 'tests/Domain, one test class per class'],
+            'unit' => ['description' => 'domain logic, in memory', 'tests' => 'tests/Domain, one test class per class', 'review' => ['integration']],
             'integration' => ['description' => 'processes and disk'],
         ]);
 
-        self::assertStringContainsString("- `unit`: domain logic, in memory. Its tests: tests/Domain, one test class per class\n- `integration`: processes and disk\n", $method);
+        self::assertStringContainsString("- `unit`: domain logic, in memory. Its tests: tests/Domain, one test class per class. Once green, review with: integration\n- `integration`: processes and disk\n", $method);
         self::assertMatchesRegularExpression('/1\. RED .*\n2\. GREEN .*\n3\. REVIEW /', $method);
         self::assertStringContainsString('a test in no layer never runs', $method);
+    }
+
+    public function testAReviewCanOnlyNameConfiguredLayers(): void
+    {
+        $this->expectExceptionMessage('The review of the check layer "unit" names unknown layers: functionnal.');
+
+        $this->tool(['unit' => ['command' => 'true', 'review' => ['functionnal']], 'functional' => ['command' => 'true']]);
     }
 
     public function testALayerHasItsOwnTimeout(): void
