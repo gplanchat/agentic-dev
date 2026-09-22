@@ -42,6 +42,15 @@ return static function (ContainerConfigurator $container): void {
 
     $container->extension('agentic', [
         'watch_subjects' => ['order.shipped' => 'an order has left the warehouse'],
+        'agents' => [
+            'sorter' => [
+                'description' => 'Sorts and summarises',
+                'prompt' => 'You sort, briefly.',
+                'model' => 'ministral-3b-latest',
+                'tools' => ['weather'],
+            ],
+            'mailer' => ['description' => 'Writes mails', 'ceiling' => 'auto', 'tools' => ['send_email']],
+        ],
         'tool_rules' => [
             ['tool' => 'weather', 'when' => ['city' => 'Lyon'], 'decision' => 'deny', 'reason' => 'Lyon is out of scope.'],
         ],

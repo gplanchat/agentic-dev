@@ -78,6 +78,23 @@ every refresh, with no `messenger:consume` alongside.
   the agent's work until someone reviews it, and `/rewind`, `/compact` and `/resume` open new
   conversations that keep the same worktree, so tying removal to a conversation ending would destroy
   live work. A cleanup command may come later.
+- **`run_checks(layer, filter?)`** runs one layer of the project checks — whatever `sandbox.checks`
+  names: static, unit, functional, integration, e2e — in the same sandbox and workspace, then reads
+  its JUnit report. It answers `GREEN — <layer>` or `RED — <layer>` with the counts and each failing
+  test with its `file:line` and message (ten at most), instead of kilobytes of raw output;
+  `ERROR — <layer>` when no report came out, with the tail of the output, and `RED` too when the
+  exit code fails although no test did. Its arguments are closed — a configured layer, a filter
+  passed as a single value to `filter_option` — so it needs no allowlist. Classed `write`: it asks
+  in `standard`, passes in `edition` and `auto`. One timeout per layer (300 s by default). A layer that runs
+  the bundle suite works from inside the sandbox, nested bwrap included.
+- **Sub-agents** (`agents` in `config/packages/agentic.php`): named profiles the `delegate` tool can
+  hand a mission to, each with its description (which the model reads to choose), its instructions,
+  its model, the tools it may use (`fnmatch` patterns) and its ceiling. `/agents` lists them,
+  `/agents <name>` shows one in full, instructions included. **A profile never grants authority**:
+  the sub-agent takes the strictest of its ceiling and of its caller's effective mode, so a profile
+  declared `auto` stays `standard` in a `standard` conversation — naming a sub-agent must not be the
+  way around the guard. A name nobody declares is refused and the model is told which exist. The
+  profiles are frozen in the conversation's payload at start, like its tools.
 - **MCP servers** (`mcp.servers` in `config/packages/agentic.php`): their tools are offered to the
   agent as `mcp__<server>__<tool>`, over stdio (`command`, `args`, `env`, `cwd`) or HTTP (`url`,
   `headers`). `/mcp` lists the servers, says which are reached and shows their tools.

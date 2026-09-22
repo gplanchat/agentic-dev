@@ -20,6 +20,23 @@ return static function (ContainerConfigurator $container): void {
         // only those of auto_allow pass (fnmatch patterns).
         'sandbox' => [
             'enabled' => true,
+            // The layers run_checks may run, each in the sandbox and the conversation's workspace.
+            // `{report}` is where the JUnit report is expected; the tool reads it rather than
+            // returning kilobytes of output. One suite per package today, a pyramid later.
+            'checks' => [
+                'unit' => [
+                    'command' => 'php8.2 vendor/bin/phpunit --log-junit {report}',
+                    'cwd' => 'packages/agentic',
+                    'filter_option' => '--filter',
+                    'description' => 'the component suite: domain, application, workflow with in-memory Durable',
+                ],
+                'integration' => [
+                    'command' => 'php8.4 vendor/bin/phpunit --log-junit {report}',
+                    'cwd' => 'packages/agentic-bundle',
+                    'filter_option' => '--filter',
+                    'description' => 'the bundle suite: kernel, TUI, sandbox (needs bwrap)',
+                ],
+            ],
             // The bundle shares vendor/ by default; the packages have their own, and the bundle
             // suite runs with cwd=packages/agentic-bundle.
             'shared' => ['vendor', 'packages/*/vendor'],
@@ -33,6 +50,23 @@ return static function (ContainerConfigurator $container): void {
         ],
         // The project instructions, appended to the system prompt of every new conversation.
         // 'instructions_file' => '%kernel.project_dir%/AGENTS.md',
+        // The sub-agents `delegate` may hand a mission to. A profile narrows what its sub-agent may
+        // do — model, instructions, tools, ceiling — and never grants more than the caller has: the
+        // delegate takes the strictest of its ceiling and of the parent's effective mode.
+        'agents' => [
+            'weatherman' => [
+                'description' => 'Looks up the weather of cities',
+                'prompt' => 'You answer about the weather, in one sentence per city.',
+                'tools' => ['weather'],
+            ],
+            'scribe' => [
+                'description' => 'Reads the project and writes notes',
+                'prompt' => 'You read before you write, and you keep notes short.',
+                'ceiling' => 'edition',
+                'tools' => ['read_file', 'save_note'],
+                'max_turns' => 3,
+            ],
+        ],
         // MCP servers whose tools are offered to the agent, discovered when a conversation starts
         // and frozen in its payload. An MCP tool is `external` unless a rule says otherwise: what a
         // server says about its own tools is a claim, and the guard is what protects from it.

@@ -10,6 +10,7 @@ use Gplanchat\Agentic\Domain\Context\ContextBudget;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableAgentFactory;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
+use Gplanchat\Agentic\Domain\Team\AgentProfiles;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion;
@@ -291,6 +292,7 @@ final class DurableAgentWorkflow
      * @param list<string>                                                                                        $pending            messages received but not processed yet, handed over by the previous run
      * @param array<string, string>                                                                               $watchSubjects      the application's watch vocabulary, subject → description
      * @param list<array<string, mixed>>                                                                          $toolRules          the project's decision hooks ({@see \Gplanchat\Agentic\Domain\Guard\ToolRule})
+     * @param array<string, array<string, mixed>>                                                                 $agents             the sub-agents the application declares ({@see \Gplanchat\Agentic\Domain\Team\AgentProfile})
      * @param string|null                                                                                         $workspace          the conversation's working directory, handed to the tools; `null` = the project
      *
      * @return string the agent's last reply
@@ -315,6 +317,7 @@ final class DurableAgentWorkflow
         ?ToolGuardInterface $guard = null,
         array $watchSubjects = [],
         array $toolRules = [],
+        array $agents = [],
         ?string $workspace = null,
     ): string {
         // The ceiling first: the requested mode bends to it, it does not go around it.
@@ -348,6 +351,9 @@ final class DurableAgentWorkflow
             budget: new ContextBudget($contextTokens),
             subjects: WatchSubjects::fromWire($watchSubjects),
             rules: RuleBasedToolGuard::rulesFromWire($toolRules),
+            profiles: AgentProfiles::fromWire($agents),
+            toolsWire: $tools,
+            rulesWire: $toolRules,
             workspace: $workspace,
         );
         $agent = $build();
@@ -441,6 +447,7 @@ final class DurableAgentWorkflow
                     'pending' => $this->inbox,
                     'watchSubjects' => $watchSubjects,
                     'toolRules' => $toolRules,
+                    'agents' => $agents,
                     'workspace' => $workspace,
                 ]);
             }

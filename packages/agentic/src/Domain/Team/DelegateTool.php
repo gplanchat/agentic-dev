@@ -35,8 +35,13 @@ final class DelegateTool
     {
     }
 
-    public static function definition(): ToolDefinition
+    public static function definition(AgentProfiles $profiles = new AgentProfiles()): ToolDefinition
     {
+        $named = [];
+        foreach ($profiles as $profile) {
+            $named[] = \sprintf('`%s` (%s)', $profile->name, $profile->description);
+        }
+
         return new ToolDefinition(
             self::TOOL,
             'Hands a mission to a sub-agent and waits for its reply. To be used when the task gains '
@@ -52,9 +57,18 @@ final class DelegateTool
                         'description' => 'What the sub-agent must do, in full: it sees nothing of '
                             .'your conversation, only this sentence.',
                     ],
+                    'agent' => [
+                        'type' => 'string',
+                        'enum' => $profiles->names(),
+                        'description' => [] === $named
+                            ? 'No sub-agent is declared by this application; omit this.'
+                            : 'Which sub-agent takes the mission, to pick from: '.implode(', ', $named)
+                                .'. Each comes with its own model, its own instructions and its own tools. '
+                                .'Omit for a sub-agent with no tools, on your model.',
+                    ],
                     'model' => [
                         'type' => 'string',
-                        'description' => 'The model to hand it. Omit to take yours again.',
+                        'description' => 'The model to hand it, when no sub-agent is named. Omit to take yours again.',
                     ],
                 ],
                 'required' => ['mission'],

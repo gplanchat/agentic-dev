@@ -33,6 +33,7 @@ final readonly class SlashCommands
         '/compact' => 'restarts from a summary of the conversation, to lighten the context',
         '/resume' => 'resumes a past conversation: /resume [identifier]',
         '/mcp' => 'lists the MCP servers and the tools they offer',
+        '/agents' => 'lists the sub-agents delegate can hand a mission to: /agents [name]',
     ];
 
     public function __construct(
@@ -77,6 +78,7 @@ final readonly class SlashCommands
             '/compact' => $this->compact($conversation),
             '/resume' => $this->resume($conversation, $argument),
             '/mcp' => new SlashOutcome($this->mcp($conversation), error: null === $this->mcp),
+            '/agents' => $this->agents($conversation, $argument),
             default => new SlashOutcome(\sprintf('Unknown command: %s. /help for the list.', $name), error: true),
         };
     }
@@ -248,6 +250,55 @@ final readonly class SlashCommands
         $restarted = $this->conversations->restart($summary->id);
 
         return new SlashOutcome(\sprintf('"%s" was finished: it resumes in %s.', self::excerpt($summary->title), substr($restarted, 0, 8)), conversation: $restarted);
+    }
+
+    /**
+     * The sub-agents of this conversation, frozen at its start like its tools. With a name, what
+     * that one is: its instructions in full, since that is what one wants to check.
+     */
+    private function agents(string $conversation, ?string $argument): SlashOutcome
+    {
+        $transcript = $this->conversations->transcript($conversation);
+        $profiles = $transcript->profiles;
+
+        if (0 === \count($profiles)) {
+            return new SlashOutcome('No sub-agent is declared (agentic.agents). `delegate` still works, with no tools and your model.', error: true);
+        }
+
+        if (null !== $argument) {
+            $profile = $profiles->find($argument);
+            if (null === $profile) {
+                return new SlashOutcome(\sprintf('No sub-agent is named "%s". Declared: %s.', $argument, implode(', ', $profiles->names())), error: true);
+            }
+
+            return new SlashOutcome(implode("\n", [
+                \sprintf('%s — %s', $profile->name, '' === $profile->description ? 'no description' : $profile->description),
+                \sprintf('model    %s', $profile->model ?? '(the caller\'s)'),
+                \sprintf('ceiling  %s, so at most %s here (the strictest of it and your mode)', $profile->ceiling->value, AgentMode::strictest($profile->ceiling, $transcript->mode)->value),
+                \sprintf('tools    %s', [] === $profile->tools ? 'none' : implode(', ', $profile->tools)),
+                \sprintf('turns    %d', $profile->maxTurns),
+                '',
+                '' === $profile->prompt ? '(no instructions of its own)' : $profile->prompt,
+            ]));
+        }
+
+        $width = max(array_map(mb_strlen(...), $profiles->names()));
+        $lines = [];
+        foreach ($profiles as $profile) {
+            $lines[] = \sprintf(
+                '%s  %-8s  %-8s  %s',
+                str_pad($profile->name, $width),
+                $profile->model ?? 'caller',
+                AgentMode::strictest($profile->ceiling, $transcript->mode)->value,
+                [] === $profile->tools ? 'no tool' : implode(', ', $profile->tools),
+            );
+        }
+
+        return new SlashOutcome(implode("\n", [
+            ...$lines,
+            '',
+            'The ceiling shown is what applies here: the strictest of the profile and your mode. /agents <name> shows its instructions.',
+        ]));
     }
 
     /**

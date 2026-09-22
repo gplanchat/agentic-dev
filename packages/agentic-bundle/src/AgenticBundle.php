@@ -141,6 +141,20 @@ final class AgenticBundle extends AbstractBundle
                         ->end()
                     ->end()
                 ->end()
+                ->arrayNode('agents')
+                    ->info('The sub-agents `delegate` may hand a mission to. A profile narrows what its sub-agent may do; it never grants more than the parent already has.')
+                    ->useAttributeAsKey('name')
+                    ->arrayPrototype()
+                        ->children()
+                            ->scalarNode('description')->defaultValue('')->info('What it is for — the model reads this to choose.')->end()
+                            ->scalarNode('prompt')->defaultValue('')->info('Its instructions; empty takes the default system prompt.')->end()
+                            ->scalarNode('model')->defaultNull()->info('Its model; null takes the caller\'s.')->end()
+                            ->enumNode('ceiling')->values(['standard', 'edition', 'auto'])->defaultValue('standard')->info('The most it may ever do; the strictest of this and the parent wins.')->end()
+                            ->arrayNode('tools')->info('Patterns (fnmatch) of the tools it may use; empty = none.')->scalarPrototype()->end()->end()
+                            ->integerNode('max_turns')->defaultValue(1)->end()
+                        ->end()
+                    ->end()
+                ->end()
                 ->arrayNode('mcp')
                     ->info('MCP servers whose tools are offered to the agent, discovered when a conversation starts and frozen in its payload.')
                     ->addDefaultsIfNotSet()
@@ -179,7 +193,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string}>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -288,6 +302,7 @@ final class AgenticBundle extends AbstractBundle
                     'contextTokens' => $config['context_tokens'],
                     'watchSubjects' => $config['watch_subjects'],
                     'toolRules' => $config['tool_rules'],
+                    'agents' => $config['agents'],
                 ],
                 service(Worktrees::class)->nullOnInvalid(),
             ]);

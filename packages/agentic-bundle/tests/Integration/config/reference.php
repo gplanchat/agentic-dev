@@ -574,6 +574,14 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             description?: scalar|Param|null, // What the model reads about the layer. // Default: ""
  *         }>,
  *     },
+ *     agents?: array<string, array{ // Default: []
+ *         description?: scalar|Param|null, // What it is for — the model reads this to choose. // Default: ""
+ *         prompt?: scalar|Param|null, // Its instructions; empty takes the default system prompt. // Default: ""
+ *         model?: scalar|Param|null, // Its model; null takes the caller's. // Default: null
+ *         ceiling?: "standard"|"edition"|"auto"|Param, // The most it may ever do; the strictest of this and the parent wins. // Default: "standard"
+ *         tools?: list<scalar|Param|null>,
+ *         max_turns?: int|Param, // Default: 1
+ *     }>,
  *     mcp?: array{ // MCP servers whose tools are offered to the agent, discovered when a conversation starts and frozen in its payload.
  *         servers?: array<string, array{ // Default: []
  *             command?: scalar|Param|null, // Command of a server spawned over stdio; exclusive with url. // Default: null

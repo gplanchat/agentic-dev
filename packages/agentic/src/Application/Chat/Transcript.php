@@ -8,6 +8,7 @@ use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\PendingApproval;
 use Gplanchat\Agentic\Domain\Guard\ToolRule;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
+use Gplanchat\Agentic\Domain\Team\AgentProfiles;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
 use Gplanchat\Agentic\Domain\Watch\Watch;
 use Gplanchat\Durable\Duration;
@@ -45,6 +46,8 @@ final readonly class Transcript implements \JsonSerializable
         public Toolset $tools = new Toolset(),
         /** @var list<ToolRule> the decision hooks frozen at start-up */
         public array $rules = [],
+        /** The sub-agents this conversation may delegate to, frozen at start. */
+        public AgentProfiles $profiles = new AgentProfiles(),
         /** The working directory the tools act in, frozen at start-up; `null` = the project. */
         public ?string $workspace = null,
     ) {
@@ -99,7 +102,7 @@ final readonly class Transcript implements \JsonSerializable
     }
 
     /**
-     * @return array{messages: list<TranscriptMessage>, steps: list<ToolStep>, pending: list<PendingApproval>, questions: list<PendingQuestion>, watches: list<Watch>, mode: string, humanTimeoutSeconds: float|null, working: bool, finished: bool, failure: string|null, model: string, tools: array<string, mixed>, rules: list<array<string, mixed>>}
+     * @return array{messages: list<TranscriptMessage>, steps: list<ToolStep>, pending: list<PendingApproval>, questions: list<PendingQuestion>, watches: list<Watch>, mode: string, humanTimeoutSeconds: float|null, working: bool, finished: bool, failure: string|null, model: string, tools: array<string, mixed>, rules: list<array<string, mixed>>, agents: array<string, array<string, mixed>>}
      */
     public function jsonSerialize(): array
     {
@@ -117,6 +120,7 @@ final readonly class Transcript implements \JsonSerializable
             'model' => $this->model,
             'tools' => $this->tools->toWire(),
             'rules' => array_map(static fn (ToolRule $rule): array => $rule->toWire(), $this->rules),
+            'agents' => $this->profiles->toWire(),
         ];
     }
 }

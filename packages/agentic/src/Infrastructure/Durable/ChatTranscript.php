@@ -13,6 +13,7 @@ use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
+use Gplanchat\Agentic\Domain\Team\AgentProfiles;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
 use Gplanchat\Agentic\Domain\Watch\UnknownWatchSubject;
 use Gplanchat\Agentic\Domain\Watch\Watch;
@@ -325,7 +326,10 @@ final class ChatTranscript
             $signalledModel ?? (string) ($started['model'] ?? ''),
             Toolset::fromWire(\is_array($started['tools'] ?? null) ? $started['tools'] : []),
             RuleBasedToolGuard::rulesFromWire(\is_array($started['toolRules'] ?? null) ? $started['toolRules'] : []),
-            \is_string($started['workspace'] ?? null) ? $started['workspace'] : null,
+            // Named from here on: this list grows, and a positional argument slipping one slot is
+            // exactly how the workspace once became the profiles.
+            profiles: AgentProfiles::fromWire(\is_array($started['agents'] ?? null) ? $started['agents'] : []),
+            workspace: \is_string($started['workspace'] ?? null) ? $started['workspace'] : null,
         );
     }
 }

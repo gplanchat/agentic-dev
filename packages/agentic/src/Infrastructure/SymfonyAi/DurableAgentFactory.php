@@ -13,6 +13,7 @@ use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\HumanQuestionDesk;
+use Gplanchat\Agentic\Domain\Team\AgentProfiles;
 use Gplanchat\Agentic\Domain\Team\DelegateTool;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
 use Gplanchat\Agentic\Domain\Watch\WatchDesk;
@@ -60,10 +61,13 @@ final class DurableAgentFactory
         WatchSubjects $subjects = new WatchSubjects(),
         array $rules = [],
         ?string $workspace = null,
+        AgentProfiles $profiles = new AgentProfiles(),
+        array $toolsWire = [],
+        array $rulesWire = [],
     ): Agent {
         // Always offered: an agent that cannot ask makes things up, and an agent that cannot wait
         // botches the job.
-        $tools = $tools->with(AskUserQuestion::definition(), WatchTool::definition($subjects), DelegateTool::definition());
+        $tools = $tools->with(AskUserQuestion::definition(), WatchTool::definition($subjects), DelegateTool::definition($profiles));
 
         // The Mistral bridge provides everything that is **pure** — the normalisation of the
         // conversation, the catalogue, the conversion of the JSON into a result — and that is what
@@ -94,6 +98,9 @@ final class DurableAgentFactory
                 $humanTimeout,
                 $model,
                 $subjects,
+                profiles: $profiles,
+                toolsWire: $toolsWire,
+                rulesWire: $rulesWire,
                 workspace: $workspace,
             ),
             maxToolCalls: $maxToolCalls,

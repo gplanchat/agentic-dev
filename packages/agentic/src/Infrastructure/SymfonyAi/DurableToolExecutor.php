@@ -12,6 +12,7 @@ use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\HumanQuestionDesk;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
+use Gplanchat\Agentic\Domain\Team\AgentProfiles;
 use Gplanchat\Agentic\Domain\Team\DelegateTool;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 use Gplanchat\Agentic\Domain\Watch\UnknownWatchSubject;
@@ -62,6 +63,11 @@ final class DurableToolExecutor implements ToolExecutorInterface
         private readonly ?Duration $humanTimeout = null,
         private readonly string $model = 'gpt-4o-mini',
         private readonly WatchSubjects $subjects = new WatchSubjects(),
+        private readonly AgentProfiles $profiles = new AgentProfiles(),
+        /** @var array<string, array{description: string, effect: string, parameters: array<string, mixed>|null}> */
+        private readonly array $toolsWire = [],
+        /** @var list<array<string, mixed>> */
+        private readonly array $rulesWire = [],
         ?ActivityOptions $options = null,
         private readonly ?string $workspace = null,
     ) {
@@ -183,10 +189,35 @@ final class DurableToolExecutor implements ToolExecutorInterface
             return 'A delegation without a mission has nothing to delegate. Say what the sub-agent must do.';
         }
 
-        $ceiling = ($this->mode)();
-        $model = trim((string) ($arguments['model'] ?? '')) ?: $this->model;
+        $named = trim((string) ($arguments['agent'] ?? ''));
+        $profile = '' === $named ? null : $this->profiles->find($named);
+        if ('' !== $named && null === $profile) {
+            // Refused in the open: a name nobody declares would otherwise become an anonymous
+            // sub-agent with none of the tools nor the instructions the model was counting on.
+            yield new Progress('delegation_refused', $named, $toolCall);
 
-        yield new Progress('delegated', \sprintf('Mission handed to a sub-agent (%s).', $model), $toolCall);
+            return \sprintf(
+                'No sub-agent is named "%s". Declared: %s. Pick one of them, or delegate without a name.',
+                $named,
+                [] === $this->profiles->names() ? 'none' : implode(', ', $this->profiles->names()),
+            );
+        }
+
+        // The ceiling is the subject here: the delegate takes the strictest of its profile and of
+        // its parent's effective mode. Naming a sub-agent grants nothing.
+        $ceiling = AgentMode::strictest(($this->mode)(), $profile?->ceiling ?? AgentMode::Standard);
+        $model = $profile?->model ?? (trim((string) ($arguments['model'] ?? '')) ?: $this->model);
+
+        // Only the tools the profile allows travel to the child, and their schemas travel with them:
+        // the child freezes them in its own payload, as any conversation does.
+        $tools = [];
+        foreach ($this->toolsWire as $tool => $definition) {
+            if (null !== $profile && $profile->allows((string) $tool)) {
+                $tools[$tool] = $definition;
+            }
+        }
+
+        yield new Progress('delegated', \sprintf('Mission handed to %s (%s).', $profile?->name ?? 'a sub-agent', $model), $toolCall);
 
         // ⚠ Positional, and not by names. `ChildWorkflowStub::argumentsToInput()` matches the
         // arguments **by position** (`$arguments[$i]`): PHP passes named arguments to `__call` in an
@@ -196,17 +227,32 @@ final class DurableToolExecutor implements ToolExecutorInterface
         // here; in the meantime, the order of the signature is what counts.
         $reply = (string) $this->environment->await(
             $this->environment->childWorkflowStub(DurableAgentWorkflow::class)->run(
-                [],                                   // tools
+                $tools,                               // tools
                 $model,                               // model
                 $ceiling->value,                      // mode
                 $ceiling->value,                      // modeCeiling
-                DurableAgentWorkflow::SYSTEM_PROMPT,  // systemPrompt
+                '' !== ($profile?->prompt ?? '') ? $profile->prompt : DurableAgentWorkflow::SYSTEM_PROMPT,
                 $mission,                             // prompt
-                1,                                    // maxTurns
+                $profile?->maxTurns ?? 1,             // maxTurns
+                10,                                   // maxToolCalls
+                null,                                 // humanTimeoutSeconds
+                24_000,                               // contextTokens
+                null,                                 // idleTimeoutSeconds
+                null,                                 // rolloverAfterTurns
+                false,                                // compactHistory
+                [],                                   // history
+                [],                                   // pending
+                null,                                 // guard
+                [],                                   // watchSubjects
+                $this->rulesWire,                     // toolRules: the project's rules bind the child too
+                [],                                   // agents: a delegate does not re-delegate by name
+                // The conversation's workspace, or the child would act in the project itself — which
+                // is precisely what the per-conversation worktree exists to prevent.
+                $this->workspace,                     // workspace
             ),
         );
 
-        return \sprintf('The sub-agent (%s) replies: %s', $model, $reply);
+        return \sprintf('The sub-agent %s (%s) replies: %s', $profile?->name ?? '(unnamed)', $model, $reply);
     }
 
     /**
