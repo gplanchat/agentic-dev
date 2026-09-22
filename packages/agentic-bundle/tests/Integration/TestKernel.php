@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Gplanchat\AgenticBundle\Tests\Integration;
 
+use Gplanchat\Agentic\Application\Chat\CurrentPrincipal;
 use Gplanchat\AgenticBundle\AgenticBundle;
 use Gplanchat\Durable\Bundle\DurableBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
@@ -54,6 +55,9 @@ class TestKernel extends Kernel
         $container->services()
             // The default logger writes to stderr: in a TUI, it would tear the screen apart.
             ->set('logger', Logger::class)->args(['warning', 'php://memory'])
+            // The suite does not depend on the account running it, and a test can become someone else.
+            ->set(SwitchablePrincipal::class)->public()
+            ->alias(CurrentPrincipal::class, SwitchablePrincipal::class)
             ->set(WeatherTool::class)->autoconfigure()
             ->set(SendEmailTool::class)->autoconfigure()
             ->set(BrokenNoteTool::class)->autoconfigure();

@@ -6,8 +6,10 @@ namespace Gplanchat\AgenticBundle\Chat;
 
 use Gplanchat\Agentic\Application\Chat\ConversationSummary;
 use Gplanchat\Agentic\Application\Chat\Conversations;
+use Gplanchat\Agentic\Application\Chat\CurrentPrincipal;
 use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
+use Gplanchat\Agentic\Domain\Identity\ConversationNotOwned;
 use Gplanchat\Agentic\Infrastructure\Durable\ChatTranscript;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
 use Gplanchat\AgenticBundle\Sandbox\Worktrees;
@@ -40,6 +42,7 @@ final readonly class DurableConversations implements Conversations
         private ProjectInstructions $instructions,
         private EventStoreInterface $events,
         private WorkflowRunCatalogInterface $runs,
+        private CurrentPrincipal $principal,
         private array $options = [],
         private ?Worktrees $worktrees = null,
     ) {
@@ -52,6 +55,7 @@ final readonly class DurableConversations implements Conversations
 
     public function restart(string $from, ?int $keepUserMessages = null, bool $compact = false): string
     {
+        // `transcript()` asserts ownership: one cannot fork a thread one may not read.
         $transcript = $this->transcript($from);
         $history = null === $keepUserMessages ? $transcript->seed() : $transcript->seedBefore($keepUserMessages);
 
@@ -64,10 +68,14 @@ final readonly class DurableConversations implements Conversations
         return $this->launch($history, $compact && [] !== $history, $transcript->workspace);
     }
 
+    /**
+     * A conversation that is not ours does not exist — the distinction between "no such id" and
+     * "not yours" is itself an answer to a question the asker had no right to put.
+     */
     public function exists(string $conversation): bool
     {
         foreach ($this->events->readStream($conversation) as $_) {
-            return true;
+            return $this->owns($conversation);
         }
 
         return false;
@@ -81,7 +89,14 @@ final readonly class DurableConversations implements Conversations
                 continue;
             }
 
-            $said = $this->transcript($run->runId)->userMessages();
+            // Read unchecked, then filter: asserting here would throw on the first conversation
+            // belonging to someone else instead of simply not listing it.
+            $transcript = $this->read($run->runId);
+            if (!($transcript->owner?->is(($this->principal)()) ?? false)) {
+                continue;
+            }
+
+            $said = $transcript->userMessages();
             $recent[] = new ConversationSummary(
                 $run->runId,
                 $said[0] ?? '(nothing said)',
@@ -110,6 +125,9 @@ final readonly class DurableConversations implements Conversations
             'history' => $history,
             'compactHistory' => $compact,
             'workspace' => $workspace,
+            // Frozen at start like the tools and the rules: who opened the conversation is a fact
+            // of the journal, not of the session that reads it back.
+            'owner' => ($this->principal)()->toWire(),
         ]);
 
         return $conversation;
@@ -170,14 +188,46 @@ final readonly class DurableConversations implements Conversations
 
     public function transcript(string $conversation): Transcript
     {
+        $transcript = $this->read($conversation);
+        if (!($transcript->owner?->is(($this->principal)()) ?? false)) {
+            throw new ConversationNotOwned($conversation);
+        }
+
+        return $transcript;
+    }
+
+    /**
+     * The projection, with nothing asked of the reader. Everything public goes through
+     * {@see transcript()} or {@see owns()}; this is for the two places that must look before they
+     * are allowed to refuse.
+     */
+    private function read(string $conversation): Transcript
+    {
         return $this->transcripts->forExecution($conversation);
     }
 
     /**
+     * A conversation with no owner in its journal belongs to nobody, hence to no reader: those
+     * opened before owners existed are readable by no one rather than by everyone.
+     */
+    private function owns(string $conversation): bool
+    {
+        return $this->read($conversation)->owner?->is(($this->principal)()) ?? false;
+    }
+
+    /**
+     * Every intent that moves a conversation goes through here, which is why the check lives here
+     * and not in each of the seven methods above: one gate on the way through cannot be forgotten
+     * by the eighth.
+     *
      * @param array<string, mixed> $payload
      */
     private function signal(string $conversation, string $name, array $payload): void
     {
+        if (!$this->owns($conversation)) {
+            throw new ConversationNotOwned($conversation);
+        }
+
         $this->bus->dispatch(new DeliverWorkflowSignalMessage($conversation, $name, $payload));
     }
 }

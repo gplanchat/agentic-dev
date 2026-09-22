@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle;
 
 use Gplanchat\Agentic\Application\Chat\Conversations;
+use Gplanchat\Agentic\Application\Chat\CurrentPrincipal;
 use Gplanchat\Agentic\Application\Help\ListCommands;
 use Gplanchat\Agentic\Application\Tool\AgentTool;
 use Gplanchat\Agentic\Infrastructure\Durable\Activity\AgentToolActivityInterface;
@@ -15,6 +16,7 @@ use Gplanchat\Agentic\Infrastructure\SymfonyAi\ModelInvocationActivityHandler;
 use Gplanchat\AgenticBundle\Activity\AgentToolActivityHandler;
 use Gplanchat\AgenticBundle\Ai\ModelClientFactory;
 use Gplanchat\AgenticBundle\Chat\DurableConversations;
+use Gplanchat\AgenticBundle\Chat\LocalPrincipal;
 use Gplanchat\AgenticBundle\Chat\ProjectInstructions;
 use Gplanchat\AgenticBundle\Mcp\McpCatalog;
 use Gplanchat\AgenticBundle\Mcp\McpServer;
@@ -287,6 +289,12 @@ final class AgenticBundle extends AbstractBundle
         $services->set(ProjectInstructions::class)
             ->args([$config['instructions_file']]);
 
+        // Who the conversations belong to. An application with a firewall replaces this alias with
+        // its own adapter over `Security`; nothing else in the chat knows where the principal
+        // comes from.
+        $services->set(LocalPrincipal::class);
+        $services->alias(CurrentPrincipal::class, LocalPrincipal::class);
+
         $services->set(DurableConversations::class)
             ->args([
                 service(WorkflowResumeDispatcher::class),
@@ -297,6 +305,7 @@ final class AgenticBundle extends AbstractBundle
                 service(ProjectInstructions::class),
                 service(EventStoreInterface::class),
                 service(WorkflowRunCatalogInterface::class),
+                service(CurrentPrincipal::class),
                 [
                     'model' => $config['model'],
                     // With checks, the agent works along the test pyramid and the TDD cycle: said once,

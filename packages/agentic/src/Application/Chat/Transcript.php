@@ -7,6 +7,7 @@ namespace Gplanchat\Agentic\Application\Chat;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\PendingApproval;
 use Gplanchat\Agentic\Domain\Guard\ToolRule;
+use Gplanchat\Agentic\Domain\Identity\Principal;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
 use Gplanchat\Agentic\Domain\Team\AgentProfiles;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
@@ -50,6 +51,8 @@ final readonly class Transcript implements \JsonSerializable
         public AgentProfiles $profiles = new AgentProfiles(),
         /** The working directory the tools act in, frozen at start-up; `null` = the project. */
         public ?string $workspace = null,
+        /** Who the conversation belongs to, frozen at start-up; `null` = opened before owners existed. */
+        public ?Principal $owner = null,
     ) {
     }
 

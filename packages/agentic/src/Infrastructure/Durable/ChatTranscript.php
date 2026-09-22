@@ -10,6 +10,7 @@ use Gplanchat\Agentic\Application\Chat\TranscriptMessage;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\PendingApproval;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
+use Gplanchat\Agentic\Domain\Identity\Principal;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
@@ -330,6 +331,7 @@ final class ChatTranscript
             // exactly how the workspace once became the profiles.
             profiles: AgentProfiles::fromWire(\is_array($started['agents'] ?? null) ? $started['agents'] : []),
             workspace: \is_string($started['workspace'] ?? null) ? $started['workspace'] : null,
+            owner: Principal::fromWire($started['owner'] ?? null),
         );
     }
 }
