@@ -90,7 +90,9 @@ every refresh, with no `messenger:consume` alongside.
   exit code fails although no test did. Its arguments are closed — a configured layer, a filter
   passed as a single value to `filter_option` — so it needs no allowlist. Classed `write`: it asks
   in `standard`, passes in `edition` and `auto`. One timeout per layer (300 s by default). `tests` per layer says where its
-  tests live; with checks configured, the system prompt carries the pyramid and the TDD cycle
+  tests live; `review` per layer names the layers to run once it is green — the GREEN verdict spells
+  them out, in order —, and an unknown name there is refused when the tool is built. With checks
+  configured, the system prompt carries the pyramid and the TDD cycle
   (red → green → review), and each verdict ends with the next step. A layer that runs
   the bundle suite works from inside the sandbox, nested bwrap included.
 - **Sub-agents** (`agents` in `config/packages/agentic.php`): named profiles the `delegate` tool can
