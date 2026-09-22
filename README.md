@@ -78,6 +78,18 @@ every refresh, with no `messenger:consume` alongside.
   the agent's work until someone reviews it, and `/rewind`, `/compact` and `/resume` open new
   conversations that keep the same worktree, so tying removal to a conversation ending would destroy
   live work. A cleanup command may come later.
+- **MCP servers** (`mcp.servers` in `config/packages/agentic.php`): their tools are offered to the
+  agent as `mcp__<server>__<tool>`, over stdio (`command`, `args`, `env`, `cwd`) or HTTP (`url`,
+  `headers`). `/mcp` lists the servers, says which are reached and shows their tools.
+  **An MCP tool is `external` by default**, so it asks for approval in every mode but `auto`: what a
+  server says about its own tools — `readOnlyHint` and the other annotations — is its claim about
+  itself, and the guard is what protects from a tool that lies. Give effects explicitly with
+  `effects` (a tool name pattern → `read`, `write` or `external`), which wins over everything else,
+  or accept the server's word with `trust_annotations: true`. Discovery happens when a conversation
+  starts and its schemas are frozen in the payload: a server that changes its tools afterwards does
+  not change a running conversation, and a tool that disappeared comes back to the model as a failed
+  result. A server that is down costs nothing — no tool, an error shown by `/mcp`, the conversation
+  starts anyway.
 - **`AGENTS.md`** at the project root (path configurable through `instructions_file`): appended to
   the system prompt when a conversation starts, truncated beyond 32 KiB.
 - **Journal on SQLite** (`var/agentic.sqlite`): conversations survive the TUI being closed and can be

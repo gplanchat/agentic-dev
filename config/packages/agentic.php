@@ -33,6 +33,14 @@ return static function (ContainerConfigurator $container): void {
         ],
         // The project instructions, appended to the system prompt of every new conversation.
         // 'instructions_file' => '%kernel.project_dir%/AGENTS.md',
+        // MCP servers whose tools are offered to the agent, discovered when a conversation starts
+        // and frozen in its payload. An MCP tool is `external` unless a rule says otherwise: what a
+        // server says about its own tools is a claim, and the guard is what protects from it.
+        //   'mcp' => ['servers' => [
+        //       'filesystem' => ['command' => 'npx', 'args' => ['-y', '@modelcontextprotocol/server-filesystem', __DIR__],
+        //           'effects' => ['read_*' => 'read', 'list_*' => 'read']],
+        //       'docs' => ['url' => 'https://example.test/mcp', 'headers' => ['Authorization' => 'Bearer …']],
+        //   ]],
         'watch_subjects' => [
             'order.shipped' => 'an order has left the warehouse',
             'payment.received' => 'a payment has been collected',

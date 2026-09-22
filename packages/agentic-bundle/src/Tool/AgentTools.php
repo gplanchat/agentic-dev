@@ -16,10 +16,13 @@ final class AgentTools
     private ?array $byName = null;
 
     /**
-     * @param iterable<AgentTool> $tools
+     * @param iterable<AgentTool> $tools     the tools declared as services
+     * @param iterable<AgentTool> $discovered the ones found at runtime — the MCP servers' tools
      */
-    public function __construct(private readonly iterable $tools)
-    {
+    public function __construct(
+        private readonly iterable $tools,
+        private readonly iterable $discovered = [],
+    ) {
     }
 
     public function toolset(): Toolset
@@ -35,9 +38,10 @@ final class AgentTools
     {
         $tool = $this->byName()[$name] ?? null;
         if (null === $tool) {
-            // ponytail: the failure bubbles up and kills the agent call. Handing it back to the
-            // model as a tool result is the other possible policy — DUR011 is the one to decide.
-            throw new \InvalidArgumentException(\sprintf('Unknown tool "%s".', $name));
+            // Handed back to the model rather than thrown: a conversation replays tools frozen in
+            // its payload, and an MCP server may have dropped one since. Throwing would cost three
+            // retries of a call that cannot succeed, then the conversation.
+            return \sprintf('Unknown tool "%s": it is no longer offered.', $name);
         }
 
         // ponytail: a single tool acts in a workspace. The file tools will make it an interface.
@@ -51,8 +55,10 @@ final class AgentTools
     {
         if (null === $this->byName) {
             $this->byName = [];
-            foreach ($this->tools as $tool) {
-                $this->byName[$tool->definition()->name] = $tool;
+            foreach ([$this->tools, $this->discovered] as $source) {
+                foreach ($source as $tool) {
+                    $this->byName[$tool->definition()->name] = $tool;
+                }
             }
         }
 

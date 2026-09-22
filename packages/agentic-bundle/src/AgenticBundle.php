@@ -16,6 +16,8 @@ use Gplanchat\AgenticBundle\Activity\AgentToolActivityHandler;
 use Gplanchat\AgenticBundle\Ai\ModelClientFactory;
 use Gplanchat\AgenticBundle\Chat\DurableConversations;
 use Gplanchat\AgenticBundle\Chat\ProjectInstructions;
+use Gplanchat\AgenticBundle\Mcp\McpCatalog;
+use Gplanchat\AgenticBundle\Mcp\McpServer;
 use Gplanchat\AgenticBundle\Console\AgenticApplication;
 use Gplanchat\AgenticBundle\Console\ChatCommand;
 use Gplanchat\AgenticBundle\Console\ConsoleCommandCatalog;
@@ -36,6 +38,7 @@ use Symfony\AI\Platform\Bridge\Mistral\ModelCatalog as MistralModelCatalog;
 use Symfony\AI\Platform\ModelClientInterface;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 use Symfony\Component\Messenger\MessageBusInterface;
@@ -121,6 +124,35 @@ final class AgenticBundle extends AbstractBundle
                         ->end()
                     ->end()
                 ->end()
+                ->arrayNode('mcp')
+                    ->info('MCP servers whose tools are offered to the agent, discovered when a conversation starts and frozen in its payload.')
+                    ->addDefaultsIfNotSet()
+                    ->children()
+                        ->arrayNode('servers')
+                            ->useAttributeAsKey('name')
+                            ->arrayPrototype()
+                                ->children()
+                                    ->scalarNode('command')->defaultNull()->info('Command of a server spawned over stdio; exclusive with url.')->end()
+                                    ->arrayNode('args')->scalarPrototype()->end()->end()
+                                    ->scalarNode('cwd')->defaultNull()->end()
+                                    ->arrayNode('env')->useAttributeAsKey('name')->scalarPrototype()->end()->end()
+                                    ->scalarNode('url')->defaultNull()->info('Endpoint of a remote server; exclusive with command.')->end()
+                                    ->arrayNode('headers')->useAttributeAsKey('name')->scalarPrototype()->end()->end()
+                                    ->arrayNode('effects')
+                                        ->info('Tool name pattern (fnmatch) → read, write or external. Authoritative over what the server says about itself.')
+                                        ->useAttributeAsKey('tool')
+                                        ->enumPrototype()->values(['read', 'write', 'external'])->end()
+                                    ->end()
+                                    ->booleanNode('trust_annotations')
+                                        ->defaultFalse()
+                                        ->info('Believe the server\'s own hints (readOnlyHint…). Off by default: a tool that destroys can call itself read-only, and the guard is what protects from that.')
+                                    ->end()
+                                    ->integerNode('timeout_seconds')->defaultValue(15)->end()
+                                ->end()
+                            ->end()
+                        ->end()
+                    ->end()
+                ->end()
                 ->arrayNode('watch_subjects')
                     ->info('The vocabulary of the watches: subject → what the model reads of it.')
                     ->useAttributeAsKey('subject')
@@ -130,7 +162,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -171,8 +203,21 @@ final class AgenticBundle extends AbstractBundle
             ->abstract()
             ->tag('durable.workflow');
 
+        $servers = [];
+        foreach ($config['mcp']['servers'] as $name => $server) {
+            $servers[] = new Definition(McpServer::class, [
+                $name, $server['command'], $server['args'], $server['cwd'], $server['env'],
+                $server['url'], $server['headers'], $server['effects'], $server['trust_annotations'], $server['timeout_seconds'],
+            ]);
+        }
+
+        $services->set(McpCatalog::class)
+            ->args([$servers, service('logger')->nullOnInvalid()])
+            ->public();
+
         $services->set(AgentTools::class)
-            ->args([tagged_iterator(self::TOOL_TAG)]);
+            ->args([tagged_iterator(self::TOOL_TAG), service(McpCatalog::class)])
+            ->public();
 
         $services->set(AgentToolActivityHandler::class)
             ->args([service(AgentTools::class)])
@@ -225,7 +270,7 @@ final class AgenticBundle extends AbstractBundle
         // --- The TUI application
         $services->set(HelpScreen::class);
         $services->set(ChatScreen::class)
-            ->args([service(Conversations::class), service(InProcessWorker::class), service(Bubblewrap::class)->nullOnInvalid()])
+            ->args([service(Conversations::class), service(InProcessWorker::class), service(Bubblewrap::class)->nullOnInvalid(), service(McpCatalog::class)])
             ->public();
 
         // No `console.command` tag: these commands belong to the `agentic` application, and a

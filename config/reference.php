@@ -571,6 +571,19 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         shared?: list<scalar|Param|null>,
  *         auto_allow?: list<scalar|Param|null>,
  *     },
+ *     mcp?: array{ // MCP servers whose tools are offered to the agent, discovered when a conversation starts and frozen in its payload.
+ *         servers?: array<string, array{ // Default: []
+ *             command?: scalar|Param|null, // Command of a server spawned over stdio; exclusive with url. // Default: null
+ *             args?: list<scalar|Param|null>,
+ *             cwd?: scalar|Param|null, // Default: null
+ *             env?: array<string, scalar|Param|null>,
+ *             url?: scalar|Param|null, // Endpoint of a remote server; exclusive with command. // Default: null
+ *             headers?: array<string, scalar|Param|null>,
+ *             effects?: array<string, "read"|"write"|"external"|Param>,
+ *             trust_annotations?: bool|Param, // Believe the server's own hints (readOnlyHint…). Off by default: a tool that destroys can call itself read-only, and the guard is what protects from that. // Default: false
+ *             timeout_seconds?: int|Param, // Default: 15
+ *         }>,
+ *     },
  *     watch_subjects?: array<string, scalar|Param|null>,
  * }
  * @psalm-type ConfigType = array{

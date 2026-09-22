@@ -12,7 +12,11 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\HttpKernel\Log\Logger;
 
-final class TestKernel extends Kernel
+/**
+ * Not final: {@see McpTestKernel} adds an MCP server to it, and only that test needs the process
+ * such a server costs.
+ */
+class TestKernel extends Kernel
 {
     use MicroKernelTrait;
 
@@ -36,7 +40,7 @@ final class TestKernel extends Kernel
         return \dirname(__DIR__, 2).'/var/log';
     }
 
-    private function configureContainer(ContainerConfigurator $container): void
+    protected function configureContainer(ContainerConfigurator $container): void
     {
         $container->import(__DIR__.'/config/durable.php');
         // Worktrees on, for the path a conversation carries: no test runs run_command through the

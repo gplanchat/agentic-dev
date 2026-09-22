@@ -14,6 +14,7 @@ use Gplanchat\Agentic\Domain\Team\DelegateTool;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 use Gplanchat\Agentic\Domain\Watch\WatchTool;
+use Gplanchat\AgenticBundle\Mcp\McpCatalog;
 
 /**
  * The chat commands, typed after a `/` instead of a message. They never go to the model: each one
@@ -31,10 +32,13 @@ final readonly class SlashCommands
         '/rewind' => 'goes back before one of your messages: /rewind [no.]',
         '/compact' => 'restarts from a summary of the conversation, to lighten the context',
         '/resume' => 'resumes a past conversation: /resume [identifier]',
+        '/mcp' => 'lists the MCP servers and the tools they offer',
     ];
 
-    public function __construct(private Conversations $conversations)
-    {
+    public function __construct(
+        private Conversations $conversations,
+        private ?McpCatalog $mcp = null,
+    ) {
     }
 
     public static function isCommand(string $line): bool
@@ -72,6 +76,7 @@ final readonly class SlashCommands
             '/rewind' => $this->rewind($conversation, $argument),
             '/compact' => $this->compact($conversation),
             '/resume' => $this->resume($conversation, $argument),
+            '/mcp' => new SlashOutcome($this->mcp($conversation), error: null === $this->mcp),
             default => new SlashOutcome(\sprintf('Unknown command: %s. /help for the list.', $name), error: true),
         };
     }
@@ -243,6 +248,40 @@ final readonly class SlashCommands
         $restarted = $this->conversations->restart($summary->id);
 
         return new SlashOutcome(\sprintf('"%s" was finished: it resumes in %s.', self::excerpt($summary->title), substr($restarted, 0, 8)), conversation: $restarted);
+    }
+
+    /**
+     * The MCP servers as they are right now — reached or not — and the tools this conversation
+     * froze at its start. The two can differ: the journal wins over what a server offers today.
+     */
+    private function mcp(string $conversation): string
+    {
+        if (null === $this->mcp) {
+            return 'No MCP server is configured (agentic.mcp.servers).';
+        }
+
+        $frozen = $this->conversations->transcript($conversation)->tools;
+        $lines = [];
+        foreach ($this->mcp->status() as $server) {
+            $lines[] = \sprintf(
+                '%s  %s  %s',
+                $server['connected'] ? '●' : '○',
+                str_pad($server['server'].' ('.$server['transport'].')', 22),
+                $server['connected'] ? \sprintf('%d tool%s', $server['tools'], 1 === $server['tools'] ? '' : 's') : 'unreachable: '.$server['error'],
+            );
+
+            foreach ($frozen as $tool) {
+                if (str_starts_with($tool->name, 'mcp__'.$server['server'].'__')) {
+                    $lines[] = \sprintf('    %s  %s', str_pad(substr($tool->name, \strlen('mcp__'.$server['server'].'__')), 24), $tool->effect->value);
+                }
+            }
+        }
+
+        if ([] === $lines) {
+            return 'No MCP server is configured (agentic.mcp.servers).';
+        }
+
+        return implode("\n", [...$lines, '', 'This conversation uses the tools it froze when it started; /tools shows what the guard makes of them.']);
     }
 
     private static function excerpt(string $text): string
