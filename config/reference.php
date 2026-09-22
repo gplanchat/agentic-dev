@@ -167,6 +167,23 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         marshaller?: scalar|Param|null, // The marshaller service to use for this pool.
  *     }>,
  * }
+ * @psalm-type SerializerConfig = bool|array{
+ *     enabled?: bool|Param, // Default: true
+ *     enable_attributes?: bool|Param, // Default: true
+ *     name_converter?: scalar|Param|null,
+ *     circular_reference_handler?: scalar|Param|null,
+ *     max_depth_handler?: scalar|Param|null,
+ *     mapping?: array{
+ *         paths?: list<scalar|Param|null>,
+ *     },
+ *     default_context?: array<string, mixed>,
+ *     named_serializers?: array<string, array{ // Default: []
+ *         name_converter?: scalar|Param|null,
+ *         default_context?: array<string, mixed>,
+ *         include_built_in_normalizers?: bool|Param, // Whether to include the built-in normalizers // Default: true
+ *         include_built_in_encoders?: bool|Param, // Whether to include the built-in encoders // Default: true
+ *     }>,
+ * }
  * @psalm-type MessengerConfig = bool|array{
  *     enabled?: bool|Param, // Default: true
  *     routing?: array<string, Param|string|list<scalar|Param|null>>,
@@ -214,6 +231,23 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         }>,
  *     }>,
  * }
+ * @psalm-type TypeInfoConfig = bool|array{
+ *     enabled?: bool|Param, // Default: true
+ *     aliases?: array<string, scalar|Param|null>,
+ * }
+ * @psalm-type PropertyAccessConfig = bool|array{ // Property access configuration
+ *     enabled?: bool|Param, // Default: true
+ *     magic_call?: bool|Param, // Default: false
+ *     magic_get?: bool|Param, // Default: true
+ *     magic_set?: bool|Param, // Default: true
+ *     throw_exception_on_invalid_index?: bool|Param, // Default: false
+ *     throw_exception_on_invalid_property_path?: bool|Param, // Default: true
+ *     wildcard_reads?: bool|Param, // Enables reading every element of a collection through a "[*]" wildcard. // Default: false
+ * }
+ * @psalm-type PropertyInfoConfig = bool|array{ // Property info configuration
+ *     enabled?: bool|Param, // Default: true
+ *     with_constructor_extractor?: bool|Param, // Registers the constructor extractor. // Default: true
+ * }
  * @psalm-type UidConfig = bool|array{
  *     enabled?: bool|Param, // Default: true
  *     default_uuid_version?: 7|6|4|1|Param, // Default: 7
@@ -222,6 +256,115 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     time_based_uuid_version?: 7|6|1|Param, // Default: 7
  *     time_based_uuid_node?: scalar|Param|null,
  *     uuid47_secret?: scalar|Param|null, // A high-entropy secret used by the "uuid47_transformer" service. Defaults to the "kernel.secret" parameter; the service is not registered when neither is defined. // Default: null
+ * }
+ * @psalm-type HttpClientConfig = bool|array{
+ *     enabled?: bool|Param, // Default: true
+ *     max_host_connections?: int|Param, // The maximum number of connections to a single host.
+ *     default_options?: array{
+ *         vars?: array<string, mixed>,
+ *         headers?: array<string, mixed>,
+ *         max_redirects?: int|Param, // The maximum number of redirects to follow.
+ *         http_version?: scalar|Param|null, // The default HTTP version, typically 1.1 or 2.0, leave to null for the best version.
+ *         resolve?: array<string, scalar|Param|null>,
+ *         proxy?: scalar|Param|null, // The URL of the proxy to pass requests through or null for automatic detection.
+ *         no_proxy?: scalar|Param|null, // A comma separated list of hosts that do not require a proxy to be reached.
+ *         timeout?: float|Param, // The idle timeout, defaults to the "default_socket_timeout" ini parameter.
+ *         max_duration?: float|Param, // The maximum execution time for the request+response as a whole.
+ *         max_connect_duration?: float|Param, // The maximum duration allowed for DNS + TCP + TLS connection; a value lower than or equal to 0 means unlimited.
+ *         bindto?: scalar|Param|null, // A network interface name, IP address, a host name or a UNIX socket to bind to.
+ *         verify_peer?: bool|Param, // Indicates if the peer should be verified in a TLS context.
+ *         verify_host?: bool|Param, // Indicates if the host should exist as a certificate common name.
+ *         cafile?: scalar|Param|null, // A certificate authority file.
+ *         capath?: scalar|Param|null, // A directory that contains multiple certificate authority files.
+ *         local_cert?: scalar|Param|null, // A PEM formatted certificate file.
+ *         local_pk?: scalar|Param|null, // A private key file.
+ *         passphrase?: scalar|Param|null, // The passphrase used to encrypt the "local_pk" file.
+ *         ciphers?: scalar|Param|null, // A list of TLS ciphers separated by colons, commas or spaces (e.g. "RC3-SHA:TLS13-AES-128-GCM-SHA256"...).
+ *         peer_fingerprint?: array{ // Associative array: hashing algorithm => hash(es).
+ *             sha1?: mixed,
+ *             pin-sha256?: mixed,
+ *             md5?: mixed,
+ *         },
+ *         crypto_method?: scalar|Param|null, // The minimum version of TLS to accept; must be one of STREAM_CRYPTO_METHOD_TLSv*_CLIENT constants.
+ *         extra?: array<string, mixed>,
+ *         rate_limiter?: scalar|Param|null, // Rate limiter name to use for throttling requests. // Default: null
+ *         caching?: bool|array{ // Caching configuration.
+ *             enabled?: bool|Param, // Default: false
+ *             cache_pool?: string|Param, // The taggable cache pool to use for storing the responses. // Default: "cache.http_client"
+ *             shared?: bool|Param, // Indicates whether the cache is shared (public) or private. // Default: true
+ *             max_ttl?: int|Param, // The maximum TTL (in seconds) allowed for cached responses. // Default: 86400
+ *         },
+ *         retry_failed?: bool|array{
+ *             enabled?: bool|Param, // Default: false
+ *             base_uris?: Param|string|list<string|Param>,
+ *             retry_strategy?: scalar|Param|null, // service id to override the retry strategy. // Default: null
+ *             http_codes?: Param|int|string|array<string, array{ // Default: []
+ *                 code?: int|Param,
+ *                 methods?: Param|string|list<string|Param>,
+ *             }>,
+ *             max_retries?: int|Param, // Default: 3
+ *             delay?: int|Param, // Time in ms to delay (or the initial value when multiplier is used). // Default: 1000
+ *             multiplier?: float|Param, // If greater than 1, delay will grow exponentially for each retry: delay * (multiple ^ retries). // Default: 2
+ *             max_delay?: int|Param, // Max time in ms that a retry should ever be delayed (0 = infinite). // Default: 0
+ *             jitter?: float|Param, // Randomness in percent (between 0 and 1) to apply to the delay. // Default: 0.1
+ *         },
+ *     },
+ *     mock_response_factory?: scalar|Param|null, // `true` to always return empty 200 responses, or the id of the service to use to generate mock responses - which should be either an invokable or an iterable.
+ *     scoped_clients?: array<string, Param|string|array{ // Default: []
+ *         scope?: scalar|Param|null, // The regular expression that the request URL must match before adding the other options. When none is provided, the base URI is used instead.
+ *         base_uri?: scalar|Param|null, // The URI to resolve relative URLs, following rules in RFC 3985, section 2.
+ *         auth_basic?: scalar|Param|null, // An HTTP Basic authentication "username:password".
+ *         auth_bearer?: scalar|Param|null, // A token enabling HTTP Bearer authorization.
+ *         auth_ntlm?: scalar|Param|null, // A "username:password" pair to use Microsoft NTLM authentication (requires the cURL extension).
+ *         query?: array<string, scalar|Param|null>,
+ *         mock_response_factory?: scalar|Param|null, // `true` to always return empty 200 responses, `false` to disable mocking, or the id of the service to use to generate mock responses (invokable or iterable).
+ *         headers?: array<string, mixed>,
+ *         max_redirects?: int|Param, // The maximum number of redirects to follow.
+ *         http_version?: scalar|Param|null, // The default HTTP version, typically 1.1 or 2.0, leave to null for the best version.
+ *         resolve?: array<string, scalar|Param|null>,
+ *         proxy?: scalar|Param|null, // The URL of the proxy to pass requests through or null for automatic detection.
+ *         no_proxy?: scalar|Param|null, // A comma separated list of hosts that do not require a proxy to be reached.
+ *         timeout?: float|Param, // The idle timeout, defaults to the "default_socket_timeout" ini parameter.
+ *         max_duration?: float|Param, // The maximum execution time for the request+response as a whole.
+ *         max_connect_duration?: float|Param, // The maximum duration allowed for DNS + TCP + TLS connection; a value lower than or equal to 0 means unlimited.
+ *         bindto?: scalar|Param|null, // A network interface name, IP address, a host name or a UNIX socket to bind to.
+ *         verify_peer?: bool|Param, // Indicates if the peer should be verified in a TLS context.
+ *         verify_host?: bool|Param, // Indicates if the host should exist as a certificate common name.
+ *         cafile?: scalar|Param|null, // A certificate authority file.
+ *         capath?: scalar|Param|null, // A directory that contains multiple certificate authority files.
+ *         local_cert?: scalar|Param|null, // A PEM formatted certificate file.
+ *         local_pk?: scalar|Param|null, // A private key file.
+ *         passphrase?: scalar|Param|null, // The passphrase used to encrypt the "local_pk" file.
+ *         ciphers?: scalar|Param|null, // A list of TLS ciphers separated by colons, commas or spaces (e.g. "RC3-SHA:TLS13-AES-128-GCM-SHA256"...).
+ *         peer_fingerprint?: array{ // Associative array: hashing algorithm => hash(es).
+ *             sha1?: mixed,
+ *             pin-sha256?: mixed,
+ *             md5?: mixed,
+ *         },
+ *         crypto_method?: scalar|Param|null, // The minimum version of TLS to accept; must be one of STREAM_CRYPTO_METHOD_TLSv*_CLIENT constants.
+ *         extra?: array<string, mixed>,
+ *         rate_limiter?: scalar|Param|null, // Rate limiter name to use for throttling requests. // Default: null
+ *         caching?: bool|array{ // Caching configuration.
+ *             enabled?: bool|Param, // Default: false
+ *             cache_pool?: string|Param, // The taggable cache pool to use for storing the responses. // Default: "cache.http_client"
+ *             shared?: bool|Param, // Indicates whether the cache is shared (public) or private. // Default: true
+ *             max_ttl?: int|Param, // The maximum TTL (in seconds) allowed for cached responses. // Default: 86400
+ *         },
+ *         retry_failed?: bool|array{
+ *             enabled?: bool|Param, // Default: false
+ *             base_uris?: Param|string|list<string|Param>,
+ *             retry_strategy?: scalar|Param|null, // service id to override the retry strategy. // Default: null
+ *             http_codes?: Param|int|string|array<string, array{ // Default: []
+ *                 code?: int|Param,
+ *                 methods?: Param|string|list<string|Param>,
+ *             }>,
+ *             max_retries?: int|Param, // Default: 3
+ *             delay?: int|Param, // Time in ms to delay (or the initial value when multiplier is used). // Default: 1000
+ *             multiplier?: float|Param, // If greater than 1, delay will grow exponentially for each retry: delay * (multiple ^ retries). // Default: 2
+ *             max_delay?: int|Param, // Max time in ms that a retry should ever be delayed (0 = infinite). // Default: 0
+ *             jitter?: float|Param, // Randomness in percent (between 0 and 1) to apply to the delay. // Default: 0.1
+ *         },
+ *     }>,
  * }
  * @psalm-type FrameworkConfig = array{
  *     secret?: scalar|Param|null,
@@ -300,17 +443,17 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     asset_mapper?: mixed,
  *     translator?: mixed,
  *     validation?: mixed,
- *     serializer?: mixed,
- *     property_access?: mixed,
- *     type_info?: mixed,
- *     property_info?: mixed,
+ *     serializer?: SerializerConfig,
+ *     property_access?: PropertyAccessConfig,
+ *     type_info?: TypeInfoConfig,
+ *     property_info?: PropertyInfoConfig,
  *     cache?: CacheConfig,
  *     web_link?: mixed,
  *     lock?: mixed,
  *     semaphore?: mixed,
  *     messenger?: MessengerConfig,
  *     scheduler?: mixed,
- *     http_client?: mixed,
+ *     http_client?: HttpClientConfig,
  *     mailer?: mixed,
  *     notifier?: mixed,
  *     rate_limiter?: mixed,
@@ -397,26 +540,48 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         table_name?: scalar|Param|null, // Default: "durable_workflow_metadata"
  *     },
  * }
+ * @psalm-type AgenticConfig = array{
+ *     model?: scalar|Param|null, // Default: "mistral-small-latest"
+ *     mistral_api_key?: scalar|Param|null, // Vide : un client scripté répond, sans réseau. // Default: ""
+ *     system_prompt?: scalar|Param|null, // Default: "Tu es un assistant concis. Utilise les outils quand ils répondent mieux que toi."
+ *     human_timeout_seconds?: float|Param, // Échéance de toute attente humaine : validation comme question. // Default: 900.0
+ *     idle_timeout_seconds?: float|Param, // Silence au bout duquel la conversation se termine. // Default: 3600.0
+ *     rollover_after_turns?: int|Param, // Default: 40
+ *     context_tokens?: int|Param, // Default: 24000
+ *     watch_subjects?: array<string, scalar|Param|null>,
+ * }
  * @psalm-type ConfigType = array{
  *     imports?: ImportsConfig,
  *     parameters?: ParametersConfig,
  *     services?: ServicesConfig,
  *     router?: RouterConfig,
  *     cache?: CacheConfig,
+ *     serializer?: SerializerConfig,
  *     messenger?: MessengerConfig,
+ *     type_info?: TypeInfoConfig,
+ *     property_access?: PropertyAccessConfig,
+ *     property_info?: PropertyInfoConfig,
  *     uid?: UidConfig,
+ *     http_client?: HttpClientConfig,
  *     framework?: FrameworkConfig,
  *     durable?: DurableConfig,
+ *     agentic?: AgenticConfig,
  *     "when@dev"?: array{
  *         imports?: ImportsConfig,
  *         parameters?: ParametersConfig,
  *         services?: ServicesConfig,
  *         router?: RouterConfig,
  *         cache?: CacheConfig,
+ *         serializer?: SerializerConfig,
  *         messenger?: MessengerConfig,
+ *         type_info?: TypeInfoConfig,
+ *         property_access?: PropertyAccessConfig,
+ *         property_info?: PropertyInfoConfig,
  *         uid?: UidConfig,
+ *         http_client?: HttpClientConfig,
  *         framework?: FrameworkConfig,
  *         durable?: DurableConfig,
+ *         agentic?: AgenticConfig,
  *     },
  *     ...<string, ExtensionType|array{ // extra keys must follow the when@%env% pattern or match an extension alias
  *         imports?: ImportsConfig,

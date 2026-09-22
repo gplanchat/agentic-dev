@@ -27,6 +27,29 @@ final readonly class WatchSubjects implements \Countable, \IteratorAggregate
         $this->subjects = $indexed;
     }
 
+    /**
+     * La charge du workflow arrive du journal, donc en tableaux : sujet → description.
+     *
+     * @param array<string, string> $wire
+     */
+    public static function fromWire(array $wire): self
+    {
+        $subjects = [];
+        foreach ($wire as $value => $description) {
+            $subjects[] = new WatchSubject((string) $value, (string) $description);
+        }
+
+        return new self(...$subjects);
+    }
+
+    /**
+     * @return array<string, string>
+     */
+    public function toWire(): array
+    {
+        return array_map(static fn (WatchSubject $subject): string => $subject->description, $this->subjects);
+    }
+
     public function find(string $value): ?WatchSubject
     {
         return $this->subjects[$value] ?? null;

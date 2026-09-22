@@ -5,3 +5,6 @@
 .phpunit.cache/
 .phpunit.result.cache
 /.idea/
+/.env.local
+/.env.local.php
+/.env.*.local

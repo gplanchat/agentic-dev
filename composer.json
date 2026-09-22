@@ -11,6 +11,7 @@
         "php": ">=8.4.1",
         "gplanchat/agentic": "0.1.x-dev",
         "gplanchat/agentic-bundle": "0.1.x-dev",
+        "symfony/dotenv": "8.2.*",
         "symfony/framework-bundle": "8.2.*"
     },
     "autoload": {

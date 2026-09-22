@@ -4,13 +4,14 @@ Monorepo :
 
 | Paquet | Rôle | PHP |
 |---|---|---|
-| `packages/agentic` — `gplanchat/agentic` | Le modèle (garde des outils, questions, veilles, budget de contexte, délégation) et le cas d'usage `help`. Dépend de `gplanchat/durable`, d'aucun framework. | ≥ 8.2 |
-| `packages/agentic-bundle` — `gplanchat/agentic-bundle` | Intégration Symfony : l'application TUI `agentic` et sa version web. Dépend de `gplanchat/durable-bundle` et `symfony/tui`. | ≥ 8.4.1 |
+| `packages/agentic` — `gplanchat/agentic` | `Domain/` : le modèle (garde des outils, questions, veilles, budget de contexte, délégation), sans framework. `Application/` : ports et cas d'usage (`Conversations`, `AgentTool`, `help`). `Infrastructure/` : le workflow durable et ses adaptateurs Symfony AI 0.13 (épinglé). Dépend de `gplanchat/durable`. | ≥ 8.2 |
+| `packages/agentic-bundle` — `gplanchat/agentic-bundle` | Intégration Symfony : l'application TUI `agentic` (`help`, `chat`) et sa version web. Dépend de `gplanchat/durable-bundle` et `symfony/tui`. | ≥ 8.4.1 |
 | racine | Application de dev qui installe les deux par `path`. | ≥ 8.4.1 |
 
 ```bash
 composer install
 bin/agentic                          # l'aide en TUI (q, Échap ou Ctrl+C pour quitter)
+bin/agentic chat                     # discuter avec l'agent (Shift+Tab mode, Ctrl+X clore, Ctrl+C quitter)
 php8.4 -S localhost:8000 -t public   # la version web : http://localhost:8000/agentic/
 ```
 
@@ -20,3 +21,22 @@ Tests, paquet par paquet (PHPUnit 11 pour `agentic`, qui doit rester installable
 (cd packages/agentic && composer install && php8.2 vendor/bin/phpunit)
 (cd packages/agentic-bundle && composer install && php8.4 vendor/bin/phpunit)
 ```
+
+## Le chat
+
+Une conversation est une exécution du workflow `DurableAgentWorkflow` ; chaque message, validation,
+réponse ou alerte est un signal. La TUI fait office de worker : elle vide les transports Messenger
+de Durable à chaque rafraîchissement, sans `messenger:consume` à côté.
+
+- Sans `MISTRAL_API_KEY`, un client scripté répond, sans réseau : « Quel temps fait-il à Paris ? »
+  (outil en lecture), « Envoie un mail » (validation), « Pose-moi une question », « Surveille la
+  livraison » (veille), « Délègue… » (sous-agent).
+- Avec `MISTRAL_API_KEY` (dans `.env.local`, ignoré par git, ou dans l'environnement), c'est Mistral. L'écran se fige le temps de chaque réponse : l'appel
+  modèle est une activité exécutée dans le processus de la TUI.
+- Un outil qui échoue trois fois de suite est rendu au modèle comme résultat (« Échec de l'outil… ») ;
+  un appel modèle qui échoue clôt la conversation, et l'en-tête dit pourquoi.
+- Commandes du chat, tapées à la place d'un message (Tab complète le nom) :
+  `/help`, `/mode [standard|edition|auto]`, `/model [nom]` (à partir du message suivant),
+  `/tools` (et ce que la garde en fait dans le mode courant), `/clear` (nouvelle conversation).
+- **Journal en mémoire** : la conversation meurt avec la TUI. La faire survivre demande le backend
+  DBAL (SQLite) et un transport Messenger durable.

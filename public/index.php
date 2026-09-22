@@ -3,9 +3,13 @@
 declare(strict_types=1);
 
 use App\Kernel;
+use Symfony\Component\Dotenv\Dotenv;
 use Symfony\Component\HttpFoundation\Request;
 
 require dirname(__DIR__).'/vendor/autoload.php';
+
+// .env, puis .env.local et .env.$APP_ENV.local : les secrets restent hors du dépôt.
+(new Dotenv())->bootEnv(dirname(__DIR__).'/.env');
 
 $kernel = new Kernel($_SERVER['APP_ENV'] ?? 'dev', (bool) ($_SERVER['APP_DEBUG'] ?? true));
 $request = Request::createFromGlobals();
