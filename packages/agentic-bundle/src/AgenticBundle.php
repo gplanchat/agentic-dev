@@ -29,6 +29,7 @@ use Gplanchat\AgenticBundle\Sandbox\Worktrees;
 use Gplanchat\AgenticBundle\Tool\AgentTools;
 use Gplanchat\AgenticBundle\Tool\EditFileTool;
 use Gplanchat\AgenticBundle\Tool\ReadFileTool;
+use Gplanchat\AgenticBundle\Tool\RunChecksTool;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use Gplanchat\AgenticBundle\Tui\HelpScreen;
@@ -125,6 +126,19 @@ final class AgenticBundle extends AbstractBundle
                             ->scalarPrototype()->end()
                             ->defaultValue(['git status', 'git status *', 'git diff', 'git diff *', 'git log', 'git log *', 'vendor/bin/phpunit', 'vendor/bin/phpunit *'])
                         ->end()
+                        ->arrayNode('checks')
+                            ->info('The layers of the run_checks tool — static, unit, functional, integration, e2e… —: a command that writes a JUnit report to {report}, run in the sandbox. None: no run_checks.')
+                            ->useAttributeAsKey('layer')
+                            ->arrayPrototype()
+                                ->children()
+                                    ->scalarNode('command')->isRequired()->cannotBeEmpty()->info('Split like a terminal line, no shell; {report} is replaced by the report path. E.g. "vendor/bin/phpunit --testsuite unit --log-junit {report}".')->end()
+                                    ->scalarNode('cwd')->defaultValue('')->info('Directory to run in, relative to the workspace root.')->end()
+                                    ->scalarNode('filter_option')->defaultNull()->info('The option that takes the model\'s filter, e.g. "--filter"; null: the layer runs whole.')->end()
+                                    ->floatNode('timeout_seconds')->defaultValue(300.0)->end()
+                                    ->scalarNode('description')->defaultValue('')->info('What the model reads about the layer.')->end()
+                                ->end()
+                            ->end()
+                        ->end()
                     ->end()
                 ->end()
                 ->arrayNode('mcp')
@@ -165,7 +179,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -196,6 +210,11 @@ final class AgenticBundle extends AbstractBundle
             $services->set(RunCommandTool::class)
                 ->args([service(Workspaces::class)])
                 ->tag(self::TOOL_TAG);
+            if ([] !== $config['sandbox']['checks']) {
+                $services->set(RunChecksTool::class)
+                    ->args([service(Workspaces::class), $config['sandbox']['checks']])
+                    ->tag(self::TOOL_TAG);
+            }
 
             // The auto-mode allowlist is a rule like the others: it goes to the journal with them,
             // and `/tools` shows it. An ask beats an allow: an `allow` in tool_rules does not widen

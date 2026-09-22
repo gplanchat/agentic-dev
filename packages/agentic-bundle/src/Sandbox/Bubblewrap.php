@@ -137,7 +137,7 @@ final class Bubblewrap
 
         return null === $exitCode
             ? $errors
-            : \sprintf("Exit code: %d\n%s", $exitCode, self::cap($output.$errors));
+            : \sprintf("Exit code: %d\n%s", $exitCode, self::cap(self::plain($output.$errors)));
     }
 
     /**
@@ -145,27 +145,29 @@ final class Bubblewrap
      *
      * @param list<string>          $argv
      * @param array<string, string> $readOnly
+     * @param float|null            $timeout  seconds; `null` = the configured one
      *
      * @return array{0: int|null, 1: string, 2: string} the exit code — `null` when it did not run to
      *                                                  its end, the reason then in the third —,
      *                                                  standard output, error output
      */
-    public function execute(array $argv, string $cwd, ?string $workspace = null, array $readOnly = [], ?string $input = null): array
+    public function execute(array $argv, string $cwd, ?string $workspace = null, array $readOnly = [], ?string $input = null, ?float $timeout = null): array
     {
+        $timeout ??= $this->timeoutSeconds;
         if (null !== $problem = $this->problem()) {
             // Returned, not thrown: an exception would be retried three times to end in a vague failure.
             return [null, '', $problem];
         }
 
         $process = new Process([...$this->sandbox($cwd, $workspace ?? $this->workspace, $readOnly), '--', ...$argv]);
-        $process->setTimeout($this->timeoutSeconds);
+        $process->setTimeout($timeout);
         $process->setInput($input);
 
         try {
             $process->run();
         } catch (ProcessTimedOutException) {
             // Returned as a result: thrown, it would be retried — three times the same timeout.
-            return [null, '', \sprintf("Interrupted after %d s.\n%s", (int) $this->timeoutSeconds, self::cap($process->getOutput().$process->getErrorOutput()))];
+            return [null, '', \sprintf("Interrupted after %d s.\n%s", (int) $timeout, self::cap(self::plain($process->getOutput().$process->getErrorOutput())))];
         }
 
         return [(int) $process->getExitCode(), $process->getOutput(), $process->getErrorOutput()];
@@ -217,9 +219,21 @@ final class Bubblewrap
             '--setenv', 'PATH', '/usr/local/bin:/usr/bin:/bin',
             '--setenv', 'HOME', '/tmp',
             '--setenv', 'LANG', 'C.UTF-8',
+            // Most tools drop their colours on it; the others are cleaned by plain().
+            '--setenv', 'NO_COLOR', '1',
         );
 
         return $argv;
+    }
+
+    /**
+     * Without the terminal sequences: PHPUnit, for one, forces its colours when its configuration
+     * says `colors="true"`, `NO_COLOR` or not. The model would read `[30;42mOK`, and so would the
+     * chat, which drops the escape byte but not the rest.
+     */
+    public static function plain(string $output): string
+    {
+        return preg_replace('/\e(?:\[[0-?]*[ -\/]*[@-~]|\][^\a\e]*(?:\a|\e\\\\)|[@-Z\\\\-_])/', '', $output) ?? $output;
     }
 
     private static function cap(string $output): string

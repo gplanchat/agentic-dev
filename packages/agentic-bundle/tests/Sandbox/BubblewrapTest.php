@@ -64,9 +64,9 @@ final class BubblewrapTest extends TestCase
     public function testTheRestOfTheDiskIsInvisible(): void
     {
         // The parents of the workspace exist, empty: only the path that leads to it is visible.
-        $home = (string) getenv('HOME');
-        $onTheWay = explode('/', ltrim(substr($this->workspace, \strlen($home)), '/'))[0];
-        self::assertSame("Exit code: 0\n{$onTheWay}\n", $this->sandboxed('ls -A '.$home));
+        // Not from $HOME: run inside another sandbox — run_checks —, HOME is /tmp.
+        $packages = \dirname($this->workspace, 3);
+        self::assertSame("Exit code: 0\n".basename(\dirname($this->workspace, 2))."\n", $this->sandboxed('ls -A '.$packages));
 
         self::assertStringNotContainsString('Exit code: 0', $this->sandboxed('cat '.\dirname($this->workspace, 2).'/composer.json'));
     }
@@ -104,6 +104,15 @@ final class BubblewrapTest extends TestCase
         }
 
         self::assertStringNotContainsString('Exit code: 0', $this->sandboxed('getent hosts example.com'));
+    }
+
+    /**
+     * PHPUnit forces its colours whatever `NO_COLOR` says: the sequences are cleaned from the output.
+     */
+    public function testColoursAreAskedOffAndCleanedAnyway(): void
+    {
+        self::assertStringContainsString("NO_COLOR=1\n", $this->sandboxed('env'));
+        self::assertSame("Exit code: 0\nOK red\n", $this->sandboxed("printf '\\033[30;42mOK\\033[0m \\033]8;;x\\007red\\033]8;;\\007\\n'"));
     }
 
     public function testATimeoutAndALongOutputComeBackAsResults(): void

@@ -566,6 +566,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         worktrees?: bool|Param, // One git worktree per conversation (<workspace>/.worktrees/agentic-<id>, branch agentic/agentic-<id>, cut from HEAD): the agent writes there, not in the project. Off: it writes in the project. // Default: true
  *         shared?: list<scalar|Param|null>,
  *         auto_allow?: list<scalar|Param|null>,
+ *         checks?: array<string, array{ // Default: []
+ *             command?: scalar|Param|null, // Split like a terminal line, no shell; {report} is replaced by the report path. E.g. "vendor/bin/phpunit --testsuite unit --log-junit {report}".
+ *             cwd?: scalar|Param|null, // Directory to run in, relative to the workspace root. // Default: ""
+ *             filter_option?: scalar|Param|null, // The option that takes the model's filter, e.g. "--filter"; null: the layer runs whole. // Default: null
+ *             timeout_seconds?: float|Param, // Default: 300.0
+ *             description?: scalar|Param|null, // What the model reads about the layer. // Default: ""
+ *         }>,
  *     },
  *     mcp?: array{ // MCP servers whose tools are offered to the agent, discovered when a conversation starts and frozen in its payload.
  *         servers?: array<string, array{ // Default: []
