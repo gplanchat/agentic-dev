@@ -184,6 +184,10 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         include_built_in_encoders?: bool|Param, // Whether to include the built-in encoders // Default: true
  *     }>,
  * }
+ * @psalm-type LockConfig = Param|bool|string|array{
+ *     enabled?: bool|Param, // Default: true
+ *     resources?: Param|string|array<string, Param|string|list<mixed>>,
+ * }
  * @psalm-type MessengerConfig = bool|array{
  *     enabled?: bool|Param, // Default: true
  *     routing?: array<string, Param|string|list<scalar|Param|null>>,
@@ -449,7 +453,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     property_info?: PropertyInfoConfig,
  *     cache?: CacheConfig,
  *     web_link?: mixed,
- *     lock?: mixed,
+ *     lock?: LockConfig,
  *     semaphore?: mixed,
  *     messenger?: MessengerConfig,
  *     scheduler?: mixed,
@@ -564,6 +568,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     router?: RouterConfig,
  *     cache?: CacheConfig,
  *     serializer?: SerializerConfig,
+ *     lock?: LockConfig,
  *     messenger?: MessengerConfig,
  *     type_info?: TypeInfoConfig,
  *     property_access?: PropertyAccessConfig,
@@ -580,6 +585,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         router?: RouterConfig,
  *         cache?: CacheConfig,
  *         serializer?: SerializerConfig,
+ *         lock?: LockConfig,
  *         messenger?: MessengerConfig,
  *         type_info?: TypeInfoConfig,
  *         property_access?: PropertyAccessConfig,

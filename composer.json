@@ -9,10 +9,13 @@
     ],
     "require": {
         "php": ">=8.4.1",
+        "doctrine/dbal": "^4",
         "gplanchat/agentic": "0.1.x-dev",
         "gplanchat/agentic-bundle": "0.1.x-dev",
+        "gplanchat/durable-bridge-dbal": "0.1.x-dev",
         "symfony/dotenv": "8.2.*",
-        "symfony/framework-bundle": "8.2.*"
+        "symfony/framework-bundle": "8.2.*",
+        "symfony/lock": "8.2.*"
     },
     "autoload": {
         "psr-4": {"App\\": "src/"}

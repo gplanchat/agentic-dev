@@ -97,9 +97,67 @@ final class SlashCommandsTest extends KernelTestCase
         self::assertFalse($this->conversations->transcript($outcome->conversation)->finished);
     }
 
+    public function testRewindListsMessagesLatestFirstThenRestartsBeforeTheChosenOne(): void
+    {
+        $this->say('Quel temps fait-il à Paris ?', 'Et à Lyon ?');
+
+        $list = $this->commands->run($this->id, '/rewind');
+        self::assertSame('/rewind', $list->choose);
+        self::assertSame(['2', '1'], array_column($list->choices, 'value'), 'Le plus récent d’abord.');
+
+        $outcome = $this->commands->run($this->id, '/rewind 2');
+        $this->worker->drain();
+
+        self::assertNotNull($outcome->conversation);
+        self::assertSame('Et à Lyon ?', $outcome->prefill, 'Le message défait revient dans la saisie.');
+        self::assertSame(['Quel temps fait-il à Paris ?'], $this->conversations->transcript($outcome->conversation)->userMessages());
+        self::assertTrue($this->conversations->transcript($this->id)->finished, 'L’ancienne est close ; son journal, lui, reste.');
+        self::assertTrue($this->commands->run($outcome->conversation, '/rewind 9')->error);
+    }
+
+    public function testCompactRestartsFromASummary(): void
+    {
+        $this->say('Quel temps fait-il à Paris ?');
+
+        $outcome = $this->commands->run($this->id, '/compact');
+        $this->worker->drain();
+
+        $first = $this->conversations->transcript((string) $outcome->conversation)->messages[0] ?? null;
+        self::assertStringStartsWith('Résumé de notre conversation précédente', (string) $first?->content);
+    }
+
+    public function testResumeSwitchesToARunningConversationAndReopensAFinishedOne(): void
+    {
+        $this->say('Quel temps fait-il à Paris ?');
+        $other = $this->conversations->start();
+        $this->worker->drain();
+
+        $list = $this->commands->run($other, '/resume');
+        self::assertContains($this->id, array_column($list->choices, 'value'));
+        self::assertNotContains($other, array_column($list->choices, 'value'), 'La conversation affichée n’est pas proposée.');
+
+        self::assertSame($this->id, $this->commands->run($other, '/resume '.substr($this->id, 0, 8))->conversation);
+
+        $this->conversations->close($this->id);
+        $this->worker->drain();
+        $reopened = $this->commands->run($other, '/resume '.$this->id)->conversation;
+        $this->worker->drain();
+
+        self::assertNotSame($this->id, $reopened);
+        self::assertSame(['Quel temps fait-il à Paris ?'], $this->conversations->transcript((string) $reopened)->userMessages());
+    }
+
     public function testAnUnknownCommandSaysSo(): void
     {
         self::assertTrue($this->commands->run($this->id, '/mcp')->error);
+    }
+
+    private function say(string ...$messages): void
+    {
+        foreach ($messages as $message) {
+            $this->conversations->send($this->id, $message);
+            $this->worker->drain();
+        }
     }
 
     /**

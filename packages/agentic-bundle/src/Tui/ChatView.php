@@ -8,6 +8,7 @@ use Gplanchat\Agentic\Application\Chat\Conversations;
 use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
+use Symfony\Component\Tui\Event\CancelEvent;
 use Symfony\Component\Tui\Event\ChangeEvent;
 use Symfony\Component\Tui\Event\InputEvent;
 use Symfony\Component\Tui\Event\MultiSelectEvent;
@@ -68,6 +69,9 @@ final class ChatView
 
     private readonly ContainerWidget $interaction;
 
+    /** Ce que fait l'agent pendant qu'il travaille — en mots de banane. */
+    private readonly TextWidget $status;
+
     /** Ce que rend une commande, ou les commandes qui correspondent à ce qui est tapé. */
     private readonly TextWidget $notice;
 
@@ -100,6 +104,28 @@ final class ChatView
     /** La ligne en cours de frappe, mise de côté le temps de parcourir l'historique. */
     private string $draft = '';
 
+    /**
+     * Les messages envoyés que le journal ne montre pas encore : affichés tout de suite, marqués
+     * « envoyé », pour que l'humain sache qu'ils sont partis.
+     *
+     * @var list<array{text: string, expected: int}> `expected` : le nombre de messages humains du fil une fois celui-ci arrivé
+     */
+    private array $outbox = [];
+
+    private readonly BananaWords $words;
+
+    /** Depuis quand l'agent travaille ; `null` quand c'est à l'humain. */
+    private ?float $busySince = null;
+
+    /** Un appel d'activité peut suspendre le worker : pas deux vidanges à la fois. */
+    private bool $draining = false;
+
+    /** @var array{choices: list<array{value: string, label: string, description?: string}>, choose: string}|null ce qu'une commande demande de choisir */
+    private ?array $choice = null;
+
+    /** Ce qu'il faudra mettre dans la prochaine saisie affichée — le message défait par `/rewind`. */
+    private ?string $prefill = null;
+
     public function __construct(
         private readonly Conversations $conversations,
         private readonly InProcessWorker $worker,
@@ -111,11 +137,14 @@ final class ChatView
         $this->header = new TextWidget();
         $this->thread = new ThreadWidget();
         $this->interaction = new ContainerWidget();
+        $this->status = new TextWidget();
         $this->notice = new TextWidget();
         $this->footer = new TextWidget($this->footerText());
+        $this->words = new BananaWords();
         $this->tui
             ->add($this->header)
             ->add($this->thread)
+            ->add($this->status)
             ->add($this->notice)
             ->add($this->interaction)
             ->add($this->footer);
@@ -153,10 +182,20 @@ final class ChatView
 
     /**
      * Fait avancer le worker, relit le fil, et ne retouche l'écran que si quelque chose a changé.
+     *
+     * @param bool $drain faux juste après une action de l'humain : on montre d'abord qu'elle est
+     *                    partie, le worker la traitera au tour d'horloge suivant
      */
-    public function refresh(): void
+    public function refresh(bool $drain = true): void
     {
-        $this->worker->drain();
+        if ($drain && !$this->draining) {
+            $this->draining = true;
+            try {
+                $this->worker->drain();
+            } finally {
+                $this->draining = false;
+            }
+        }
         $transcript = $this->conversations->transcript($this->conversation);
         $this->mode = $transcript->mode;
         if (null === $this->transcript && [] === $this->history) {
@@ -169,7 +208,15 @@ final class ChatView
         }
         $this->transcript = $transcript;
 
-        $rendered = json_encode($transcript, \JSON_THROW_ON_ERROR);
+        // Un message envoyé quitte la file d'attente dès que le fil le montre.
+        $said = self::userMessages($transcript);
+        $this->outbox = null !== $transcript->failure
+            // Une exécution morte ne verra jamais ces messages : les laisser « en route » mentirait.
+            ? []
+            : array_values(array_filter($this->outbox, static fn (array $sent): bool => $sent['expected'] > $said));
+        $this->updateBusy($transcript);
+
+        $rendered = json_encode([$transcript, $this->outbox], \JSON_THROW_ON_ERROR);
         if ($rendered === $this->lastRendered) {
             return;
         }
@@ -177,7 +224,7 @@ final class ChatView
 
         $this->header->setText($this->headerText($transcript));
         $this->footer->setText($this->footerText());
-        $this->thread->setText($this->threadText($transcript));
+        $this->thread->setEntries($this->threadEntries($transcript));
         $this->showInteraction($transcript);
         $this->tui->requestRender();
     }
@@ -190,6 +237,7 @@ final class ChatView
         ++$this->beat;
         if (null !== $this->transcript) {
             $this->header->setText($this->headerText($this->transcript));
+            $this->status->setText($this->statusText());
             $this->tui->requestRender();
         }
     }
@@ -262,7 +310,32 @@ final class ChatView
     private function act(\Closure $intent): void
     {
         $intent();
-        $this->refresh();
+        // D'abord montrer que c'est parti, tout de suite ; le worker — et l'appel au modèle, qui
+        // peut durer — attendra le prochain tour d'horloge.
+        $this->refresh(drain: false);
+        $this->tui->processRender();
+    }
+
+    private function updateBusy(Transcript $transcript): void
+    {
+        $busy = !$transcript->finished && ([] !== $this->outbox || $transcript->working);
+        if ($busy && null === $this->busySince) {
+            $this->busySince = microtime(true);
+            $this->words->shuffle();
+        } elseif (!$busy) {
+            $this->busySince = null;
+        }
+        $this->status->setText($this->statusText());
+    }
+
+    private function statusText(): string
+    {
+        return null === $this->busySince ? '' : $this->words->line($this->beat, microtime(true) - $this->busySince);
+    }
+
+    private static function userMessages(Transcript $transcript): int
+    {
+        return \count(array_filter($transcript->messages, static fn ($message): bool => $message->isUser()));
     }
 
     /**
@@ -311,38 +384,51 @@ final class ChatView
         );
     }
 
-    private function threadText(Transcript $transcript): string
+    /**
+     * Le fil tel qu'il s'affiche : les messages humains et la mécanique en texte stylé, les réponses
+     * du modèle en Markdown, puis ce qui vient d'être envoyé et que le journal ne montre pas encore.
+     *
+     * @return list<array{string, bool}>
+     */
+    private function threadEntries(Transcript $transcript): array
     {
-        $lines = [];
+        $entries = [];
 
         foreach ($transcript->messages as $message) {
             $content = self::clean((string) $message->content);
-            if ('' === $content) {
+            // Le résultat d'un outil est déjà dans les étapes « ⚙ » : l'afficher ici le doublerait.
+            if ('' === $content || 'tool' === $message->role) {
                 continue;
             }
 
             if ($message->isUser()) {
-                $lines[] = self::styled('› '.$content, "\e[36m");
+                $entries[] = [self::styled('› '.$content, "\e[36m"), false];
             } else {
                 if (null !== $message->reasoning) {
-                    $lines[] = self::styled('⋯ '.self::clean($message->reasoning), "\e[2m");
+                    $entries[] = [self::styled('⋯ '.self::clean($message->reasoning), "\e[2m"), false];
                 }
-                $lines[] = $content;
+                $entries[] = [$content, true];
             }
-            $lines[] = '';
+            $entries[] = ['', false];
         }
 
         foreach ($transcript->steps as $step) {
             $result = null === $step->result ? '…' : self::clean($step->result);
-            $lines[] = self::styled(\sprintf('⚙ %s %s → %s', $step->tool, self::clean(json_encode($step->arguments, \JSON_UNESCAPED_UNICODE) ?: ''), $result), "\e[2m");
+            $entries[] = [self::styled(\sprintf('⚙ %s %s → %s', $step->tool, self::clean(json_encode($step->arguments, \JSON_UNESCAPED_UNICODE) ?: ''), $result), "\e[2m"), false];
         }
 
-        return implode("\n", $lines);
+        foreach ($this->outbox as $sent) {
+            $entries[] = ['', false];
+            $entries[] = [self::styled('› '.self::clean($sent['text']), "\e[36m")."  \e[2m✓ envoyé\e[0m", false];
+        }
+
+        return $entries;
     }
 
     private function showInteraction(Transcript $transcript): void
     {
         [$key, $build] = match (true) {
+            null !== $this->choice => ['choice:'.md5(json_encode($this->choice, \JSON_THROW_ON_ERROR)), fn (): array => $this->choiceList()],
             $transcript->finished => ['finished', fn (): array => [new TextWidget("Conversation terminée. Ctrl+C pour quitter.\n")]],
             [] !== $transcript->pending => ['approval:'.$transcript->pending[0]->callId, fn (): array => $this->approval($transcript)],
             [] !== $transcript->questions => ['question:'.$transcript->questions[0]->callId, fn (): array => $this->question($transcript)],
@@ -370,6 +456,10 @@ final class ChatView
     private function messageInput(): array
     {
         $input = (new InputWidget())->setPrompt('› ');
+        if (null !== $this->prefill) {
+            $input->setValue($this->prefill);
+            $this->prefill = null;
+        }
         $input->onChange(fn (ChangeEvent $event) => $this->showSuggestions($event->getValue()));
         $input->onSubmit(function (SubmitEvent $event) use ($input): void {
             if ($event->isBlank()) {
@@ -386,6 +476,7 @@ final class ChatView
             }
 
             $this->notice->setText('');
+            $this->outbox[] = ['text' => $event->getValue(), 'expected' => self::userMessages($this->transcript ?? $this->conversations->transcript($this->conversation)) + \count($this->outbox) + 1];
             $this->act(fn () => $this->conversations->send($this->conversation, $event->getValue()));
         });
         $this->input = $input;
@@ -433,19 +524,78 @@ final class ChatView
         $this->draft = '';
     }
 
+    /**
+     * Ce que l'humain vient de décider, dit tout de suite : la carte disparaît, la trace reste.
+     */
+    private function confirm(string $what, string $detail): void
+    {
+        $this->notice->setText(\sprintf("\e[32m✓ %s\e[0m \e[2m— %s\e[0m\n", $what, self::clean($detail)));
+    }
+
     private function command(string $line): void
     {
         $outcome = $this->commands->run($this->conversation, $line);
         $this->notice->setText(($outcome->error ? "\e[31m" : "\e[2m").self::clean($outcome->notice)."\e[0m\n");
 
-        if (null !== $outcome->conversation) {
-            // Une autre exécution : tout ce que l'écran croyait savoir de la précédente est caduc.
-            $this->conversation = $outcome->conversation;
-            $this->lastRendered = '';
+        if ([] !== $outcome->choices && null !== $outcome->choose) {
+            $this->choice = ['choices' => $outcome->choices, 'choose' => $outcome->choose];
             $this->interactionKey = '';
+            $this->lastRendered = '';
+        }
+
+        if (null !== $outcome->conversation) {
+            $this->switchTo($outcome->conversation);
+        }
+
+        if (null !== $outcome->prefill) {
+            $this->prefill = $outcome->prefill;
+            $this->interactionKey = '';
+            $this->lastRendered = '';
         }
 
         $this->refresh();
+    }
+
+    /**
+     * Une autre exécution : tout ce que l'écran croyait savoir de la précédente est caduc. Seul
+     * l'historique de saisie reste — c'est celui de l'humain, pas de la conversation.
+     */
+    private function switchTo(string $conversation): void
+    {
+        $this->conversation = $conversation;
+        $this->lastRendered = '';
+        $this->interactionKey = '';
+        $this->outbox = [];
+        $this->busySince = null;
+        $this->thread->scrollToBottom();
+    }
+
+    /**
+     * @return list<AbstractWidget>
+     */
+    private function choiceList(): array
+    {
+        $choice = $this->choice ?? ['choices' => [], 'choose' => ''];
+        $items = array_map(static fn (array $item): array => [
+            'value' => $item['value'],
+            'label' => self::clean($item['label']),
+            'description' => self::clean($item['description'] ?? ''),
+        ], $choice['choices']);
+
+        $list = new SelectListWidget($items, maxVisible: 8);
+        $list->onSelect(function (SelectEvent $event) use ($choice): void {
+            $this->choice = null;
+            $this->command($choice['choose'].' '.$event->getValue());
+        });
+        $list->onCancel(function (CancelEvent $event): void {
+            $this->choice = null;
+            $this->notice->setText('');
+            $this->interactionKey = '';
+            $this->lastRendered = '';
+            $this->refresh(drain: false);
+        });
+
+        return [$list];
     }
 
     private function showSuggestions(string $value): void
@@ -469,9 +619,10 @@ final class ChatView
             ['value' => 'yes', 'label' => 'Approuver'],
             ['value' => 'no', 'label' => 'Refuser'],
         ]);
-        $list->onSelect(fn (SelectEvent $event) => $this->act(
-            fn () => $this->conversations->decide($this->conversation, $pending->callId, 'yes' === $event->getValue()),
-        ));
+        $list->onSelect(function (SelectEvent $event) use ($pending): void {
+            $this->confirm('yes' === $event->getValue() ? 'Approuvé' : 'Refusé', $pending->tool);
+            $this->act(fn () => $this->conversations->decide($this->conversation, $pending->callId, 'yes' === $event->getValue()));
+        });
 
         return [
             new TextWidget(\sprintf(
@@ -496,12 +647,14 @@ final class ChatView
         }
 
         $list = new SelectListWidget($items, multiselect: $question->multiSelect);
-        $list->onSelect(fn (SelectEvent $event) => $this->act(
-            fn () => $this->conversations->answer($this->conversation, $question->callId, [$event->getValue()]),
-        ));
-        $list->onMultiSelect(fn (MultiSelectEvent $event) => $this->act(
-            fn () => $this->conversations->answer($this->conversation, $question->callId, $event->getValues()),
-        ));
+        $list->onSelect(function (SelectEvent $event) use ($question): void {
+            $this->confirm('Réponse envoyée', $event->getValue());
+            $this->act(fn () => $this->conversations->answer($this->conversation, $question->callId, [$event->getValue()]));
+        });
+        $list->onMultiSelect(function (MultiSelectEvent $event) use ($question): void {
+            $this->confirm('Réponse envoyée', [] === $event->getValues() ? 'rien' : implode(', ', $event->getValues()));
+            $this->act(fn () => $this->conversations->answer($this->conversation, $question->callId, $event->getValues()));
+        });
 
         return [
             new TextWidget(\sprintf(
@@ -523,9 +676,10 @@ final class ChatView
         // En production, l'alerte vient du dehors — un webhook, une supervision. Ici l'humain peut
         // la lever à la main, comme la page de la maquette.
         $input = (new InputWidget())->setPrompt('alerte › ');
-        $input->onSubmit(fn (SubmitEvent $event) => $this->act(
-            fn () => $this->conversations->alert($this->conversation, $watch->callId, $event->getValue()),
-        ));
+        $input->onSubmit(function (SubmitEvent $event) use ($watch): void {
+            $this->confirm('Alerte levée', '' === trim($event->getValue()) ? $watch->observation : $event->getValue());
+            $this->act(fn () => $this->conversations->alert($this->conversation, $watch->callId, $event->getValue()));
+        });
 
         return [
             new TextWidget(\sprintf(

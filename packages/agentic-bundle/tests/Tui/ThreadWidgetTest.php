@@ -57,6 +57,19 @@ final class ThreadWidgetTest extends TestCase
         self::assertSame('ligne 50', $lines[8]);
     }
 
+    public function testTheModelAnswerIsRenderedAsMarkdown(): void
+    {
+        $thread = (new ThreadWidget())->setEntries([
+            ['› Quel temps ?', false],
+            ["Il fait **27°C**.\n\n- prends une casquette", true],
+        ]);
+
+        $lines = $this->render($thread);
+
+        self::assertContains('Il fait 27°C.', $lines, 'Le gras est mis en forme, pas affiché avec ses astérisques.');
+        self::assertContains('• prends une casquette', $lines);
+    }
+
     private function fifty(): ThreadWidget
     {
         return (new ThreadWidget())->setText(implode("\n", array_map(static fn (int $i): string => 'ligne '.$i, range(1, 50))));

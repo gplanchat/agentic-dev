@@ -33,13 +33,29 @@ final class ChatCommand extends Command
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
+        $conversation = $input->getArgument('conversation');
+        if (null !== $conversation && !$this->conversations->exists($conversation)) {
+            // Un écran vide qui ne répondrait jamais serait pire qu'un refus.
+            $output->writeln(\sprintf('<error>Conversation inconnue : %s.</error> `chat` sans argument en commence une ; `/resume` liste les précédentes.', $conversation));
+
+            return self::FAILURE;
+        }
+
         if (!$input->isInteractive() || !$output instanceof StreamOutput || !stream_isatty($output->getStream())) {
             $output->writeln('<error>Le chat demande un terminal interactif.</error>');
 
             return self::FAILURE;
         }
 
-        $conversation = $input->getArgument('conversation') ?? $this->conversations->start();
+        if (null === $conversation) {
+            $conversation = $this->conversations->start();
+        } elseif ($this->conversations->transcript($conversation)->finished) {
+            // Une exécution terminée ne se rouvre pas : une neuve repart de son fil.
+            $from = $conversation;
+            $conversation = $this->conversations->restart($from);
+            $output->writeln(\sprintf('La conversation %s était terminée : elle reprend dans %s.', $from, $conversation));
+        }
+
         $this->screen->open($conversation)->run();
 
         $output->writeln(\sprintf('Conversation <info>%s</info>.', $conversation));

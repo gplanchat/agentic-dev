@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Tests\Integration;
 
 use Gplanchat\Agentic\Application\Chat\Conversations;
+use Gplanchat\AgenticBundle\Tui\BananaWords;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use Gplanchat\AgenticBundle\Tui\ChatView;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
@@ -175,6 +176,58 @@ final class ChatViewTest extends KernelTestCase
             self::getContainer()->get(Conversations::class)->transcript($view->conversation)->messages,
             static fn ($message): bool => $message->isUser(),
         ));
+    }
+
+    /**
+     * Le message s'affiche avant que le worker ne l'ait traité : l'humain sait qu'il est parti, et
+     * la banane dit qu'elle s'y met.
+     */
+    public function testASentMessageShowsAtOnceBeforeTheAgentAnswers(): void
+    {
+        $view = $this->open();
+
+        foreach (mb_str_split("Quel temps fait-il à Paris ?\r") as $key) {
+            $this->terminal->simulateInput($key);
+        }
+        $view->tui->tick();
+
+        $shown = AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput());
+        self::assertStringContainsString('› Quel temps fait-il à Paris ?  ✓ envoyé', $shown);
+        self::assertMatchesRegularExpression('/('.implode('|', array_map('preg_quote', BananaWords::PHRASES)).')… \(\d+ s\)/u', $shown);
+        self::assertStringNotContainsString('22°C', $shown, 'Le worker n’a pas encore tourné.');
+
+        $view->refresh();
+        $view->tui->tick();
+
+        $shown = AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput());
+        self::assertStringContainsString('Paris : 22°C, ensoleillé', $shown);
+        self::assertStringNotContainsString('✓ envoyé', $shown, 'Une fois au journal, le message n’est plus « en route ».');
+    }
+
+    public function testAnApprovalIsConfirmedOnScreen(): void
+    {
+        $view = $this->open();
+        $this->type($view, "Envoie un mail à l’équipe\r");
+
+        $this->type($view, "\r");
+
+        self::assertStringContainsString('✓ Approuvé — send_email', AnsiUtils::stripAnsiCodes($this->terminal->getOutput()));
+    }
+
+    public function testRewindOffersAListAndPutsTheMessageBackInTheInput(): void
+    {
+        $view = $this->open();
+        $first = $view->conversation;
+        $this->type($view, "Quel temps fait-il à Paris ?\r");
+
+        $this->type($view, "/rewind\r");
+        self::assertMatchesRegularExpression('/n° 1\s+Quel temps fait-il à Paris \?/u', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
+
+        $this->type($view, "\r");
+
+        self::assertNotSame($first, $view->conversation);
+        self::assertStringContainsString('› Quel temps fait-il à Paris ?', AnsiUtils::stripAnsiCodes($this->terminal->getOutput()));
+        self::assertSame([], self::getContainer()->get(Conversations::class)->transcript($view->conversation)->userMessages(), 'Rien n’est renvoyé tant qu’on n’appuie pas sur Entrée.');
     }
 
     public function testCtrlCQuitsWithoutClosingTheConversation(): void

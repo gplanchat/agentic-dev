@@ -28,6 +28,9 @@ final readonly class SlashCommands
         '/model' => 'affiche ou change le modèle : /model <nom>',
         '/tools' => 'liste les outils et ce que la garde en fait dans le mode courant',
         '/clear' => 'clôt la conversation et en ouvre une neuve',
+        '/rewind' => 'revient avant un de tes messages : /rewind [n°]',
+        '/compact' => 'repart d’un résumé de la conversation, pour alléger le contexte',
+        '/resume' => 'reprend une conversation passée : /resume [identifiant]',
     ];
 
     public function __construct(private Conversations $conversations)
@@ -66,6 +69,9 @@ final readonly class SlashCommands
             '/model' => $this->model($conversation, $argument),
             '/tools' => new SlashOutcome($this->tools($conversation)),
             '/clear' => $this->clear($conversation),
+            '/rewind' => $this->rewind($conversation, $argument),
+            '/compact' => $this->compact($conversation),
+            '/resume' => $this->resume($conversation, $argument),
             default => new SlashOutcome(\sprintf('Commande inconnue : %s. /help pour la liste.', $name), error: true),
         };
     }
@@ -157,6 +163,90 @@ final readonly class SlashCommands
             \sprintf('Mode %s. Toujours offerts : %s.', $transcript->mode->value, implode(', ', [AskUserQuestion::TOOL, WatchTool::TOOL, DelegateTool::TOOL])),
             ...([] === $rules ? [] : ['Règles du projet (refus > demande > accord, avant le mode) :', ...$rules]),
         ]);
+    }
+
+    private function rewind(string $conversation, ?string $argument): SlashOutcome
+    {
+        $said = $this->conversations->transcript($conversation)->userMessages();
+        if ([] === $said) {
+            return new SlashOutcome('Rien à défaire : tu n’as encore rien dit.', error: true);
+        }
+
+        if (null === $argument) {
+            $choices = [];
+            foreach (array_reverse($said, true) as $index => $text) {
+                // Libellé court, texte en description : la liste réserve au libellé une colonne étroite.
+                $choices[] = ['value' => (string) ($index + 1), 'label' => \sprintf('n° %d', $index + 1), 'description' => self::excerpt($text)];
+            }
+
+            return new SlashOutcome('Revenir avant quel message ? Entrée choisit, Échap annule.', choices: $choices, choose: '/rewind');
+        }
+
+        $number = filter_var($argument, \FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => \count($said)]]);
+        if (false === $number) {
+            return new SlashOutcome(\sprintf('Il faut un numéro de message entre 1 et %d.', \count($said)), error: true);
+        }
+
+        $restarted = $this->conversations->restart($conversation, keepUserMessages: $number - 1);
+
+        return new SlashOutcome(
+            \sprintf('Retour avant « %s », dans la conversation %s. Le message est dans la saisie, à reprendre ou à changer.', self::excerpt($said[$number - 1]), substr($restarted, 0, 8)),
+            conversation: $restarted,
+            prefill: $said[$number - 1],
+        );
+    }
+
+    private function compact(string $conversation): SlashOutcome
+    {
+        if ([] === $this->conversations->transcript($conversation)->userMessages()) {
+            return new SlashOutcome('Rien à compacter : la conversation est vide.', error: true);
+        }
+
+        $restarted = $this->conversations->restart($conversation, compact: true);
+
+        return new SlashOutcome(\sprintf('La conversation repart d’un résumé, dans %s.', substr($restarted, 0, 8)), conversation: $restarted);
+    }
+
+    private function resume(string $conversation, ?string $argument): SlashOutcome
+    {
+        $others = array_values(array_filter(
+            $this->conversations->recent(),
+            static fn ($summary): bool => $summary->id !== $conversation,
+        ));
+
+        if (null === $argument) {
+            if ([] === $others) {
+                return new SlashOutcome('Aucune autre conversation à reprendre.', error: true);
+            }
+
+            return new SlashOutcome('Reprendre quelle conversation ? Entrée choisit, Échap annule.', choices: array_map(static fn ($summary): array => [
+                'value' => $summary->id,
+                'label' => $summary->startedAt?->setTimezone(new \DateTimeZone(date_default_timezone_get()))->format('d/m H:i') ?? '--/-- --:--',
+                'description' => \sprintf('%s  (%s)', self::excerpt($summary->title), $summary->finished ? 'terminée' : 'en cours'),
+            ], $others), choose: '/resume');
+        }
+
+        $found = array_values(array_filter($others, static fn ($summary): bool => str_starts_with($summary->id, $argument)));
+        if (1 !== \count($found)) {
+            return new SlashOutcome(\sprintf([] === $found ? 'Aucune conversation ne commence par « %s ».' : 'Plusieurs conversations commencent par « %s » : précise.', $argument), error: true);
+        }
+
+        $summary = $found[0];
+        if (!$summary->finished) {
+            return new SlashOutcome(\sprintf('Reprise de « %s ».', self::excerpt($summary->title)), conversation: $summary->id);
+        }
+
+        // Une exécution terminée ne se rouvre pas : une neuve repart de son fil.
+        $restarted = $this->conversations->restart($summary->id);
+
+        return new SlashOutcome(\sprintf('« %s » était terminée : elle reprend dans %s.', self::excerpt($summary->title), substr($restarted, 0, 8)), conversation: $restarted);
+    }
+
+    private static function excerpt(string $text): string
+    {
+        $text = trim(preg_replace('/\s+/u', ' ', $text) ?? $text);
+
+        return mb_strlen($text) > 50 ? mb_substr($text, 0, 49).'…' : $text;
     }
 
     private function clear(string $conversation): SlashOutcome

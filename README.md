@@ -12,6 +12,7 @@ Monorepo :
 composer install
 bin/agentic                          # l'aide en TUI (q, Échap ou Ctrl+C pour quitter)
 bin/agentic chat                     # discuter avec l'agent (Shift+Tab mode, ↑↓ historique, molette défilement, Ctrl+X clore, Ctrl+C quitter)
+bin/agentic chat <conversation>      # reprendre une conversation (son identifiant s'affiche en quittant)
 php8.4 -S localhost:8000 -t public   # la version web : http://localhost:8000/agentic/
 ```
 
@@ -31,13 +32,18 @@ de Durable à chaque rafraîchissement, sans `messenger:consume` à côté.
 - Sans `MISTRAL_API_KEY`, un client scripté répond, sans réseau : « Quel temps fait-il à Paris ? »
   (outil en lecture), « Envoie un mail » (validation), « Pose-moi une question », « Surveille la
   livraison » (veille), « Délègue… » (sous-agent).
-- Avec `MISTRAL_API_KEY` (dans `.env.local`, ignoré par git, ou dans l'environnement), c'est Mistral. L'écran se fige le temps de chaque réponse : l'appel
+- Avec `MISTRAL_API_KEY` (dans `.env.local`, ignoré par git, ou dans l'environnement), c'est Mistral ;
+  ses réponses sont mises en forme (Markdown). L'écran se fige le temps de chaque réponse : l'appel
   modèle est une activité exécutée dans le processus de la TUI.
 - Un outil qui échoue trois fois de suite est rendu au modèle comme résultat (« Échec de l'outil… ») ;
   un appel modèle qui échoue clôt la conversation, et l'en-tête dit pourquoi.
 - Commandes du chat, tapées à la place d'un message (Tab complète le nom) :
   `/help`, `/mode [standard|edition|auto]`, `/model [nom]` (à partir du message suivant),
-  `/tools` (et ce que la garde en fait dans le mode courant), `/clear` (nouvelle conversation).
+  `/tools` (et ce que la garde en fait dans le mode courant), `/clear` (nouvelle conversation),
+  `/rewind [n°]` (revenir avant un de ses messages, remis dans la saisie), `/compact` (repartir d'un
+  résumé), `/resume [identifiant]` (reprendre une conversation passée).
+  `/rewind`, `/compact` et la reprise d'une conversation terminée ouvrent une conversation neuve
+  depuis le fil : le journal de l'ancienne n'est jamais réécrit.
 - La molette et Pg.Préc/Pg.Suiv font défiler le fil dans le chat : le terminal passe en mode souris
   le temps du chat. Pour sélectionner du texte à la souris, maintenir Maj (la plupart des terminaux).
 - ↑/↓ rappellent les messages et commandes déjà envoyés, comme dans un shell.
@@ -46,5 +52,6 @@ de Durable à chaque rafraîchissement, sans `messenger:consume` à côté.
   Le refus l'emporte sur la demande, qui l'emporte sur l'accord ; `/tools` affiche les règles.
 - **`AGENTS.md`** à la racine du projet (chemin réglable par `instructions_file`) : ajouté au prompt
   système au démarrage de chaque conversation, tronqué au-delà de 32 Kio.
-- **Journal en mémoire** : la conversation meurt avec la TUI. La faire survivre demande le backend
-  DBAL (SQLite) et un transport Messenger durable.
+- **Journal sur SQLite** (`var/agentic.sqlite`) : les conversations survivent à la fermeture de la
+  TUI et se reprennent. Les transports Messenger restent en mémoire, la TUI étant le seul worker :
+  un tour en cours au moment de quitter est perdu.

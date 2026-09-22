@@ -63,6 +63,40 @@ final readonly class Transcript implements \JsonSerializable
     }
 
     /**
+     * Le fil parlé, coupé juste avant un message de l'humain — c'est ce que `/rewind` reprend.
+     *
+     * @param int $userMessage le rang du message humain où couper, à partir de 0 ; au-delà du dernier, tout le fil
+     *
+     * @return list<array{role: string, content: string}>
+     */
+    public function seedBefore(int $userMessage): array
+    {
+        $seed = [];
+        $seen = 0;
+        foreach ($this->seed() as $message) {
+            if ('user' === $message['role'] && $seen++ === $userMessage) {
+                break;
+            }
+            $seed[] = $message;
+        }
+
+        return $seed;
+    }
+
+    /**
+     * Ce que l'humain a dit, dans l'ordre.
+     *
+     * @return list<string>
+     */
+    public function userMessages(): array
+    {
+        return array_values(array_map(
+            static fn (TranscriptMessage $message): string => (string) $message->content,
+            array_filter($this->messages, static fn (TranscriptMessage $message): bool => $message->isUser() && $message->carriesText()),
+        ));
+    }
+
+    /**
      * @return array{messages: list<TranscriptMessage>, steps: list<ToolStep>, pending: list<PendingApproval>, questions: list<PendingQuestion>, watches: list<Watch>, mode: string, humanTimeoutSeconds: float|null, working: bool, finished: bool, failure: string|null, model: string, tools: array<string, mixed>, rules: list<array<string, mixed>>}
      */
     public function jsonSerialize(): array

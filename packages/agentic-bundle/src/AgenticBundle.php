@@ -26,6 +26,7 @@ use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use Gplanchat\AgenticBundle\Tui\HelpScreen;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Gplanchat\Durable\Port\WorkflowResumeDispatcher;
+use Gplanchat\Durable\Port\WorkflowRunCatalogInterface;
 use Gplanchat\Durable\Store\EventStoreInterface;
 use Gplanchat\Durable\Store\WorkflowMetadataStore;
 use Symfony\AI\Platform\Bridge\Mistral\ModelCatalog as MistralModelCatalog;
@@ -133,6 +134,8 @@ final class AgenticBundle extends AbstractBundle
                 service(AgentTools::class),
                 service('gplanchat_agentic.model_catalog'),
                 service(ProjectInstructions::class),
+                service(EventStoreInterface::class),
+                service(WorkflowRunCatalogInterface::class),
                 [
                     'model' => $config['model'],
                     'systemPrompt' => $config['system_prompt'],
