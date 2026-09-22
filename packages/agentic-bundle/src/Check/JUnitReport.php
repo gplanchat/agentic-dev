@@ -67,9 +67,9 @@ final class JUnitReport
         foreach (\array_slice($failed, 0, self::MAX_FAILURES) as [$case, $problem]) {
             $lines[] = '';
             $lines[] = \sprintf(
-                '✗ %s::%s%s (%s)',
-                $case->getAttribute('class') ?: $case->getAttribute('classname'),
-                $case->getAttribute('name'),
+                '✗ %s%s (%s)',
+                // PHPStan names its cases after the file and line, with no class.
+                implode('::', array_filter([$case->getAttribute('class') ?: $case->getAttribute('classname'), self::relative($case->getAttribute('name'), $root)])),
                 '' === $case->getAttribute('file') ? '' : ' — '.self::relative($case->getAttribute('file'), $root).('' === $case->getAttribute('line') ? '' : ':'.$case->getAttribute('line')),
                 $problem->nodeName,
             );

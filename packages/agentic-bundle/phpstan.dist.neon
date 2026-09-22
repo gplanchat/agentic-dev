@@ -1,0 +1,11 @@
+# The static layer, with tests/TestPyramidTest.php. Level 8; the baseline holds what the code had
+# when PHPStan arrived — new code meets the level, and fixing an old error means removing its entry.
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    phpVersion: 80400

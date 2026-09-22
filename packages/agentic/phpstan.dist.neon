@@ -1,0 +1,12 @@
+# The static layer, with tests/ArchitectureTest.php. Level 8; the baseline holds what the code had
+# when PHPStan arrived — new code meets the level, and fixing an old error means removing its entry.
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: 8
+    paths:
+        - src
+        - tests
+    # The package must stay installable on PHP 8.2: what a newer PHP would allow is an error here.
+    phpVersion: 80200

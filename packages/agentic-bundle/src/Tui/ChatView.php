@@ -696,7 +696,7 @@ final class ChatView
                 "\e[34m◷ watching %s\e[0m: %s\n\e[2mWhat the agent will do: %s\e[0m",
                 $watch->subject->value,
                 self::clean($watch->observation),
-                self::clean($watch->intention),
+                self::clean($watch->intent),
             )),
             $input,
         ];

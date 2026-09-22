@@ -31,6 +31,14 @@ final class RunChecksToolTest extends TestCase
         exit($filtered ? $exit : 1);
         PHP;
 
+    /** Prints a PHPStan-like JUnit report on its standard output, and noise on its error output. */
+    private const ANALYSER = <<<'PHP'
+        <?php
+        fwrite(STDERR, "progress: 100%\n");
+        echo '<?xml version="1.0"?><testsuite name="phpstan"><testcase name="'.getcwd().'/src/Cart.php:12"><failure type="ERROR" message="Method Cart::total() should return int but returns string."/></testcase></testsuite>';
+        exit(1);
+        PHP;
+
     private string $workspace;
 
     protected function setUp(): void
@@ -39,6 +47,7 @@ final class RunChecksToolTest extends TestCase
         $filesystem = new Filesystem();
         $filesystem->remove($this->workspace);
         $filesystem->dumpFile($this->workspace.'/checker.php', self::CHECKER);
+        $filesystem->dumpFile($this->workspace.'/analyser.php', self::ANALYSER);
 
         if (null !== $problem = (new Bubblewrap($this->workspace))->problem()) {
             self::markTestSkipped($problem);
@@ -76,6 +85,20 @@ final class RunChecksToolTest extends TestCase
 
         self::assertSame("ERROR — crash: no JUnit report (exit code 255). The end of the output:\nPHP Fatal error: nope", $tool(['layer' => 'crash']));
         self::assertStringStartsWith("RED — warned (filter: testOne): exit code 2 although no test failed.\n1 test, 0 failed", $tool(['layer' => 'warned', 'filter' => 'testOne']));
+    }
+
+    /**
+     * The static layer runs PHPUnit and PHPStan: one verdict, the worst, then each command's own.
+     * PHPStan prints its report: a command without {report} is read from its standard output.
+     */
+    public function testALayerCanRunSeveralCommandsAndReadAReportFromTheOutput(): void
+    {
+        $tool = $this->tool(['static' => ['command' => ['env CHECKER_EXIT=0 php checker.php {report} --filter x', 'php analyser.php']]]);
+
+        self::assertStringStartsWith(
+            "RED — static\n▸ checker.php — GREEN\n1 test, 0 failed, 0.10 s.\n\n▸ analyser.php — RED\n1 test, 1 failed, 0.00 s.\n\n✗ src/Cart.php:12 (failure)\n  Method Cart::total() should return int but returns string.\n\nTDD: ",
+            $tool(['layer' => 'static']),
+        );
     }
 
     public function testTheArgumentsAreClosed(): void

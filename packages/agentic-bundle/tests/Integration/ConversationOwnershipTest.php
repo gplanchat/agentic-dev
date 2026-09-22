@@ -107,11 +107,16 @@ final class ConversationOwnershipTest extends KernelTestCase
     private function services(): array
     {
         $container = self::bootKernel()->getContainer();
+        $conversations = $container->get(Conversations::class);
+        $worker = $container->get(InProcessWorker::class);
+        $principal = $container->get(SwitchablePrincipal::class);
 
-        return [
-            $container->get(Conversations::class),
-            $container->get(InProcessWorker::class),
-            $container->get(SwitchablePrincipal::class),
-        ];
+        // The container hands back `object`: asserting is what gives the three their type, and it
+        // says so out loud the day the wiring stops matching.
+        self::assertInstanceOf(Conversations::class, $conversations);
+        self::assertInstanceOf(InProcessWorker::class, $worker);
+        self::assertInstanceOf(SwitchablePrincipal::class, $principal);
+
+        return [$conversations, $worker, $principal];
     }
 }

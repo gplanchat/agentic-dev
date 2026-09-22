@@ -83,6 +83,18 @@ final class ChatViewTest extends KernelTestCase
         self::assertStringContainsString('apt install bubblewrap', AnsiUtils::stripAnsiCodes($this->terminal->getOutput()));
     }
 
+    /**
+     * An armed watch shows what it waits for and what the agent will do on waking.
+     */
+    public function testAnArmedWatchShowsItsIntent(): void
+    {
+        $view = $this->open();
+
+        $this->type($view, "Watch the delivery\r");
+
+        self::assertStringContainsString('What the agent will do:', AnsiUtils::stripAnsiCodes($this->terminal->getOutput()));
+    }
+
     public function testTabCompletesTheCommandName(): void
     {
         $view = $this->open();

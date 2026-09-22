@@ -1,0 +1,235 @@
+parameters:
+	ignoreErrors:
+		-
+			message: '#^Parameter \#2 \$apiKey of class Symfony\\AI\\Platform\\Bridge\\Mistral\\Llm\\ModelClient constructor expects string, string\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Ai/ModelClientFactory.php
+
+		-
+			message: '#^Parameter \#1 \$array \(list\<string\>\) of array_values is already a list, call has no effect\.$#'
+			identifier: arrayValues.list
+			count: 1
+			path: src/Chat/DurableConversations.php
+
+		-
+			message: '#^Parameter \#1 \$modelName of method Symfony\\AI\\Platform\\ModelCatalog\\ModelCatalogInterface\:\:getModel\(\) expects non\-empty\-string, string given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Chat/DurableConversations.php
+
+		-
+			message: '#^Parameter \#1 \$application of class Gplanchat\\AgenticBundle\\Console\\ConsoleCommandCatalog constructor expects Symfony\\Component\\Console\\Application, Symfony\\Component\\Console\\Application\|null given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Console/HelpCommand.php
+
+		-
+			message: '#^Strict comparison using \=\=\= between array\{\} and array\{type\: ''object'', properties\: array\<string, mixed\>\|stdClass, required\: array\<string\>\|null\} will always evaluate to false\.$#'
+			identifier: identical.alwaysFalse
+			count: 1
+			path: src/Mcp/McpTool.php
+
+		-
+			message: '#^Method Gplanchat\\AgenticBundle\\Sandbox\\Bubblewrap\:\:__construct\(\) has parameter \$hidden with no value type specified in iterable type array\.$#'
+			identifier: missingType.iterableValue
+			count: 1
+			path: src/Sandbox/Bubblewrap.php
+
+		-
+			message: '#^Method Gplanchat\\AgenticBundle\\Sandbox\\Bubblewrap\:\:hidden\(\) should return list\<string\> but returns array\.$#'
+			identifier: return.type
+			count: 1
+			path: src/Sandbox/Bubblewrap.php
+
+		-
+			message: '#^Expression on left side of \?\? is always null\.$#'
+			identifier: nullCoalesce.expr
+			count: 1
+			path: src/Tui/ChatView.php
+
+		-
+			message: '#^Result of method Gplanchat\\AgenticBundle\\Tui\\ChatView\:\:refresh\(\) \(void\) is used\.$#'
+			identifier: method.void
+			count: 1
+			path: src/Tui/ChatView.php
+
+		-
+			message: '#^Parameter \#1 \.\.\.\$arg1 of function max expects non\-empty\-array, list\<int\<0, max\>\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: src/Tui/SlashCommands.php
+
+		-
+			message: '#^Property Gplanchat\\AgenticBundle\\Tui\\ThreadWidget\:\:\$markdown \(array\<string, list\<string\>\>\) does not accept array\<non\-falsy\-string, array\<string\>\>\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: src/Tui/ThreadWidget.php
+
+		-
+			message: '#^Cannot use array destructuring on list\<bool\|string\>\|null\.$#'
+			identifier: offsetAccess.nonArray
+			count: 2
+			path: tests/Check/JUnitReportTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:drain\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Integration/AgentsCommandTest.php
+
+		-
+			message: '#^Property Gplanchat\\AgenticBundle\\Tests\\Integration\\AgentsCommandTest\:\:\$conversations \(Gplanchat\\Agentic\\Application\\Chat\\Conversations\) does not accept object\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: tests/Integration/AgentsCommandTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:find\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Integration/ChatCommandTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:open\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Integration/ChatViewTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:start\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Integration/ChatViewTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:transcript\(\)\.$#'
+			identifier: method.notFound
+			count: 6
+			path: tests/Integration/ChatViewTest.php
+
+		-
+			message: '#^Parameter \#1 \$conversations of class Gplanchat\\AgenticBundle\\Tui\\ChatScreen constructor expects Gplanchat\\Agentic\\Application\\Chat\\Conversations, object given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Integration/ChatViewTest.php
+
+		-
+			message: '#^Parameter \#2 \$worker of class Gplanchat\\AgenticBundle\\Tui\\ChatScreen constructor expects Gplanchat\\AgenticBundle\\Worker\\InProcessWorker, object given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Integration/ChatViewTest.php
+
+		-
+			message: '#^Method Gplanchat\\AgenticBundle\\Tests\\Integration\\ConversationLoopTest\:\:services\(\) should return array\{Gplanchat\\Agentic\\Application\\Chat\\Conversations, Gplanchat\\AgenticBundle\\Worker\\InProcessWorker\} but returns array\{object, object\}\.$#'
+			identifier: return.type
+			count: 1
+			path: tests/Integration/ConversationLoopTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:call\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Integration/McpIntegrationTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:drain\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Integration/McpIntegrationTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:start\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Integration/McpIntegrationTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:toolset\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Integration/McpIntegrationTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:transcript\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Integration/McpIntegrationTest.php
+
+		-
+			message: '#^Parameter \#1 \$conversations of class Gplanchat\\AgenticBundle\\Tui\\SlashCommands constructor expects Gplanchat\\Agentic\\Application\\Chat\\Conversations, object given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Integration/McpIntegrationTest.php
+
+		-
+			message: '#^Parameter \#2 \$mcp of class Gplanchat\\AgenticBundle\\Tui\\SlashCommands constructor expects Gplanchat\\AgenticBundle\\Mcp\\McpCatalog\|null, object given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Integration/McpIntegrationTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:drain\(\)\.$#'
+			identifier: method.notFound
+			count: 4
+			path: tests/Integration/ProjectHooksTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:get\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Integration/ProjectHooksTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:send\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Integration/ProjectHooksTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:start\(\)\.$#'
+			identifier: method.notFound
+			count: 3
+			path: tests/Integration/ProjectHooksTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:transcript\(\)\.$#'
+			identifier: method.notFound
+			count: 2
+			path: tests/Integration/ProjectHooksTest.php
+
+		-
+			message: '#^Parameter \#1 \$conversations of class Gplanchat\\AgenticBundle\\Tui\\SlashCommands constructor expects Gplanchat\\Agentic\\Application\\Chat\\Conversations, object given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Integration/ProjectHooksTest.php
+
+		-
+			message: '#^Call to an undefined method object\:\:readStream\(\)\.$#'
+			identifier: method.notFound
+			count: 1
+			path: tests/Integration/SlashCommandsTest.php
+
+		-
+			message: '#^Property Gplanchat\\AgenticBundle\\Tests\\Integration\\SlashCommandsTest\:\:\$conversations \(Gplanchat\\Agentic\\Application\\Chat\\Conversations\) does not accept object\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: tests/Integration/SlashCommandsTest.php
+
+		-
+			message: '#^Property Gplanchat\\AgenticBundle\\Tests\\Integration\\SlashCommandsTest\:\:\$worker \(Gplanchat\\AgenticBundle\\Worker\\InProcessWorker\) does not accept object\.$#'
+			identifier: assign.propertyType
+			count: 1
+			path: tests/Integration/SlashCommandsTest.php
+
+		-
+			message: '#^Parameter \#1 \$config of static method Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\AppReference\:\:config\(\) expects array\{imports\?\: list\<array\{resource\: string, type\?\: string\|null, ignore_errors\?\: ''not_found''\|bool\}\|string\>, parameters\?\: array\<string, array\<array\<mixed\>\|bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|UnitEnum\|null\>\|bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|UnitEnum\|null\>, services\?\: array\{_defaults\?\: array\{public\?\: bool, tags\?\: mixed, resource_tags\?\: mixed, autowire\?\: bool, autoconfigure\?\: bool, bind\?\: array\<string, mixed\>\}, _instanceof\?\: array\<class\-string, array\{shared\?\: bool, lazy\?\: bool\|string, public\?\: bool, factory\?\: array\{string\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ReferenceConfigurator, string\}\|Closure\|string\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ExpressionConfigurator\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ReferenceConfigurator, properties\?\: array\<string, mixed\>, configurator\?\: array\{string\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ReferenceConfigurator, string\}\|Closure\|string\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ExpressionConfigurator\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ReferenceConfigurator, calls\?\: list\<array\<0\|1\|2\|string, array\<int\<0, max\>\|string, mixed\>\|bool\|string\>\>, tags\?\: mixed, \.\.\.\}\>, \.\.\.\<string, array\<int\<0, max\>\|string, mixed\>\|string\|null\>\}, \.\.\.\<string, array\<string, mixed\>\>\}, array\{imports\?\: list\<array\{resource\: string, type\?\: string\|null, ignore_errors\?\: ''not_found''\|bool\}\|string\>, parameters\?\: array\<string, array\<array\<mixed\>\|bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|UnitEnum\|null\>\|bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|UnitEnum\|null\>, services\?\: array\{_defaults\?\: array\{public\?\: bool, tags\?\: mixed, resource_tags\?\: mixed, autowire\?\: bool, autoconfigure\?\: bool, bind\?\: array\<string, mixed\>\}, _instanceof\?\: array\<class\-string, array\{shared\?\: bool, lazy\?\: bool\|string, public\?\: bool, factory\?\: array\{string\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ReferenceConfigurator, string\}\|Closure\|string\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ReferenceConfigurator, properties\?\: array\<string, mixed\>, configurator\?\: array\{string\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ReferenceConfigurator, string\}\|Closure\|string\|Symfony\\Component\\DependencyInjection\\Loader\\Configurator\\ReferenceConfigurator, calls\?\: list\<array\<0\|1\|2\|string, array\<int\<0, max\>\|string, mixed\>\|bool\|string\>\>, tags\?\: mixed, \.\.\.\}\>, \.\.\.\<string, array\<int\<0, max\>\|string, mixed\>\|string\|null\>\}, framework\?\: array\{secret\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, http_method_override\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, allowed_http_method_override\?\: list\<string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\>\|null, trust_x_sendfile_type_header\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, ide\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, test\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, default_locale\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, set_locale_from_accept_language\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, \.\.\.\}, router\?\: array\{enabled\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, resource\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, type\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, default_uri\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, http_port\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, https_port\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, strict_requirements\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, utf8\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, \.\.\.\<string, mixed\>\}\|bool, cache\?\: array\{prefix_seed\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, app\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, system\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, directory\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, default_provider\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, default_psr6_provider\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, default_redis_provider\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, default_valkey_provider\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, \.\.\.\}, serializer\?\: array\{enabled\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, enable_attributes\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, name_converter\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, circular_reference_handler\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, max_depth_handler\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, mapping\?\: array\{paths\?\: list\<bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null\>\}, default_context\?\: array\<string, mixed\>, named_serializers\?\: array\<string, array\{name_converter\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, default_context\?\: array\<string, mixed\>, include_built_in_normalizers\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, include_built_in_encoders\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\}\>\}\|bool, messenger\?\: array\{enabled\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, routing\?\: array\<string, list\<bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null\>\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\>, serializer\?\: array\{default_serializer\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, symfony_serializer\?\: array\{format\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, context\?\: array\<string, mixed\>\}\}, transports\?\: array\<string, array\{dsn\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, serializer\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, claim_check\?\: array\{cache_pool\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, max_size\?\: int\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\}, options\?\: array\<string, mixed\>, failure_transport\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, outbox\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, retry_strategy\?\: array\{service\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, max_retries\?\: int\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, delay\?\: int\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, multiplier\?\: float\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, max_delay\?\: int\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, jitter\?\: float\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\}\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, rate_limiter\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, \.\.\.\}\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\>, failure_transport\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, stop_worker_on_signals\?\: int\|list\<bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null\>\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, reject_redelivered_messages\?\: bool\|Symfony\\Component\\Config\\Loader\\ParamConfigurator, default_bus\?\: bool\|float\|int\|string\|Symfony\\Component\\Config\\Loader\\ParamConfigurator\|null, \.\.\.\}\|bool, \.\.\., \.\.\.\<string, array\<string, mixed\>\>\} given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Integration/config/reference.php
+
+		-
+			message: '#^Parameter \#2 \$layers of class Gplanchat\\AgenticBundle\\Tool\\RunChecksTool constructor expects array\<string, array\{command\: list\<string\>\|string, cwd\: string, filter_option\: string\|null, timeout_seconds\: float, description\: string, tests\?\: string, review\?\: list\<string\>\}\>, array\<string, non\-empty\-array\<string, mixed\>\> given\.$#'
+			identifier: argument.type
+			count: 1
+			path: tests/Sandbox/RunChecksToolTest.php

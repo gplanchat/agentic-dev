@@ -135,7 +135,13 @@ final class AgenticBundle extends AbstractBundle
                             ->useAttributeAsKey('layer')
                             ->arrayPrototype()
                                 ->children()
-                                    ->scalarNode('command')->isRequired()->cannotBeEmpty()->info('Split like a terminal line, no shell; {report} is replaced by the report path. E.g. "vendor/bin/phpunit --testsuite unit --log-junit {report}".')->end()
+                                    ->arrayNode('command')
+                                        ->info('One command, or a list run in turn. Split like a terminal line, no shell; {report} is replaced by the report path; without it, the command prints its report (e.g. "vendor/bin/phpstan analyse --error-format=junit --no-progress").')
+                                        ->isRequired()
+                                        ->requiresAtLeastOneElement()
+                                        ->beforeNormalization()->castToArray()->end()
+                                        ->scalarPrototype()->cannotBeEmpty()->end()
+                                    ->end()
                                     ->scalarNode('cwd')->defaultValue('')->info('Directory to run in, relative to the workspace root.')->end()
                                     ->scalarNode('filter_option')->defaultNull()->info('The option that takes the model\'s filter, e.g. "--filter"; null: the layer runs whole.')->end()
                                     ->floatNode('timeout_seconds')->defaultValue(300.0)->end()
@@ -199,7 +205,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {

@@ -34,7 +34,7 @@ final readonly class RunChecksTool implements WorkspaceTool
     private const OUTPUT_TAIL_BYTES = 3_000;
 
     /**
-     * @param array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests?: string, review?: list<string>}> $layers
+     * @param array<string, array{command: string|list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests?: string, review?: list<string>}> $layers
      *
      * @throws \InvalidArgumentException when a layer's review names a layer that does not exist
      */
@@ -100,13 +100,16 @@ final readonly class RunChecksTool implements WorkspaceTool
             return \sprintf('The layer "%s" is misconfigured: its directory "%s" is not in the workspace.', $name, $layer['cwd']);
         }
 
-        $argv = array_map(
-            static fn (string $token): string => str_replace('{report}', self::REPORT, $token),
-            (new StringInput($layer['command']))->getRawTokens(),
-        );
-        if ('' !== $filter) {
-            // Two arguments, not a line: the filter is a value, whatever it contains.
-            array_push($argv, (string) $layer['filter_option'], $filter);
+        $runs = [];
+        foreach ((array) $layer['command'] as $command) {
+            $tokens = (new StringInput($command))->getRawTokens();
+            $argv = array_map(static fn (string $token): string => str_replace('{report}', self::REPORT, $token), $tokens);
+            if ('' !== $filter) {
+                // Two arguments, not a line: the filter is a value, whatever it contains.
+                array_push($argv, (string) $layer['filter_option'], $filter);
+            }
+            // Without {report}, the command prints its report — PHPStan's `--error-format=junit` does.
+            $runs[] = ['argv' => $argv, 'report' => [] === preg_grep('/\{report\}/', $tokens) ? null : self::REPORT];
         }
 
         // The interface's own binary when the sandbox can see it — the bare `php` may be older.
@@ -116,7 +119,7 @@ final readonly class RunChecksTool implements WorkspaceTool
             $cwd,
             $root,
             $readOnly,
-            json_encode(['argv' => $argv, 'report' => self::REPORT], \JSON_THROW_ON_ERROR),
+            json_encode(['runs' => $runs], \JSON_THROW_ON_ERROR),
             $layer['timeout_seconds'],
         );
 
@@ -125,25 +128,79 @@ final readonly class RunChecksTool implements WorkspaceTool
             return \sprintf("ERROR — %s: %s", $heading, $errors);
         }
 
-        /** @var array{exit?: int, output?: string, report?: string|null}|null $run */
-        $run = json_decode($output, true);
-        if (0 !== $exitCode || !\is_array($run)) {
+        /** @var list<array{exit?: int, output?: string, report?: string|null}>|null $results */
+        $results = json_decode($output, true);
+        if (0 !== $exitCode || !\is_array($results)) {
             return \sprintf('ERROR — %s: the check could not run. %s', $heading, trim($errors));
         }
 
-        $status = (int) ($run['exit'] ?? 1);
-        $summary = JUnitReport::summarize((string) ($run['report'] ?? ''), $root);
+        $verdicts = [];
+        foreach ($runs as $i => $run) {
+            $verdicts[] = $this->verdict($results[$i] ?? [], $root);
+        }
+        $hint = static fn (string $state): string => match ($state) {
+            'GREEN' => "\n\n".self::afterGreen($name, $layer['review'] ?? [], '' !== $filter),
+            'RED' => "\n\n".self::AFTER_RED,
+            default => '',
+        };
+
+        if (1 === \count($verdicts)) {
+            [$state, $separator, $text, $hinted] = $verdicts[0];
+
+            return \sprintf('%s — %s%s%s%s', $state, $heading, $separator, $text, $hinted ? $hint($state) : '');
+        }
+
+        // Several commands, one verdict: the worst of them, then each one's own.
+        $states = array_column($verdicts, 0);
+        $state = \in_array('ERROR', $states, true) ? 'ERROR' : (\in_array('RED', $states, true) ? 'RED' : 'GREEN');
+        $sections = array_map(
+            static fn (array $run, array $verdict): string => \sprintf('▸ %s — %s%s%s', self::label($run['argv']), $verdict[0], $verdict[1], $verdict[2]),
+            $runs,
+            $verdicts,
+        );
+
+        return \sprintf("%s — %s\n%s%s", $state, $heading, implode("\n\n", $sections), 'ERROR' === $state ? '' : $hint($state));
+    }
+
+    /**
+     * One command's verdict, read from its report — or from its output, when the report says too little.
+     *
+     * @param array{exit?: int, output?: string, report?: string|null} $result
+     *
+     * @return array{0: string, 1: string, 2: string, 3: bool} state, separator, text, whether the TDD step follows
+     */
+    private function verdict(array $result, string $root): array
+    {
+        $status = (int) ($result['exit'] ?? 1);
+        $summary = JUnitReport::summarize((string) ($result['report'] ?? ''), $root);
         if (null === $summary) {
-            return \sprintf("ERROR — %s: no JUnit report (exit code %d). The end of the output:\n%s", $heading, $status, $this->tail((string) ($run['output'] ?? ''), $root));
+            return ['ERROR', ': ', \sprintf("no JUnit report (exit code %d). The end of the output:\n%s", $status, $this->tail((string) ($result['output'] ?? ''), $root)), false];
         }
 
         [$green, $text] = $summary;
         if ($green && 0 !== $status) {
             // No test failed, yet the run did: a warning turned into a failure, a crash after the report…
-            return \sprintf("RED — %s: exit code %d although no test failed.\n%s\nThe end of the output:\n%s", $heading, $status, $text, $this->tail((string) ($run['output'] ?? ''), $root));
+            return ['RED', ': ', \sprintf("exit code %d although no test failed.\n%s\nThe end of the output:\n%s", $status, $text, $this->tail((string) ($result['output'] ?? ''), $root)), false];
         }
 
-        return \sprintf("%s — %s\n%s\n\n%s", $green ? 'GREEN' : 'RED', $heading, $text, $green ? self::afterGreen($name, $layer['review'] ?? [], '' !== $filter) : self::AFTER_RED);
+        return [$green ? 'GREEN' : 'RED', "\n", $text, true];
+    }
+
+    /**
+     * The tool a command runs, for the model to tell the sections apart: `phpunit`, `phpstan`…
+     *
+     * @param list<string> $argv
+     */
+    private static function label(array $argv): string
+    {
+        foreach ($argv as $token) {
+            // Past the interpreter, `env` and its assignments, and the options.
+            if (!preg_match('/^(php[0-9.]*|env)$/', basename($token)) && !str_starts_with($token, '-') && !str_contains($token, '=')) {
+                return basename($token);
+            }
+        }
+
+        return $argv[0] ?? '?';
     }
 
     /**
@@ -162,7 +219,7 @@ final readonly class RunChecksTool implements WorkspaceTool
     }
 
     /** The next step of the cycle, said where the model reads the verdict. */
-    private const AFTER_RED = 'TDD: a test you just wrote must fail on its assertion. If it fails on a missing class or method, add the empty shell and run again; if on a typo, fix the test. Then write the least code that makes it pass, and run the same filter again.';
+    private const AFTER_RED = 'TDD: a test you just wrote must fail on its assertion — on a missing class or method, add the empty shell and run again; on a typo, fix the test —, then write the least code that makes it pass and run the same filter again. Anything else red — a test that passed before, a static finding — is a regression: fix the code, not the check.';
 
     /**
      * How to work with these layers — appended to the system prompt, so the agent organises what it
@@ -208,22 +265,28 @@ final readonly class RunChecksTool implements WorkspaceTool
     }
 
     /**
-     * Runs the layer's command inside the sandbox, then hands back its exit code, its output and the
-     * report it wrote — as JSON on standard output, since the report lives in the sandbox's `/tmp`.
+     * Runs the layer's commands in turn inside the sandbox, then hands back each one's exit code, output
+     * and report — as JSON on standard output, since the reports live in the sandbox's `/tmp`.
      * Nothing newer than PHP 7.4: it runs under the sandbox's `php`.
      */
     private const RUNNER = <<<'PHP'
         $in = json_decode(stream_get_contents(STDIN), true);
-        @unlink($in['report']);
-        $process = @proc_open($in['argv'], [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['redirect', 1]], $pipes);
-        if (!is_resource($process)) { fwrite(STDERR, sprintf('Cannot start "%s".', $in['argv'][0])); exit(1); }
-        $output = stream_get_contents($pipes[1]);
-        fclose($pipes[1]);
-        $exit = proc_close($process);
-        echo json_encode([
-            'exit' => $exit,
-            'output' => $output,
-            'report' => is_file($in['report']) ? file_get_contents($in['report']) : null,
-        ], JSON_INVALID_UTF8_SUBSTITUTE);
+        $results = [];
+        foreach ($in['runs'] as $run) {
+            if (null !== $run['report']) { @unlink($run['report']); }
+            // Errors apart: when the report is the standard output, nothing else may land in it.
+            $errors = '/tmp/agentic-checks.err';
+            $process = @proc_open($run['argv'], [0 => ['file', '/dev/null', 'r'], 1 => ['pipe', 'w'], 2 => ['file', $errors, 'w']], $pipes);
+            if (!is_resource($process)) { $results[] = ['exit' => 127, 'output' => sprintf('Cannot start "%s".', $run['argv'][0]), 'report' => null]; continue; }
+            $output = stream_get_contents($pipes[1]);
+            fclose($pipes[1]);
+            $exit = proc_close($process);
+            $results[] = [
+                'exit' => $exit,
+                'output' => $output.@file_get_contents($errors),
+                'report' => null === $run['report'] ? $output : (is_file($run['report']) ? file_get_contents($run['report']) : null),
+            ];
+        }
+        echo json_encode($results, JSON_INVALID_UTF8_SUBSTITUTE);
         PHP;
 }
