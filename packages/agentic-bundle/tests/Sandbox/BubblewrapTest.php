@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Tests\Sandbox;
 
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
+use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -117,7 +118,7 @@ final class BubblewrapTest extends TestCase
     public function testTheToolRefusesAWorkingDirectoryOutsideTheWorkspace(): void
     {
         symlink(\dirname($this->workspace), $this->workspace.'/src/outside');
-        $tool = new RunCommandTool(new Bubblewrap($this->workspace));
+        $tool = new RunCommandTool(new Workspaces(new Bubblewrap($this->workspace)));
 
         self::assertStringStartsWith('Directory refused', $tool(['command' => 'ls', 'cwd' => '..']));
         self::assertStringStartsWith('Directory refused', $tool(['command' => 'ls', 'cwd' => 'src/outside']));

@@ -24,8 +24,11 @@ use Gplanchat\AgenticBundle\Console\ConsoleCommandCatalog;
 use Gplanchat\AgenticBundle\Console\HelpCommand;
 use Gplanchat\AgenticBundle\Controller\HelpController;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
+use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 use Gplanchat\AgenticBundle\Sandbox\Worktrees;
 use Gplanchat\AgenticBundle\Tool\AgentTools;
+use Gplanchat\AgenticBundle\Tool\EditFileTool;
+use Gplanchat\AgenticBundle\Tool\ReadFileTool;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use Gplanchat\AgenticBundle\Tui\HelpScreen;
@@ -97,7 +100,7 @@ final class AgenticBundle extends AbstractBundle
                     ->end()
                 ->end()
                 ->arrayNode('sandbox')
-                    ->info('The run_command tool, run inside a bubblewrap sandbox: the project writable, no network and nothing else from the disk.')
+                    ->info('The run_command, read_file and edit_file tools, run inside a bubblewrap sandbox: the workspace writable, no network and nothing else from the disk.')
                     ->canBeEnabled()
                     ->children()
                         ->scalarNode('workspace')->defaultValue('%kernel.project_dir%')->end()
@@ -182,8 +185,16 @@ final class AgenticBundle extends AbstractBundle
                 $services->set(Worktrees::class)
                     ->args([$config['sandbox']['workspace'], $config['sandbox']['shared']]);
             }
+            $services->set(Workspaces::class)
+                ->args([service(Bubblewrap::class), service(Worktrees::class)->nullOnInvalid()]);
+            $services->set(ReadFileTool::class)
+                ->args([service(Workspaces::class)])
+                ->tag(self::TOOL_TAG);
+            $services->set(EditFileTool::class)
+                ->args([service(Workspaces::class)])
+                ->tag(self::TOOL_TAG);
             $services->set(RunCommandTool::class)
-                ->args([service(Bubblewrap::class), service(Worktrees::class)->nullOnInvalid()])
+                ->args([service(Workspaces::class)])
                 ->tag(self::TOOL_TAG);
 
             // The auto-mode allowlist is a rule like the others: it goes to the journal with them,

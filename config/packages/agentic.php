@@ -13,7 +13,7 @@ return static function (ContainerConfigurator $container): void {
         //   ['tool' => 'send_email', 'when' => ['to' => '*@example.test'], 'decision' => 'allow'],
         //   ['tool' => 'send_email', 'when' => ['to' => '*@competitor.test'], 'decision' => 'deny', 'reason' => 'Never to competitors.'],
         'tool_rules' => [],
-        // run_command, inside a bubblewrap sandbox: no network, nothing of the disk but what is
+        // run_command, read_file and edit_file, inside a bubblewrap sandbox: no network, nothing of the disk but what is
         // mounted; .env.local and var/ hidden, .git read-only. The agent writes in its own worktree
         // (`worktrees`), not in the project; `shared` are the paths bound from the project into it —
         // vendor/ among them, since a worktree has none. Outside auto, every command asks; in auto,

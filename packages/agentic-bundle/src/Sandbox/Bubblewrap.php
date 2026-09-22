@@ -77,6 +77,14 @@ final class Bubblewrap
     }
 
     /**
+     * @return list<string> `glob` patterns relative to a workspace, masked inside the sandbox
+     */
+    public function hidden(): array
+    {
+        return $this->hidden;
+    }
+
+    /**
      * Why the sandbox cannot serve, or `null` if it works.
      *
      * Probed by **launching** bwrap, once per process: an installed bwrap can be refused by the
@@ -125,17 +133,42 @@ final class Bubblewrap
             return 'Empty command.';
         }
 
+        [$exitCode, $output, $errors] = $this->execute($argv, $cwd, $workspace, $readOnly);
+
+        return null === $exitCode
+            ? $errors
+            : \sprintf("Exit code: %d\n%s", $exitCode, self::cap($output.$errors));
+    }
+
+    /**
+     * Runs an argument vector in the sandbox — no splitting, no shell.
+     *
+     * @param list<string>          $argv
+     * @param array<string, string> $readOnly
+     *
+     * @return array{0: int|null, 1: string, 2: string} the exit code — `null` when it did not run to
+     *                                                  its end, the reason then in the third —,
+     *                                                  standard output, error output
+     */
+    public function execute(array $argv, string $cwd, ?string $workspace = null, array $readOnly = [], ?string $input = null): array
+    {
+        if (null !== $problem = $this->problem()) {
+            // Returned, not thrown: an exception would be retried three times to end in a vague failure.
+            return [null, '', $problem];
+        }
+
         $process = new Process([...$this->sandbox($cwd, $workspace ?? $this->workspace, $readOnly), '--', ...$argv]);
         $process->setTimeout($this->timeoutSeconds);
+        $process->setInput($input);
 
         try {
             $process->run();
         } catch (ProcessTimedOutException) {
             // Returned as a result: thrown, it would be retried — three times the same timeout.
-            return \sprintf("Interrupted after %d s.\n%s", (int) $this->timeoutSeconds, self::cap($process->getOutput().$process->getErrorOutput()));
+            return [null, '', \sprintf("Interrupted after %d s.\n%s", (int) $this->timeoutSeconds, self::cap($process->getOutput().$process->getErrorOutput()))];
         }
 
-        return \sprintf("Exit code: %d\n%s", (int) $process->getExitCode(), self::cap($process->getOutput().$process->getErrorOutput()));
+        return [(int) $process->getExitCode(), $process->getOutput(), $process->getErrorOutput()];
     }
 
     /**

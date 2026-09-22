@@ -44,8 +44,7 @@ final class AgentTools
             return \sprintf('Unknown tool "%s": it is no longer offered.', $name);
         }
 
-        // ponytail: a single tool acts in a workspace. The file tools will make it an interface.
-        return $tool instanceof RunCommandTool ? $tool->inWorkspace($arguments, $workspace) : $tool($arguments);
+        return $tool instanceof WorkspaceTool ? $tool->inWorkspace($arguments, $workspace) : $tool($arguments);
     }
 
     /**

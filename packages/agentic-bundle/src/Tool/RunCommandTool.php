@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace Gplanchat\AgenticBundle\Tool;
 
-use Gplanchat\Agentic\Application\Tool\AgentTool;
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
-use Gplanchat\AgenticBundle\Sandbox\Worktrees;
+use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 
 /**
  * Runs a command inside the sandbox ({@see Bubblewrap}).
@@ -20,14 +19,12 @@ use Gplanchat\AgenticBundle\Sandbox\Worktrees;
  * With worktrees on, the command runs in the conversation's worktree — its path comes from the
  * start payload, never from the model —, created on the first call. Without, in the project.
  */
-final readonly class RunCommandTool implements AgentTool
+final readonly class RunCommandTool implements WorkspaceTool
 {
     public const TOOL = 'run_command';
 
-    public function __construct(
-        private Bubblewrap $sandbox,
-        private ?Worktrees $worktrees = null,
-    ) {
+    public function __construct(private Workspaces $workspaces)
+    {
     }
 
     public function definition(): ToolDefinition
@@ -54,22 +51,10 @@ final readonly class RunCommandTool implements AgentTool
         return $this->inWorkspace($arguments, null);
     }
 
-    /**
-     * @param array<string, mixed> $arguments
-     * @param string|null          $workspace the conversation's worktree; `null` = the configured workspace
-     */
     public function inWorkspace(array $arguments, ?string $workspace): string
     {
-        $readOnly = [];
-        if (null !== $workspace && null !== $this->worktrees) {
-            // Thrown if git refuses: an infrastructure failure, retried like one.
-            $this->worktrees->ensure($workspace);
-            $readOnly = $this->worktrees->readOnlyMounts($workspace);
-        } else {
-            $workspace = null;
-        }
-
-        $root = $workspace ?? $this->sandbox->workspace();
+        // Thrown if git cannot create the worktree: an infrastructure failure, retried like one.
+        [$root, $readOnly] = $this->workspaces->open($workspace);
         $cwd = realpath($root.'/'.ltrim((string) ($arguments['cwd'] ?? ''), '/'));
 
         // realpath resolves `..` and the links: what is left must be under the root.
@@ -77,6 +62,6 @@ final readonly class RunCommandTool implements AgentTool
             return \sprintf('Directory refused: "%s" is not a folder of the project.', (string) ($arguments['cwd'] ?? ''));
         }
 
-        return $this->sandbox->run((string) ($arguments['command'] ?? ''), $cwd, $workspace, $readOnly);
+        return $this->workspaces->sandbox()->run((string) ($arguments['command'] ?? ''), $cwd, $root, $readOnly);
     }
 }

@@ -261,6 +261,13 @@ final readonly class SlashCommands
         }
 
         $frozen = $this->conversations->transcript($conversation)->tools;
+        // The column is as wide as the longest name shown: MCP tool names run long
+        // (`add_comment_to_pending_review`), and a fixed width would shift the effects of a whole
+        // server.
+        $width = max([0, ...array_map(
+            static fn (ToolDefinition $tool): int => mb_strlen($tool->name) - mb_strlen('mcp____'),
+            $frozen->definitions,
+        )]);
         $lines = [];
         foreach ($this->mcp->status() as $server) {
             $lines[] = \sprintf(
@@ -272,7 +279,8 @@ final readonly class SlashCommands
 
             foreach ($frozen as $tool) {
                 if (str_starts_with($tool->name, 'mcp__'.$server['server'].'__')) {
-                    $lines[] = \sprintf('    %s  %s', str_pad(substr($tool->name, \strlen('mcp__'.$server['server'].'__')), 24), $tool->effect->value);
+                    $short = substr($tool->name, \strlen('mcp__'.$server['server'].'__'));
+                    $lines[] = \sprintf('    %s  %s', str_pad($short, max(12, $width - mb_strlen($server['server']))), $tool->effect->value);
                 }
             }
         }

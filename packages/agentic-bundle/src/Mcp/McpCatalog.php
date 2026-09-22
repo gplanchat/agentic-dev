@@ -12,6 +12,8 @@ use Mcp\Client\Transport\StdioTransport;
 use Mcp\Schema\Content\TextContent;
 use Mcp\Schema\Tool;
 use Psr\Log\LoggerInterface;
+use Symfony\Component\HttpClient\AmpHttpClient;
+use Symfony\Component\HttpClient\Psr18Client;
 
 /**
  * The tools of the configured MCP servers, offered to the agent like any other.
@@ -153,9 +155,17 @@ final class McpCatalog implements \IteratorAggregate
             ->setRequestTimeout($server->timeoutSeconds)
             ->build();
 
-        $client->connect(null !== $server->command
-            ? new StdioTransport($server->command, $server->args, $server->cwd, [] === $server->env ? null : $server->env)
-            : new HttpTransport((string) $server->url, $server->headers));
+        if (null !== $server->command) {
+            $client->connect(new StdioTransport($server->command, $server->args, $server->cwd, [] === $server->env ? null : $server->env));
+
+            return $client;
+        }
+
+        // The PSR-18 client is ours rather than discovered, and it is the Amp one: an MCP call over
+        // HTTP happens in the TUI process, and a blocking client would freeze the screen the way the
+        // model call used to.
+        $http = new Psr18Client(new AmpHttpClient());
+        $client->connect(new HttpTransport((string) $server->url, $server->headers, $http, $http, $http));
 
         return $client;
     }

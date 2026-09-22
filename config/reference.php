@@ -561,7 +561,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         modes?: list<"auto"|"edition"|"standard"|Param>,
  *         unless?: array<string, list<scalar|Param|null>>,
  *     }>,
- *     sandbox?: bool|array{ // The run_command tool, run inside a bubblewrap sandbox: the project writable, no network and nothing else from the disk.
+ *     sandbox?: bool|array{ // The run_command, read_file and edit_file tools, run inside a bubblewrap sandbox: the workspace writable, no network and nothing else from the disk.
  *         enabled?: bool|Param, // Default: false
  *         workspace?: scalar|Param|null, // Default: "%kernel.project_dir%"
  *         hidden?: list<scalar|Param|null>,

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Tests\Sandbox;
 
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
+use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 use Gplanchat\AgenticBundle\Sandbox\Worktrees;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -82,7 +83,7 @@ final class WorktreesTest extends TestCase
         // The borrowed autoloader says where it lives: the worktree, not the project.
         file_put_contents($this->project.'/vendor/autoload.php', '<?php echo dirname(__DIR__), "\n";');
         $worktrees = new Worktrees($this->project);
-        $tool = new RunCommandTool($sandbox, $worktrees);
+        $tool = new RunCommandTool(new Workspaces($sandbox, $worktrees));
         $path = $worktrees->pathFor('3f2a9c1e');
 
         self::assertSame("Exit code: 0\n{$path}\n", $tool->inWorkspace(['command' => 'php vendor/autoload.php'], $path));

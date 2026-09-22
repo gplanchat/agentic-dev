@@ -89,7 +89,34 @@ every refresh, with no `messenger:consume` alongside.
   starts and its schemas are frozen in the payload: a server that changes its tools afterwards does
   not change a running conversation, and a tool that disappeared comes back to the model as a failed
   result. A server that is down costs nothing — no tool, an error shown by `/mcp`, the conversation
-  starts anyway.
+  starts anyway. Tried against the official GitHub server, which offers 45 tools:
+
+  ```php
+  'mcp' => ['servers' => ['github' => [
+      'command' => 'docker',
+      'args' => ['run', '-i', '--rm', '-e', 'GITHUB_PERSONAL_ACCESS_TOKEN', 'ghcr.io/github/github-mcp-server', 'stdio'],
+      'env' => ['GITHUB_PERSONAL_ACCESS_TOKEN' => '%env(GITHUB_TOKEN)%', 'PATH' => '%env(PATH)%', 'HOME' => '%env(HOME)%'],
+      'effects' => ['get_*' => 'read', 'list_*' => 'read', 'search_*' => 'read'],
+  ]]],
+  ```
+
+  **Only stdio servers work today.** A server reached over `url` answers the Streamable HTTP way,
+  with a `text/event-stream` that stays open, and the client blocks reading it — GitHub's remote
+  endpoint authenticates fine and then hangs. Until that is handled, declare servers by `command`.
+- **`read_file` and `edit_file`** work in the same sandbox and the same workspace as `run_command`
+  (the conversation's worktree). `read_file` (`read`, passes in every mode) prints numbered lines,
+  400 by default, with `offset`/`limit`, and says how to read on; on a directory it lists the
+  entries. `edit_file` (`write`: asks in `standard`, passes in `edition` and `auto`) replaces an
+  exact `old_string`, which must be unique unless `replace_all` is set; an empty `old_string`
+  creates a file — and its directories — that must not exist yet. Both run as a small PHP script
+  inside bwrap, so they see exactly what `run_command` sees. They refuse what resolves outside the
+  workspace (`..`, absolute paths, symlinks), what is read-only (`.git`, `.claude`, the borrowed
+  `vendor/`) and what is masked (`.env.local`, `var/`…), with a sentence rather than a silent
+  success. Two things worth saying plainly: in `auto`, `edit_file` plus an allowlisted
+  `vendor/bin/phpunit` runs whatever the agent just wrote, without approval — `auto_allow` limits
+  which programs start, not what code they run, and the sandbox is the barrier; and `read_file`
+  reads HEAD's version of the files, not your uncommitted edits, its first call being what cuts the
+  worktree even in `standard`.
 - **`AGENTS.md`** at the project root (path configurable through `instructions_file`): appended to
   the system prompt when a conversation starts, truncated beyond 32 KiB.
 - **Journal on SQLite** (`var/agentic.sqlite`): conversations survive the TUI being closed and can be
