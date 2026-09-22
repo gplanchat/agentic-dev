@@ -23,6 +23,10 @@ Tests, package by package (PHPUnit 11 for `agentic`, which must stay installable
 (cd packages/agentic-bundle && composer install && php8.4 vendor/bin/phpunit)
 ```
 
+Each package splits its suite along the test pyramid (`static`, `unit`, `functional`,
+`integration`; `--testsuite <layer>`); `tests/TestPyramidTest.php` fails when a test sits in no
+layer or in two. No e2e yet.
+
 ## The chat
 
 A conversation is an execution of the `DurableAgentWorkflow` workflow; every message, approval,
@@ -85,7 +89,9 @@ every refresh, with no `messenger:consume` alongside.
   `ERROR — <layer>` when no report came out, with the tail of the output, and `RED` too when the
   exit code fails although no test did. Its arguments are closed — a configured layer, a filter
   passed as a single value to `filter_option` — so it needs no allowlist. Classed `write`: it asks
-  in `standard`, passes in `edition` and `auto`. One timeout per layer (300 s by default). A layer that runs
+  in `standard`, passes in `edition` and `auto`. One timeout per layer (300 s by default). `tests` per layer says where its
+  tests live; with checks configured, the system prompt carries the pyramid and the TDD cycle
+  (red → green → review), and each verdict ends with the next step. A layer that runs
   the bundle suite works from inside the sandbox, nested bwrap included.
 - **Sub-agents** (`agents` in `config/packages/agentic.php`): named profiles the `delegate` tool can
   hand a mission to, each with its description (which the model reads to choose), its instructions,

@@ -22,20 +22,15 @@ return static function (ContainerConfigurator $container): void {
             'enabled' => true,
             // The layers run_checks may run, each in the sandbox and the conversation's workspace.
             // `{report}` is where the JUnit report is expected; the tool reads it rather than
-            // returning kilobytes of output. One suite per package today, a pyramid later.
+            // returning kilobytes of output. One layer per package and per level of the pyramid.
             'checks' => [
-                'unit' => [
-                    'command' => 'php8.2 vendor/bin/phpunit --log-junit {report}',
-                    'cwd' => 'packages/agentic',
-                    'filter_option' => '--filter',
-                    'description' => 'the component suite: domain, application, workflow with in-memory Durable',
-                ],
-                'integration' => [
-                    'command' => 'php8.4 vendor/bin/phpunit --log-junit {report}',
-                    'cwd' => 'packages/agentic-bundle',
-                    'filter_option' => '--filter',
-                    'description' => 'the bundle suite: kernel, TUI, sandbox (needs bwrap)',
-                ],
+                'component-static' => ['command' => 'php8.2 vendor/bin/phpunit --testsuite static --log-junit {report}', 'cwd' => 'packages/agentic', 'description' => 'agentic: architecture rules, test pyramid', 'tests' => 'packages/agentic/tests/ArchitectureTest.php (dependency rules between layers of the code) and tests/TestPyramidTest.php; add a rule rather than a new file'],
+                'component-unit' => ['command' => 'php8.2 vendor/bin/phpunit --testsuite unit --log-junit {report}', 'cwd' => 'packages/agentic', 'filter_option' => '--filter', 'description' => 'agentic: domain and application, in memory', 'tests' => 'packages/agentic/tests/Domain and tests/Application, mirroring src/ (src/Domain/Guard/ToolRule.php → tests/Domain/Guard/ToolRuleTest.php); PHP 8.2, PHPUnit 11'],
+                'component-functional' => ['command' => 'php8.2 vendor/bin/phpunit --testsuite functional --log-junit {report}', 'cwd' => 'packages/agentic', 'filter_option' => '--filter', 'description' => 'agentic: the durable workflow on Durable\'s test environment', 'tests' => 'packages/agentic/tests/Infrastructure/<Behaviour>WorkflowTest.php, on Gplanchat\\Durable\\Testing\\WorkflowTestEnvironment with the model scripted'],
+                'bundle-static' => ['command' => 'php8.4 vendor/bin/phpunit --testsuite static --log-junit {report}', 'cwd' => 'packages/agentic-bundle', 'description' => 'bundle: test pyramid', 'tests' => 'packages/agentic-bundle/tests/TestPyramidTest.php only'],
+                'bundle-unit' => ['command' => 'php8.4 vendor/bin/phpunit --testsuite unit --log-junit {report}', 'cwd' => 'packages/agentic-bundle', 'filter_option' => '--filter', 'description' => 'bundle: TUI widgets, JUnit reader, factories', 'tests' => 'packages/agentic-bundle/tests/{Ai,Check,Controller,Tui}, mirroring src/; PHP 8.4, PHPUnit 12'],
+                'bundle-functional' => ['command' => 'php8.4 vendor/bin/phpunit --testsuite functional --log-junit {report}', 'cwd' => 'packages/agentic-bundle', 'filter_option' => '--filter', 'description' => 'bundle: the kernel with in-memory journal and transports', 'tests' => 'packages/agentic-bundle/tests/Integration (historical name), KernelTestCase on TestKernel with in-memory journal and transports'],
+                'bundle-integration' => ['command' => 'php8.4 vendor/bin/phpunit --testsuite integration --log-junit {report}', 'cwd' => 'packages/agentic-bundle', 'filter_option' => '--filter', 'description' => 'bundle: bubblewrap, git worktrees, MCP servers, HTTP', 'tests' => 'packages/agentic-bundle/tests/{Sandbox,Mcp,Chat} and tests/Integration/McpIntegrationTest.php; skip when bwrap is missing'],
             ],
             // The bundle shares vendor/ by default; the packages have their own, and the bundle
             // suite runs with cwd=packages/agentic-bundle.

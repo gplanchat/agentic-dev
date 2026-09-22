@@ -108,10 +108,15 @@ final class ScriptedChatModelClient implements ModelClientInterface
 
         // The lever of delegation: a scripted model does not decide on its own to hand over a task.
         if (self::mentions($lastUser, 'delegate', 'team')) {
-            return new InMemoryRawResult($this->toolCall($messages, DelegateTool::TOOL, [
-                'mission' => 'Sum up in one sentence what a durable agent does.',
-                'model' => 'ministral-3b-latest',
-            ]));
+            $agent = self::firstEnumValue($options, DelegateTool::TOOL, 'agent');
+
+            return new InMemoryRawResult($this->toolCall($messages, DelegateTool::TOOL, null === $agent
+                // A sub-agent the application declares, when there is one: that is what a real model
+                // would do, since the schema offers the names.
+                ? ['mission' => 'Sum up in one sentence what a durable agent does.', 'model' => 'ministral-3b-latest']
+                // A mission the sub-agent can actually carry out with a tool of its own: the demo is
+                // worth more when the delegate does something than when it answers about itself.
+                : ['mission' => 'What is the weather in Lyon?', 'agent' => $agent]));
         }
 
         if (self::mentions($lastUser, 'note')) {
@@ -152,9 +157,20 @@ final class ScriptedChatModelClient implements ModelClientInterface
      */
     private static function firstWatchSubject(array $options): ?string
     {
-        foreach ($options['tools'] ?? [] as $tool) {
-            if (\is_array($tool) && WatchTool::TOOL === ($tool['function']['name'] ?? null)) {
-                $enum = $tool['function']['parameters']['properties']['subject']['enum'] ?? [];
+        return self::firstEnumValue($options, WatchTool::TOOL, 'subject');
+    }
+
+    /**
+     * The first value a tool's schema offers for one of its arguments — the vocabulary belongs to
+     * the application, not to this client.
+     *
+     * @param array<string, mixed> $options
+     */
+    private static function firstEnumValue(array $options, string $tool, string $argument): ?string
+    {
+        foreach ($options['tools'] ?? [] as $candidate) {
+            if (\is_array($candidate) && $tool === ($candidate['function']['name'] ?? null)) {
+                $enum = $candidate['function']['parameters']['properties'][$argument]['enum'] ?? [];
 
                 return \is_array($enum) && [] !== $enum ? (string) reset($enum) : null;
             }
