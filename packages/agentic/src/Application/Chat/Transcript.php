@@ -6,6 +6,7 @@ namespace Gplanchat\Agentic\Application\Chat;
 
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\PendingApproval;
+use Gplanchat\Agentic\Domain\Guard\ToolRule;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
 use Gplanchat\Agentic\Domain\Watch\Watch;
@@ -42,6 +43,8 @@ final readonly class Transcript implements \JsonSerializable
         public string $model = '',
         /** Les outils de l'application figés au démarrage — hors outils toujours offerts. */
         public Toolset $tools = new Toolset(),
+        /** @var list<ToolRule> les hooks de décision figés au démarrage */
+        public array $rules = [],
     ) {
     }
 
@@ -60,7 +63,7 @@ final readonly class Transcript implements \JsonSerializable
     }
 
     /**
-     * @return array{messages: list<TranscriptMessage>, steps: list<ToolStep>, pending: list<PendingApproval>, questions: list<PendingQuestion>, watches: list<Watch>, mode: string, humanTimeoutSeconds: float|null, working: bool, finished: bool, failure: string|null, model: string, tools: array<string, mixed>}
+     * @return array{messages: list<TranscriptMessage>, steps: list<ToolStep>, pending: list<PendingApproval>, questions: list<PendingQuestion>, watches: list<Watch>, mode: string, humanTimeoutSeconds: float|null, working: bool, finished: bool, failure: string|null, model: string, tools: array<string, mixed>, rules: list<array<string, mixed>>}
      */
     public function jsonSerialize(): array
     {
@@ -77,6 +80,7 @@ final readonly class Transcript implements \JsonSerializable
             'failure' => $this->failure,
             'model' => $this->model,
             'tools' => $this->tools->toWire(),
+            'rules' => array_map(static fn (ToolRule $rule): array => $rule->toWire(), $this->rules),
         ];
     }
 }

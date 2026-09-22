@@ -548,6 +548,13 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     idle_timeout_seconds?: float|Param, // Silence au bout duquel la conversation se termine. // Default: 3600.0
  *     rollover_after_turns?: int|Param, // Default: 40
  *     context_tokens?: int|Param, // Default: 24000
+ *     instructions_file?: scalar|Param|null, // Consignes du projet ajoutées au prompt système au démarrage de chaque conversation. Absent : ignoré ; null : désactivé. // Default: "%kernel.project_dir%/AGENTS.md"
+ *     tool_rules?: list<array{ // Default: []
+ *         tool?: scalar|Param|null,
+ *         decision?: "allow"|"ask"|"deny"|Param,
+ *         when?: array<string, scalar|Param|null>,
+ *         reason?: scalar|Param|null, // Default: ""
+ *     }>,
  *     watch_subjects?: array<string, scalar|Param|null>,
  * }
  * @psalm-type ConfigType = array{

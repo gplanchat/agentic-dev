@@ -7,6 +7,8 @@ namespace Gplanchat\Agentic\Infrastructure\SymfonyAi;
 use Gplanchat\Agentic\Domain\Context\ContextBudget;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\ModeToolGuard;
+use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
+use Gplanchat\Agentic\Domain\Guard\ToolRule;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
@@ -40,6 +42,7 @@ final class DurableAgentFactory
      * @param Duration|null              $humanTimeout échéance de toute attente humaine — validation
      *                                                 comme réponse à une question — globale à
      *                                                 cette instance d'agent
+     * @param list<ToolRule>             $rules        les hooks de décision, avant le mode
      */
     public static function create(
         WorkflowEnvironment $environment,
@@ -54,6 +57,7 @@ final class DurableAgentFactory
         ?Duration $humanTimeout = null,
         ?ContextBudget $budget = null,
         WatchSubjects $subjects = new WatchSubjects(),
+        array $rules = [],
     ): Agent {
         // Toujours offerts : un agent qui ne peut pas demander invente, et un agent qui ne peut
         // pas attendre bâcle.
@@ -79,7 +83,8 @@ final class DurableAgentFactory
             toolbox: new SchemaOnlyToolbox($tools),
             toolExecutor: new DurableToolExecutor(
                 $environment,
-                $guard ?? new ModeToolGuard($tools),
+                // Les hooks de décision d'abord ; sans règle qui s'applique, le mode.
+                $guard ?? new RuleBasedToolGuard($rules, new ModeToolGuard($tools)),
                 $gate ?? new ToolApprovalGate(),
                 $desk ?? new HumanQuestionDesk(),
                 $watches ?? new WatchDesk(),

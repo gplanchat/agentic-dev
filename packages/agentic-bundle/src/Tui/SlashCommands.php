@@ -6,9 +6,13 @@ namespace Gplanchat\AgenticBundle\Tui;
 
 use Gplanchat\Agentic\Application\Chat\Conversations;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
+use Gplanchat\Agentic\Domain\Guard\ModeToolGuard;
+use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
+use Gplanchat\Agentic\Domain\Guard\ToolRule;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Team\DelegateTool;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
+use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 use Gplanchat\Agentic\Domain\Watch\WatchTool;
 
 /**
@@ -120,22 +124,38 @@ final readonly class SlashCommands
     private function tools(string $conversation): string
     {
         $transcript = $this->conversations->transcript($conversation);
+        // La même garde que celle de l'agent : les règles du projet, puis le mode.
+        $guard = new RuleBasedToolGuard($transcript->rules, new ModeToolGuard($transcript->tools));
         $width = max([0, ...array_map(static fn (ToolDefinition $tool): int => mb_strlen($tool->name), $transcript->tools->definitions)]);
 
         $lines = [];
         foreach ($transcript->tools as $tool) {
+            $decision = $guard->decide(new ToolInvocation('apercu', $tool->name), $transcript->mode);
             $lines[] = \sprintf(
                 '%s  %-8s  %s',
                 str_pad($tool->name, $width),
                 $tool->effect->value,
-                $transcript->mode->requiresApprovalFor($tool->effect) ? 'demande une validation' : 'passe',
+                match (true) {
+                    $decision->isDenied() => 'refusé',
+                    $decision->needsApproval() => 'demande une validation',
+                    default => 'passe',
+                },
             );
         }
+
+        $rules = array_map(static fn (ToolRule $rule): string => \sprintf(
+            '  %-5s %s%s%s',
+            $rule->toWire()['decision'],
+            $rule->tool,
+            implode('', array_map(static fn (string $argument, string $pattern): string => \sprintf(' %s=%s', $argument, $pattern), array_keys($rule->when), $rule->when)),
+            '' === $rule->reason ? '' : ' — '.$rule->reason,
+        ), $transcript->rules);
 
         return implode("\n", [
             ...([] === $lines ? ['Aucun outil déclaré par l’application.'] : $lines),
             '',
             \sprintf('Mode %s. Toujours offerts : %s.', $transcript->mode->value, implode(', ', [AskUserQuestion::TOOL, WatchTool::TOOL, DelegateTool::TOOL])),
+            ...([] === $rules ? [] : ['Règles du projet (refus > demande > accord, avant le mode) :', ...$rules]),
         ]);
     }
 

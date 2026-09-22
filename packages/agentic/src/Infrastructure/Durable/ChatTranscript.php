@@ -9,6 +9,7 @@ use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Application\Chat\TranscriptMessage;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\PendingApproval;
+use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
@@ -319,6 +320,7 @@ final class ChatTranscript
             $failure,
             $signalledModel ?? (string) ($started['model'] ?? ''),
             Toolset::fromWire(\is_array($started['tools'] ?? null) ? $started['tools'] : []),
+            RuleBasedToolGuard::rulesFromWire(\is_array($started['toolRules'] ?? null) ? $started['toolRules'] : []),
         );
     }
 }

@@ -145,4 +145,48 @@ final class ToolGuardWorkflowTest extends TestCase
         self::assertSame(0, $toolCalls, 'L\'activité d\'un outil refusé a quand même été planifiée.');
         self::assertStringContainsString('interdit par la politique', $result);
     }
+
+    /**
+     * Les hooks de décision voyagent dans la charge : un accord laisse partir l'envoi en `standard`
+     * sans attendre personne, un refus l'arrête même en `auto`.
+     */
+    public function testToolRulesFromThePayloadDecideBeforeTheMode(): void
+    {
+        foreach (['allow' => [1, 'standard'], 'deny' => [0, 'auto']] as $decision => [$expectedCalls, $mode]) {
+            $toolCalls = 0;
+            $round = 0;
+            $environment = WorkflowTestEnvironment::inMemory([
+                'ai_model_invoke' => static function (array $payload) use (&$round): array {
+                    if (0 === $round++) {
+                        return ['choices' => [['message' => ['content' => null, 'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => ['name' => 'send_email', 'arguments' => '{"to":"equipe@example.test"}'],
+                        ]]], 'finish_reason' => 'tool_calls']]];
+                    }
+
+                    $last = end($payload['payload']['messages']);
+
+                    return ['choices' => [['message' => ['content' => (string) $last['content']], 'finish_reason' => 'stop']]];
+                },
+                'ai_tool_call' => static function () use (&$toolCalls): string {
+                    ++$toolCalls;
+
+                    return 'envoyé';
+                },
+            ]);
+
+            $environment->runWorkflowClass(DurableAgentWorkflow::class, [
+                'tools' => ['send_email' => ['description' => 'Envoi', 'effect' => 'external']],
+                'mode' => $mode,
+                'prompt' => 'Envoie un mail',
+                'maxTurns' => 1,
+                // Si la règle ne jouait pas, l'attente d'une validation expirerait aussitôt.
+                'humanTimeoutSeconds' => 0.01,
+                'toolRules' => [['tool' => 'send_email', 'when' => ['to' => '*@example.test'], 'decision' => $decision]],
+            ], 'rules-'.$decision);
+
+            self::assertSame($expectedCalls, $toolCalls, \sprintf('Règle « %s » en mode %s.', $decision, $mode));
+        }
+    }
 }

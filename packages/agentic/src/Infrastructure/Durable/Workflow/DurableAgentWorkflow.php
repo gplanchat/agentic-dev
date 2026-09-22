@@ -9,6 +9,7 @@ use Gplanchat\Agentic\Application\Chat\TranscriptMessage;
 use Gplanchat\Agentic\Domain\Context\ContextBudget;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableAgentFactory;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
+use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion;
@@ -289,6 +290,7 @@ final class DurableAgentWorkflow
      * @param list<array{role?: string, content?: string|null}>                                                   $history            le fil repris d'une exécution précédente
      * @param list<string>                                                                                        $pending            messages reçus mais pas encore traités, transmis par le run précédent
      * @param array<string, string>                                                                               $watchSubjects      le vocabulaire des veilles de l'application, sujet → description
+     * @param list<array<string, mixed>>                                                                          $toolRules          les hooks de décision du projet ({@see \Gplanchat\Agentic\Domain\Guard\ToolRule})
      *
      * @return string la dernière réponse de l'agent
      */
@@ -311,6 +313,7 @@ final class DurableAgentWorkflow
         array $pending = [],
         ?ToolGuardInterface $guard = null,
         array $watchSubjects = [],
+        array $toolRules = [],
     ): string {
         // Le plafond d'abord : le mode demandé s'y plie, il ne le contourne pas.
         $this->ceiling = AgentMode::tryFrom($modeCeiling) ?? AgentMode::Auto;
@@ -342,6 +345,7 @@ final class DurableAgentWorkflow
             humanTimeout: Duration::fromWireValue($humanTimeoutSeconds),
             budget: new ContextBudget($contextTokens),
             subjects: WatchSubjects::fromWire($watchSubjects),
+            rules: RuleBasedToolGuard::rulesFromWire($toolRules),
         );
         $agent = $build();
         $agentModel = $this->model;
@@ -432,6 +436,7 @@ final class DurableAgentWorkflow
                     'history' => TranscriptMessage::listToWire($thread),
                     'pending' => $this->inbox,
                     'watchSubjects' => $watchSubjects,
+                    'toolRules' => $toolRules,
                 ]);
             }
         }

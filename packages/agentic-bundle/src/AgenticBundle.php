@@ -15,6 +15,7 @@ use Gplanchat\Agentic\Infrastructure\SymfonyAi\ModelInvocationActivityHandler;
 use Gplanchat\AgenticBundle\Activity\AgentToolActivityHandler;
 use Gplanchat\AgenticBundle\Ai\ModelClientFactory;
 use Gplanchat\AgenticBundle\Chat\DurableConversations;
+use Gplanchat\AgenticBundle\Chat\ProjectInstructions;
 use Gplanchat\AgenticBundle\Console\AgenticApplication;
 use Gplanchat\AgenticBundle\Console\ChatCommand;
 use Gplanchat\AgenticBundle\Console\ConsoleCommandCatalog;
@@ -60,6 +61,25 @@ final class AgenticBundle extends AbstractBundle
                 ->floatNode('idle_timeout_seconds')->defaultValue(3600.0)->info('Silence au bout duquel la conversation se termine.')->end()
                 ->integerNode('rollover_after_turns')->defaultValue(40)->end()
                 ->integerNode('context_tokens')->defaultValue(24_000)->end()
+                ->scalarNode('instructions_file')
+                    ->defaultValue('%kernel.project_dir%/AGENTS.md')
+                    ->info('Consignes du projet ajoutées au prompt système au démarrage de chaque conversation. Absent : ignoré ; null : désactivé.')
+                ->end()
+                ->arrayNode('tool_rules')
+                    ->info('Les hooks de décision : pour un outil (motif fnmatch) et des arguments, allow, ask ou deny. deny > ask > allow ; sans règle, le mode.')
+                    ->arrayPrototype()
+                        ->children()
+                            ->scalarNode('tool')->isRequired()->cannotBeEmpty()->end()
+                            ->enumNode('decision')->values(['allow', 'ask', 'deny'])->isRequired()->end()
+                            ->arrayNode('when')
+                                ->info('argument → motif que sa valeur doit suivre')
+                                ->useAttributeAsKey('argument')
+                                ->scalarPrototype()->end()
+                            ->end()
+                            ->scalarNode('reason')->defaultValue('')->end()
+                        ->end()
+                    ->end()
+                ->end()
                 ->arrayNode('watch_subjects')
                     ->info('Le vocabulaire des veilles : sujet → ce que le modèle en lit.')
                     ->useAttributeAsKey('subject')
@@ -69,7 +89,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -102,6 +122,9 @@ final class AgenticBundle extends AbstractBundle
         $services->set(ChatTranscript::class)
             ->args([service(EventStoreInterface::class), service(WorkflowMetadataStore::class)]);
 
+        $services->set(ProjectInstructions::class)
+            ->args([$config['instructions_file']]);
+
         $services->set(DurableConversations::class)
             ->args([
                 service(WorkflowResumeDispatcher::class),
@@ -109,6 +132,7 @@ final class AgenticBundle extends AbstractBundle
                 service(ChatTranscript::class),
                 service(AgentTools::class),
                 service('gplanchat_agentic.model_catalog'),
+                service(ProjectInstructions::class),
                 [
                     'model' => $config['model'],
                     'systemPrompt' => $config['system_prompt'],
@@ -117,6 +141,7 @@ final class AgenticBundle extends AbstractBundle
                     'rolloverAfterTurns' => $config['rollover_after_turns'],
                     'contextTokens' => $config['context_tokens'],
                     'watchSubjects' => $config['watch_subjects'],
+                    'toolRules' => $config['tool_rules'],
                 ],
             ]);
         $services->alias(Conversations::class, DurableConversations::class)->public();

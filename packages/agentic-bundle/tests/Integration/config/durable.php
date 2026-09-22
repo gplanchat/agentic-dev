@@ -42,5 +42,8 @@ return static function (ContainerConfigurator $container): void {
 
     $container->extension('agentic', [
         'watch_subjects' => ['commande.expediee' => 'une commande a quitté l’entrepôt'],
+        'tool_rules' => [
+            ['tool' => 'weather', 'when' => ['city' => 'Lyon'], 'decision' => 'deny', 'reason' => 'Lyon est hors périmètre.'],
+        ],
     ]);
 };

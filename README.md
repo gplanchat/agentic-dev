@@ -38,5 +38,10 @@ de Durable à chaque rafraîchissement, sans `messenger:consume` à côté.
 - Commandes du chat, tapées à la place d'un message (Tab complète le nom) :
   `/help`, `/mode [standard|edition|auto]`, `/model [nom]` (à partir du message suivant),
   `/tools` (et ce que la garde en fait dans le mode courant), `/clear` (nouvelle conversation).
+- **Hooks de décision** (`tool_rules` dans `config/packages/agentic.php`) : pour un outil (motif
+  `fnmatch`) et, au besoin, des conditions sur ses arguments, `allow`, `ask` ou `deny`, avant le mode.
+  Le refus l'emporte sur la demande, qui l'emporte sur l'accord ; `/tools` affiche les règles.
+- **`AGENTS.md`** à la racine du projet (chemin réglable par `instructions_file`) : ajouté au prompt
+  système au démarrage de chaque conversation, tronqué au-delà de 32 Kio.
 - **Journal en mémoire** : la conversation meurt avec la TUI. La faire survivre demande le backend
   DBAL (SQLite) et un transport Messenger durable.

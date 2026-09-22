@@ -32,6 +32,7 @@ final readonly class DurableConversations implements Conversations
         private ChatTranscript $transcripts,
         private AgentTools $tools,
         private ModelCatalogInterface $catalog,
+        private ProjectInstructions $instructions,
         private array $options = [],
     ) {
     }
@@ -41,6 +42,7 @@ final readonly class DurableConversations implements Conversations
         $conversation = (string) Uuid::v4();
         $this->dispatcher->dispatchNewWorkflowRun($conversation, DurableAgentWorkflow::class, [
             ...$this->options,
+            'systemPrompt' => $this->instructions->appendTo((string) ($this->options['systemPrompt'] ?? DurableAgentWorkflow::SYSTEM_PROMPT)),
             'tools' => $this->tools->toolset()->toWire(),
         ]);
 
