@@ -127,6 +127,8 @@ final class AgenticBundle extends AbstractBundle
                             ->defaultValue(['git status', 'git status *', 'git diff', 'git diff *', 'git log', 'git log *', 'vendor/bin/phpunit', 'vendor/bin/phpunit *'])
                         ->end()
                         ->arrayNode('checks')
+                            // Layer names are what the model types: `component-unit` stays `component-unit`.
+                            ->normalizeKeys(false)
                             ->info('The layers of the run_checks tool — static, unit, functional, integration, e2e… —: a command that writes a JUnit report to {report}, run in the sandbox. None: no run_checks.')
                             ->useAttributeAsKey('layer')
                             ->arrayPrototype()
@@ -136,6 +138,7 @@ final class AgenticBundle extends AbstractBundle
                                     ->scalarNode('filter_option')->defaultNull()->info('The option that takes the model\'s filter, e.g. "--filter"; null: the layer runs whole.')->end()
                                     ->floatNode('timeout_seconds')->defaultValue(300.0)->end()
                                     ->scalarNode('description')->defaultValue('')->info('What the model reads about the layer.')->end()
+                                    ->scalarNode('tests')->defaultValue('')->info('Where the tests of this layer live, and how they are named — the agent places its new tests by it.')->end()
                                 ->end()
                             ->end()
                         ->end()
@@ -193,7 +196,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string}>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -295,7 +298,11 @@ final class AgenticBundle extends AbstractBundle
                 service(WorkflowRunCatalogInterface::class),
                 [
                     'model' => $config['model'],
-                    'systemPrompt' => $config['system_prompt'],
+                    // With checks, the agent works along the test pyramid and the TDD cycle: said once,
+                    // in the prompt every conversation starts with.
+                    'systemPrompt' => [] === ($config['sandbox']['enabled'] ? $config['sandbox']['checks'] : [])
+                        ? $config['system_prompt']
+                        : $config['system_prompt']."\n\n".RunChecksTool::method($config['sandbox']['checks']),
                     'humanTimeoutSeconds' => $config['human_timeout_seconds'],
                     'idleTimeoutSeconds' => $config['idle_timeout_seconds'],
                     'rolloverAfterTurns' => $config['rollover_after_turns'],

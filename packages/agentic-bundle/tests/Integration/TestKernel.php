@@ -45,7 +45,12 @@ class TestKernel extends Kernel
         $container->import(__DIR__.'/config/durable.php');
         // Worktrees on, for the path a conversation carries: no test runs run_command through the
         // kernel — one that did would cut a real worktree of this repository under tests/Integration.
-        $container->extension('agentic', ['sandbox' => ['enabled' => true, 'auto_allow' => ['git status', 'git status *']]]);
+        $container->extension('agentic', ['sandbox' => [
+            'enabled' => true,
+            'auto_allow' => ['git status', 'git status *'],
+            // Never run by these tests: it is here for its name, which must reach the model as written.
+            'checks' => ['kernel-unit' => ['command' => 'true', 'tests' => 'tests/Unit']],
+        ]]);
         $container->services()
             // The default logger writes to stderr: in a TUI, it would tear the screen apart.
             ->set('logger', Logger::class)->args(['warning', 'php://memory'])

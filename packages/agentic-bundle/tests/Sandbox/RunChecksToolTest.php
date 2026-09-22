@@ -54,11 +54,12 @@ final class RunChecksToolTest extends TestCase
     {
         $tool = $this->tool(['unit' => ['command' => 'php checker.php {report}', 'filter_option' => '--filter']]);
 
-        self::assertSame(
-            "RED — unit\n2 tests, 1 failed, 0.20 s.\n\n✗ CartTest::testTwo — CartTest.php:7 (failure)\n  Failed asserting that false is true.",
-            $tool(['layer' => 'unit']),
-        );
-        self::assertSame("GREEN — unit (filter: testOne)\n1 test, 0 failed, 0.10 s.", $tool(['layer' => 'unit', 'filter' => 'testOne']));
+        $red = $tool(['layer' => 'unit']);
+        self::assertStringStartsWith("RED — unit\n2 tests, 1 failed, 0.20 s.\n\n✗ CartTest::testTwo — CartTest.php:7 (failure)\n  Failed asserting that false is true.\n\nTDD: ", $red);
+        self::assertStringContainsString('least code that makes it pass', $red, 'The verdict says the next step of the cycle.');
+
+        $green = $tool(['layer' => 'unit', 'filter' => 'testOne']);
+        self::assertStringStartsWith("GREEN — unit (filter: testOne)\n1 test, 0 failed, 0.10 s.\n\nTDD: green is not done.", $green);
     }
 
     public function testWhatTheReportDoesNotSayComesFromTheOutput(): void
@@ -83,6 +84,21 @@ final class RunChecksToolTest extends TestCase
         self::assertSame('The layer "unit" takes no filter: run it whole.', $tool(['layer' => 'unit', 'filter' => 'x']));
         self::assertStringContainsString('misconfigured', $tool(['layer' => 'elsewhere']));
         self::assertSame(['unit', 'elsewhere'], $tool->definition()->parameters['properties']['layer']['enum'] ?? null);
+    }
+
+    /**
+     * The method the agent starts every conversation with: the layers, where their tests go, the cycle.
+     */
+    public function testTheMethodNamesTheLayersWhereTheirTestsGoAndTheCycle(): void
+    {
+        $method = RunChecksTool::method([
+            'unit' => ['description' => 'domain logic, in memory', 'tests' => 'tests/Domain, one test class per class'],
+            'integration' => ['description' => 'processes and disk'],
+        ]);
+
+        self::assertStringContainsString("- `unit`: domain logic, in memory. Its tests: tests/Domain, one test class per class\n- `integration`: processes and disk\n", $method);
+        self::assertMatchesRegularExpression('/1\. RED .*\n2\. GREEN .*\n3\. REVIEW /', $method);
+        self::assertStringContainsString('a test in no layer never runs', $method);
     }
 
     public function testALayerHasItsOwnTimeout(): void

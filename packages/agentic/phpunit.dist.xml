@@ -3,9 +3,30 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true">
+    <!--
+        The test pyramid, one suite per layer; tests/TestPyramidTest.php checks that every test sits
+        in exactly one of them.
+        - static: rules checked on the code without running it.
+        - unit: one class, in memory — no kernel, no Durable engine, no process, no disk.
+        - functional: the component through its entry point, every input and output in memory.
+        - integration: real outside things — processes, files, git, bubblewrap, servers.
+    -->
     <testsuites>
-        <testsuite name="agentic">
-            <directory>tests</directory>
+        <testsuite name="static">
+            <file>tests/ArchitectureTest.php</file>
+            <file>tests/TestPyramidTest.php</file>
+        </testsuite>
+        <testsuite name="unit">
+            <directory>tests/Domain</directory>
+            <directory>tests/Application</directory>
+            <file>tests/Infrastructure/ChatCompletionTest.php</file>
+            <file>tests/Infrastructure/ScriptedTriggersTest.php</file>
+        </testsuite>
+        <!-- The durable workflow on Durable's test environment, the model scripted. -->
+        <testsuite name="functional">
+            <directory>tests/Infrastructure</directory>
+            <exclude>tests/Infrastructure/ChatCompletionTest.php</exclude>
+            <exclude>tests/Infrastructure/ScriptedTriggersTest.php</exclude>
         </testsuite>
     </testsuites>
 </phpunit>

@@ -34,7 +34,7 @@ final readonly class RunChecksTool implements WorkspaceTool
     private const OUTPUT_TAIL_BYTES = 3_000;
 
     /**
-     * @param array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string}> $layers
+     * @param array<string, array{command: string, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests?: string}> $layers
      */
     public function __construct(
         private Workspaces $workspaces,
@@ -135,7 +135,47 @@ final readonly class RunChecksTool implements WorkspaceTool
             return \sprintf("RED — %s: exit code %d although no test failed.\n%s\nThe end of the output:\n%s", $heading, $status, $text, $this->tail((string) ($run['output'] ?? ''), $root));
         }
 
-        return \sprintf("%s — %s\n%s", $green ? 'GREEN' : 'RED', $heading, $text);
+        return \sprintf("%s — %s\n%s\n\n%s", $green ? 'GREEN' : 'RED', $heading, $text, $green ? self::AFTER_GREEN : self::AFTER_RED);
+    }
+
+    /** The next step of the cycle, said where the model reads the verdict. */
+    private const AFTER_RED = 'TDD: a test you just wrote must fail on its assertion. If it fails on a missing class or method, add the empty shell and run again; if on a typo, fix the test. Then write the least code that makes it pass, and run the same filter again.';
+
+    private const AFTER_GREEN = 'TDD: green is not done. Review: run the whole layer, the layers above it that the change reaches, and the static ones; refactor with the tests green; never weaken a test to make it pass.';
+
+    /**
+     * How to work with these layers — appended to the system prompt, so the agent organises what it
+     * writes along the pyramid and the TDD cycle from its first turn, not after its first mistake.
+     *
+     * @param array<string, array{description: string, tests?: string}> $layers
+     */
+    public static function method(array $layers): string
+    {
+        $lines = array_map(
+            static fn (string $name, array $layer): string => \sprintf(
+                '- `%s`%s%s',
+                $name,
+                '' === $layer['description'] ? '' : ': '.$layer['description'],
+                '' === ($layer['tests'] ?? '') ? '' : '. Its tests: '.$layer['tests'],
+            ),
+            array_keys($layers),
+            $layers,
+        );
+
+        return implode("\n", [
+            '# How to change code here: the test pyramid and TDD',
+            '',
+            'The project checks are layers of a test pyramid, run with the run_checks tool:',
+            ...$lines,
+            '',
+            'Place each test in the lowest layer that can show the behaviour: static rules first, a unit test for the logic of one class (in memory, no kernel, no process, no disk), a functional test for behaviour through the entry point with every input and output in memory, an integration test only for real outside things — processes, files, network —, end to end for the user\'s path. Put the file where its layer\'s tests live: a test in no layer never runs. If no existing place fits, declare the new one in that layer\'s suite (phpunit.dist.xml, for PHPUnit) in the same change.',
+            '',
+            'Work in cycles, one behaviour at a time:',
+            '1. RED — write the test first. Run its layer with a filter on it: it must fail on its assertion (a missing class or method: add the empty shell, run again).',
+            '2. GREEN — write the least code that makes it pass. Run the same filter until it is green.',
+            '3. REVIEW — run the whole layer, the layers above it that the change reaches, and the static ones. Refactor with the tests green. Never weaken or delete a test to make it pass: fix the code, or say why the test is wrong.',
+            'Do not write production code that no failing test asked for.',
+        ]);
     }
 
     private function tail(string $output, string $root): string

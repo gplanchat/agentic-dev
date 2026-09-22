@@ -3,9 +3,35 @@
          xsi:noNamespaceSchemaLocation="vendor/phpunit/phpunit/phpunit.xsd"
          bootstrap="vendor/autoload.php"
          colors="true">
+    <!--
+        The test pyramid, one suite per layer; tests/TestPyramidTest.php checks that every test sits
+        in exactly one of them.
+        - static: rules checked on the code without running it.
+        - unit: one class, in memory — no kernel, no Durable engine, no process, no disk.
+        - functional: the component through its entry point, every input and output in memory.
+        - integration: real outside things — processes, files, git, bubblewrap, servers.
+    -->
     <testsuites>
-        <testsuite name="agentic-bundle">
-            <directory>tests</directory>
+        <testsuite name="static">
+            <file>tests/TestPyramidTest.php</file>
+        </testsuite>
+        <testsuite name="unit">
+            <directory>tests/Ai</directory>
+            <directory>tests/Check</directory>
+            <directory>tests/Controller</directory>
+            <directory>tests/Tui</directory>
+        </testsuite>
+        <!-- The kernel with in-memory journal and transports, the model scripted. The directory is
+             named Integration for historical reasons: what spawns a process is not in this suite. -->
+        <testsuite name="functional">
+            <directory>tests/Integration</directory>
+            <exclude>tests/Integration/McpIntegrationTest.php</exclude>
+        </testsuite>
+        <testsuite name="integration">
+            <directory>tests/Sandbox</directory>
+            <directory>tests/Mcp</directory>
+            <directory>tests/Chat</directory>
+            <file>tests/Integration/McpIntegrationTest.php</file>
         </testsuite>
     </testsuites>
 </phpunit>

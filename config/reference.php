@@ -576,6 +576,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *             filter_option?: scalar|Param|null, // The option that takes the model's filter, e.g. "--filter"; null: the layer runs whole. // Default: null
  *             timeout_seconds?: float|Param, // Default: 300.0
  *             description?: scalar|Param|null, // What the model reads about the layer. // Default: ""
+ *             tests?: scalar|Param|null, // Where the tests of this layer live, and how they are named — the agent places its new tests by it. // Default: ""
  *         }>,
  *     },
  *     agents?: array<string, array{ // Default: []

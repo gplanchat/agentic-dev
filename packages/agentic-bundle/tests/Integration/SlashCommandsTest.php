@@ -54,6 +54,22 @@ final class SlashCommandsTest extends KernelTestCase
      * The sandbox allowlist is a rule like the others: gone to the journal with the conversation,
      * shown by `/tools`, and it holds in `auto`.
      */
+    /**
+     * Layer names are what the model types: the configuration keeps `kernel-unit` as written, where
+     * Symfony would turn the dash into an underscore.
+     */
+    public function testCheckLayersReachTheModelAsWritten(): void
+    {
+        $runChecks = null;
+        foreach ($this->conversations->transcript($this->id)->tools as $tool) {
+            if ('run_checks' === $tool->name) {
+                $runChecks = $tool;
+            }
+        }
+
+        self::assertSame(['kernel-unit'], $runChecks?->parameters['properties']['layer']['enum'] ?? null);
+    }
+
     public function testTheSandboxAllowlistHoldsInAuto(): void
     {
         $this->commands->run($this->id, '/mode auto');
