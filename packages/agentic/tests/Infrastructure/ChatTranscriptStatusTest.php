@@ -14,8 +14,7 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * « L'agent travaille » doit vouloir dire qu'un tour est en cours — pas qu'aucun tour n'a
- * jamais commencé.
+ * "The agent is working" must mean that a turn is in progress — not that no turn has ever started.
  */
 #[CoversClass(ChatTranscript::class)]
 final class ChatTranscriptStatusTest extends TestCase
@@ -32,20 +31,20 @@ final class ChatTranscriptStatusTest extends TestCase
     }
 
     /**
-     * Une exécution morte ne réfléchit plus : sans ça, l'interface attendrait pour toujours.
+     * A dead execution no longer thinks: without this, the interface would wait forever.
      */
     public function testAFailedExecutionIsFinishedAndSaysWhy(): void
     {
-        $this->eventStore->append(new \Gplanchat\Durable\Event\WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Bonjour']));
+        $this->eventStore->append(new \Gplanchat\Durable\Event\WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Hello']));
         $this->eventStore->append(\Gplanchat\Durable\Event\WorkflowExecutionFailed::unhandledActivityFailure(
-            self::EXECUTION, 'a1', 'ai_model_invoke', new \RuntimeException('Le fournisseur a répondu 503'),
+            self::EXECUTION, 'a1', 'ai_model_invoke', new \RuntimeException('The provider replied 503'),
         ));
 
         $transcript = $this->transcript->forExecution(self::EXECUTION);
 
         self::assertTrue($transcript->finished);
         self::assertFalse($transcript->working);
-        self::assertSame('Le fournisseur a répondu 503', $transcript->failure);
+        self::assertSame('The provider replied 503', $transcript->failure);
     }
 
     public function testAFreshExecutionIsIdleNotWorking(): void
@@ -55,76 +54,76 @@ final class ChatTranscriptStatusTest extends TestCase
 
     public function testASignalledMessageTheModelHasNotSeenYetCountsAsWorking(): void
     {
-        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Salut']));
+        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Hi']));
 
         self::assertTrue($this->transcript->forExecution(self::EXECUTION)->working);
     }
 
     public function testAnAnsweredTurnIsIdleAgain(): void
     {
-        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Salut']));
+        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Hi']));
         $this->eventStore->append(new ActivityScheduled(self::EXECUTION, 'a1', 'ai_model_invoke', [
-            'payload' => ['messages' => [['role' => 'user', 'content' => 'Salut']]],
+            'payload' => ['messages' => [['role' => 'user', 'content' => 'Hi']]],
         ]));
         $this->eventStore->append(new ActivityCompleted(self::EXECUTION, 'a1', [
-            'choices' => [['message' => ['content' => 'Bonjour.']]],
+            'choices' => [['message' => ['content' => 'Hello.']]],
         ]));
 
         $transcript = $this->transcript->forExecution(self::EXECUTION);
 
         self::assertFalse($transcript->working);
-        self::assertSame('Bonjour.', $transcript->messages[1]->content);
+        self::assertSame('Hello.', $transcript->messages[1]->content);
     }
 
     public function testAScheduledModelCallWithoutItsResultIsWorking(): void
     {
-        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Salut']));
+        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Hi']));
         $this->eventStore->append(new ActivityScheduled(self::EXECUTION, 'a1', 'ai_model_invoke', [
-            'payload' => ['messages' => [['role' => 'user', 'content' => 'Salut']]],
+            'payload' => ['messages' => [['role' => 'user', 'content' => 'Hi']]],
         ]));
 
         self::assertTrue($this->transcript->forExecution(self::EXECUTION)->working);
     }
 
     /**
-     * Le raisonnement se lit à deux endroits, et il faut les deux : celui d'un tour passé est
-     * remis par le normaliseur dans la charge du tour suivant, celui du dernier tour n'a pas de
-     * tour suivant et ne vit que dans le résultat.
+     * The reasoning is read in two places, and both are needed: the one of a past turn is put back
+     * by the normaliser into the payload of the next turn, the one of the last turn has no next turn
+     * and lives only in the result.
      *
-     * La forme est celle du pont Mistral — des morceaux `thinking` et `text` dans `content` — et
-     * non le `reasoning_content` du contrat générique, que Mistral refuse par un 422.
+     * The shape is that of the Mistral bridge — `thinking` and `text` chunks inside `content` — and
+     * not the `reasoning_content` of the generic contract, which Mistral refuses with a 422.
      */
     public function testTheThreadCarriesTheReasoningOfPastAndLastTurns(): void
     {
-        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Météo à Lyon ?']));
+        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Weather in Lyon?']));
         $this->eventStore->append(new ActivityScheduled(self::EXECUTION, 'a1', 'ai_model_invoke', [
             'payload' => ['messages' => [
-                ['role' => 'user', 'content' => 'Météo à Lyon ?'],
+                ['role' => 'user', 'content' => 'Weather in Lyon?'],
                 ['role' => 'assistant', 'content' => [
-                    ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'Une ville est nommée, je lis la météo.']]],
+                    ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'A city is named, I read the weather.']]],
                 ]],
                 ['role' => 'tool', 'content' => 'Lyon: 25°C'],
             ]],
         ]));
         $this->eventStore->append(new ActivityCompleted(self::EXECUTION, 'a1', [
             'choices' => [['message' => ['content' => [
-                ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'Le relevé est là, je réponds.']]],
+                ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'The reading is there, I answer.']]],
                 ['type' => 'text', 'text' => 'Lyon 25°C.'],
             ]]]],
         ]));
 
         $messages = $this->transcript->forExecution(self::EXECUTION)->messages;
 
-        self::assertSame('Une ville est nommée, je lis la météo.', $messages[1]->reasoning, 'Le raisonnement d\'un tour passé est perdu.');
-        self::assertNull($messages[0]->reasoning, 'Un message de l\'humain n\'a pas de raisonnement.');
+        self::assertSame('A city is named, I read the weather.', $messages[1]->reasoning, 'The reasoning of a past turn is lost.');
+        self::assertNull($messages[0]->reasoning, 'A message from the human has no reasoning.');
         self::assertSame('Lyon 25°C.', $messages[3]->content);
-        self::assertSame('Le relevé est là, je réponds.', $messages[3]->reasoning, 'Le raisonnement du dernier tour est perdu.');
+        self::assertSame('The reading is there, I answer.', $messages[3]->reasoning, 'The reasoning of the last turn is lost.');
     }
 
     public function testAMessageWithoutReasoningCarriesNullNotAnEmptyString(): void
     {
         $this->eventStore->append(new ActivityScheduled(self::EXECUTION, 'a1', 'ai_model_invoke', [
-            'payload' => ['messages' => [['role' => 'assistant', 'content' => 'Bonjour.', 'reasoning_content' => '   ']]],
+            'payload' => ['messages' => [['role' => 'assistant', 'content' => 'Hello.', 'reasoning_content' => '   ']]],
         ]));
 
         self::assertNull($this->transcript->forExecution(self::EXECUTION)->messages[0]->reasoning);

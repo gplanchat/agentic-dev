@@ -7,16 +7,16 @@ namespace Gplanchat\Agentic\Domain\Tool;
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 
 /**
- * Ce qu'un outil déclare : son schéma pour le modèle, et son effet pour la garde.
+ * What a tool declares: its schema for the model, and its effect for the guard.
  *
- * Le schéma JSON (`parameters`) reste un tableau : c'est du fil, il part tel quel au fournisseur.
- * Le reste est typé — un `effect` mal orthographié doit lever ici, pas devenir silencieusement
- * « externe » au fond de la garde.
+ * The JSON schema (`parameters`) stays an array: this is wire, it goes out as is to the provider.
+ * The rest is typed — a misspelled `effect` must throw here, not silently become "external" deep
+ * inside the guard.
  */
 final readonly class ToolDefinition
 {
     /**
-     * @param array<string, mixed>|null $parameters schéma JSON, tel qu'il part au fournisseur
+     * @param array<string, mixed>|null $parameters JSON schema, as it goes out to the provider
      */
     public function __construct(
         public string $name,
@@ -25,15 +25,15 @@ final readonly class ToolDefinition
         public ?array $parameters = null,
     ) {
         if ('' === trim($name)) {
-            throw new \InvalidArgumentException('Un outil doit avoir un nom.');
+            throw new \InvalidArgumentException('A tool must have a name.');
         }
     }
 
     /**
-     * Fabrique de frontière : la charge du workflow arrive du journal, donc en tableaux.
+     * A boundary factory: the workflow payload arrives from the journal, hence as arrays.
      *
-     * Un outil qui ne déclare pas son effet est traité comme externe — le défaut prudent, celui qui
-     * demande une validation dans tous les modes sauf `auto`.
+     * A tool that does not declare its effect is treated as external — the cautious default, the
+     * one that needs an approval in every mode but `auto`.
      *
      * @param array{description?: string, effect?: string, parameters?: array<string, mixed>|null} $wire
      */
@@ -48,8 +48,8 @@ final readonly class ToolDefinition
     }
 
     /**
-     * Retour vers le fil : la charge de démarrage du workflow part en JSON, indexée par nom
-     * d'outil — c'est {@see Toolset::toWire()} qui pose la clé.
+     * Back to the wire: the workflow start payload goes out as JSON, indexed by tool name — it is
+     * {@see Toolset::toWire()} that sets the key.
      *
      * @return array{description: string, effect: string, parameters: array<string, mixed>|null}
      */

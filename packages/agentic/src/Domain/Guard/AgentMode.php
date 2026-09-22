@@ -5,29 +5,29 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Guard;
 
 /**
- * Le mode décide de ce qui passe sans demander. Il est **état de workflow**, changé par signal :
- * passer en `auto` au milieu d'une conversation est journalisé, donc rejoué à l'identique.
+ * The mode decides what goes through without asking. It is **workflow state**, changed by signal:
+ * switching to `auto` in the middle of a conversation is journaled, hence replayed identically.
  */
 enum AgentMode: string
 {
-    /** Tout passe. Personne ne regarde. */
+    /** Everything goes through. Nobody is watching. */
     case Auto = 'auto';
 
-    /** Les écritures passent, les effets externes demandent. */
+    /** Writes go through, external effects ask. */
     case Edition = 'edition';
 
-    /** Seules les lectures passent. */
+    /** Only reads go through. */
     case Standard = 'standard';
 
     /**
-     * La règle du mode, énoncée une fois — c'est ici qu'elle appartient, pas dans les comparaisons
-     * d'une garde.
+     * The rule of the mode, stated once — this is where it belongs, not in the comparisons of some
+     * guard.
      *
-     * | | lecture | écriture | externe |
+     * | | read | write | external |
      * |---|---|---|---|
-     * | `auto` | passe | passe | passe |
-     * | `edition` | passe | passe | demande |
-     * | `standard` | passe | demande | demande |
+     * | `auto` | goes | goes | goes |
+     * | `edition` | goes | goes | asks |
+     * | `standard` | goes | asks | asks |
      */
     public function requiresApprovalFor(ToolEffect $effect): bool
     {
@@ -39,9 +39,9 @@ enum AgentMode: string
     }
 
     /**
-     * Combien ce mode laisse passer. Les trois cas sont un ordre total, et il vit ici pour la même
-     * raison que {@see requiresApprovalFor()} : c'est une propriété du mode, pas une comparaison
-     * que chaque appelant refait à sa façon.
+     * How much this mode lets through. The three cases are a total order, and it lives here for the
+     * same reason as {@see requiresApprovalFor()}: it is a property of the mode, not a comparison
+     * every caller redoes its own way.
      */
     private function permissiveness(): int
     {
@@ -53,12 +53,12 @@ enum AgentMode: string
     }
 
     /**
-     * Le plus strict de plusieurs modes — **l'autorité ne grandit pas par délégation**.
+     * The strictest of several modes — **authority does not grow by delegation**.
      *
-     * Un agent délégué prend le plus strict de sa chaîne. Sans ça, déléguer serait le chemin
-     * d'échappement de la garde : un agent en `standard` ne peut pas envoyer de courriel, mais il
-     * confierait la tâche à un sous-agent en `auto` qui l'enverrait. La garde ne serait pas
-     * contournée par une faille, elle serait devenue décorative.
+     * A delegated agent takes the strictest of its chain. Without that, delegating would be the
+     * escape hatch of the guard: an agent in `standard` cannot send an email, but it would hand the
+     * task to a sub-agent in `auto` that would send it. The guard would not be worked around
+     * through a flaw, it would have become decorative.
      */
     public static function strictest(self ...$modes): self
     {
@@ -73,8 +73,9 @@ enum AgentMode: string
     }
 
     /**
-     * Ce mode desserre-t-il le plafond ? C'est la question que pose un `set_mode` reçu en cours de
-     * route — le plafond vaut à l'entrée **et** après, sinon un sous-agent le lèverait d'un signal.
+     * Does this mode loosen the ceiling? That is the question a `set_mode` received along the way
+     * raises — the ceiling holds on entry **and** afterwards, otherwise a sub-agent would lift it
+     * with a single signal.
      */
     public function loosens(self $ceiling): bool
     {

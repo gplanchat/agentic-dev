@@ -22,23 +22,23 @@ final class ModeToolGuardTest extends TestCase
     private static function tools(): Toolset
     {
         return new Toolset(
-            new ToolDefinition('weather', 'Météo', ToolEffect::Read),
+            new ToolDefinition('weather', 'Weather', ToolEffect::Read),
             new ToolDefinition('save_note', 'Note', ToolEffect::Write),
-            new ToolDefinition('send_email', 'Courriel', ToolEffect::External),
+            new ToolDefinition('send_email', 'Email', ToolEffect::External),
         );
     }
 
     public static function matrix(): \Generator
     {
-        yield 'auto laisse tout passer' => [AgentMode::Auto, 'send_email', false];
-        yield 'auto laisse passer une écriture' => [AgentMode::Auto, 'save_note', false];
-        yield 'edition laisse passer une écriture' => [AgentMode::Edition, 'save_note', false];
-        yield 'edition demande pour un effet externe' => [AgentMode::Edition, 'send_email', true];
-        yield 'standard laisse passer une lecture' => [AgentMode::Standard, 'weather', false];
-        yield 'standard demande pour une écriture' => [AgentMode::Standard, 'save_note', true];
-        yield 'standard demande pour un effet externe' => [AgentMode::Standard, 'send_email', true];
-        // Le défaut prudent : un outil non classé est traité comme externe.
-        yield 'un outil inconnu est traité comme externe' => [AgentMode::Standard, 'rm_rf', true];
+        yield 'auto lets everything through' => [AgentMode::Auto, 'send_email', false];
+        yield 'auto lets a write through' => [AgentMode::Auto, 'save_note', false];
+        yield 'edition lets a write through' => [AgentMode::Edition, 'save_note', false];
+        yield 'edition asks for an external effect' => [AgentMode::Edition, 'send_email', true];
+        yield 'standard lets a read through' => [AgentMode::Standard, 'weather', false];
+        yield 'standard asks for a write' => [AgentMode::Standard, 'save_note', true];
+        yield 'standard asks for an external effect' => [AgentMode::Standard, 'send_email', true];
+        // The cautious default: an unclassified tool is treated as external.
+        yield 'an unknown tool is treated as external' => [AgentMode::Standard, 'rm_rf', true];
     }
 
     #[DataProvider('matrix')]
@@ -58,7 +58,7 @@ final class ModeToolGuardTest extends TestCase
     }
 
     /**
-     * L'autorité ne grandit pas par délégation : le plus strict de la chaîne l'emporte.
+     * Authority does not grow by delegation: the strictest of the chain wins.
      */
     public function testTheStrictestOfTheChainWins(): void
     {
@@ -68,7 +68,7 @@ final class ModeToolGuardTest extends TestCase
     }
 
     /**
-     * Un plafond refuse ce qui desserre, et seulement ça.
+     * A ceiling refuses what loosens it, and only that.
      */
     public function testOnlyALooserModeIsRefusedByACeiling(): void
     {

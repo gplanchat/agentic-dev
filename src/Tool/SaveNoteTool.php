@@ -12,7 +12,7 @@ final class SaveNoteTool implements AgentTool
 {
     public function definition(): ToolDefinition
     {
-        return new ToolDefinition('save_note', 'Enregistre une note dans le dossier courant.', ToolEffect::Write, [
+        return new ToolDefinition('save_note', 'Saves a note in the current folder.', ToolEffect::Write, [
             'type' => 'object',
             'properties' => ['text' => ['type' => 'string']],
             'required' => ['text'],
@@ -21,6 +21,6 @@ final class SaveNoteTool implements AgentTool
 
     public function __invoke(array $arguments): string
     {
-        return \sprintf('Note enregistrée (%d caractères).', mb_strlen((string) ($arguments['text'] ?? '')));
+        return \sprintf('Note saved (%d characters).', mb_strlen((string) ($arguments['text'] ?? '')));
     }
 }

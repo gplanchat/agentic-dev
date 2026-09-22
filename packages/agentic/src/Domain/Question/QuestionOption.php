@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Question;
 
 /**
- * Une réponse proposée. Le libellé est ce que l'humain clique et ce que le modèle relit — il fait
- * donc office d'identifiant, et il doit se suffire à lui-même.
+ * A proposed answer. The label is what the human clicks and what the model reads back — it
+ * therefore acts as an identifier, and it must stand on its own.
  */
 final readonly class QuestionOption implements \JsonSerializable
 {
@@ -15,7 +15,7 @@ final readonly class QuestionOption implements \JsonSerializable
         public string $description = '',
     ) {
         if ('' === trim($label)) {
-            throw new \InvalidArgumentException('Une option doit porter un libellé.');
+            throw new \InvalidArgumentException('An option must carry a label.');
         }
     }
 

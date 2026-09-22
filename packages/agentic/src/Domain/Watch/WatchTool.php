@@ -8,25 +8,25 @@ use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 
 /**
- * L'outil par lequel l'agent se met en veille.
+ * The tool through which the agent goes on watch.
  *
- * Comme `demander_a_l_utilisateur`, son exécution est une suspension — mais ce qui la lève ne
- * vient pas d'un humain devant une carte : c'est un événement du dehors, une supervision, un
- * webhook, un autre agent.
+ * Like `ask_user`, its execution is a suspension — but what lifts it does not come from a human in
+ * front of a card: it is an event from outside, a monitoring system, a webhook, another agent.
  *
- * Ce qu'un processus ne sait pas faire : la veille est **journalisée**. L'agent peut dormir trois
- * jours, traverser un redéploiement, et retrouver au réveil non seulement l'observation mais
- * **l'intention qu'il avait écrite en s'inscrivant**. Rien à se rappeler, tout est au journal.
+ * What a process cannot do: the watch is **journaled**. The agent can sleep for three days, go
+ * through a redeployment, and find on waking not only the observation but **the intent it had
+ * written when registering**. Nothing to remember, everything is in the journal.
  *
- * Le `sujet` est ce qui rend la veille joignable : {@see WatchSubjects} en tient le vocabulaire, et
- * c'est lui — pas l'`observation`, qui est pour l'humain — qu'un événement métier appariera.
+ * The `subject` is what makes the watch reachable: {@see WatchSubjects} holds its vocabulary, and
+ * it is the subject — not the `observation`, which is for the human — that a business event will
+ * match.
  *
- * Classé `read` : se mettre en veille n'écrit nulle part. Ce que l'agent fera *ensuite* repassera
- * par la garde comme n'importe quel appel.
+ * Classified `read`: going on watch writes nowhere. What the agent does *afterwards* will go back
+ * through the guard like any other call.
  */
 final class WatchTool
 {
-    public const TOOL = 'surveiller';
+    public const TOOL = 'watch';
 
     private function __construct()
     {
@@ -44,37 +44,36 @@ final class WatchTool
     {
         return new ToolDefinition(
             self::TOOL,
-            'Se met en veille et attend qu’un événement extérieur survienne. À utiliser quand la '
-            .'suite dépend de quelque chose qui n’a pas encore eu lieu — une livraison, un retour '
-            .'de fournisseur, un seuil franchi. L’exécution reprendra à l’alerte, même des jours '
-            .'plus tard.',
+            'Goes on watch and waits for an outside event to happen. To be used when what comes next '
+            .'depends on something that has not happened yet — a delivery, a reply from a supplier, '
+            .'a threshold crossed. Execution will resume on the alert, even days later.',
             ToolEffect::Read,
             [
                 'type' => 'object',
                 'properties' => [
-                    'sujet' => [
+                    'subject' => [
                         'type' => 'string',
                         'enum' => $subjects->values(),
-                        'description' => 'L’événement que tu attends, à choisir dans la liste : '
+                        'description' => 'The event you are waiting for, to be picked from the list: '
                             .self::catalogue($subjects)
-                            .'. C’est lui, et pas ta phrase, qui réveillera la veille — un sujet '
-                            .'hors liste sera refusé.',
+                            .'. It is the subject, and not your sentence, that will wake the watch — a '
+                            .'subject off the list will be refused.',
                     ],
                     'observation' => [
                         'type' => 'string',
-                        'description' => 'Ce que tu guettes, dit en une phrase lisible par un humain.',
+                        'description' => 'What you are watching for, said in one sentence a human can read.',
                     ],
-                    'intention' => [
+                    'intent' => [
                         'type' => 'string',
-                        'description' => 'Ce que tu feras quand l’alerte arrivera. Écris-le maintenant : '
-                            .'c’est ce qu’on te rendra au réveil, tu n’auras pas à t’en souvenir.',
+                        'description' => 'What you will do when the alert arrives. Write it now: '
+                            .'this is what will be handed back to you on waking, you will not have to remember it.',
                     ],
                     'deadlineSeconds' => [
                         'type' => 'number',
-                        'description' => 'Au-delà de ce délai, la veille est abandonnée et tu reprends la main.',
+                        'description' => 'Past this delay, the watch is abandoned and you take over.',
                     ],
                 ],
-                'required' => ['sujet', 'observation', 'intention'],
+                'required' => ['subject', 'observation', 'intent'],
             ],
         );
     }

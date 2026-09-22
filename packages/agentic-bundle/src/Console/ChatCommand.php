@@ -13,7 +13,7 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Output\StreamOutput;
 
 /**
- * Adaptateur primaire : discuter avec un agent durable dans le terminal.
+ * Primary adapter: talking to a durable agent in the terminal.
  */
 final class ChatCommand extends Command
 {
@@ -27,22 +27,22 @@ final class ChatCommand extends Command
     protected function configure(): void
     {
         $this
-            ->setDescription('Discuter avec un agent durable')
-            ->addArgument('conversation', InputArgument::OPTIONAL, 'La conversation à reprendre ; une nouvelle sinon');
+            ->setDescription('Talk to a durable agent')
+            ->addArgument('conversation', InputArgument::OPTIONAL, 'The conversation to resume; a new one otherwise');
     }
 
     protected function execute(InputInterface $input, OutputInterface $output): int
     {
         $conversation = $input->getArgument('conversation');
         if (null !== $conversation && !$this->conversations->exists($conversation)) {
-            // Un écran vide qui ne répondrait jamais serait pire qu'un refus.
-            $output->writeln(\sprintf('<error>Conversation inconnue : %s.</error> `chat` sans argument en commence une ; `/resume` liste les précédentes.', $conversation));
+            // A blank screen that would never answer would be worse than a refusal.
+            $output->writeln(\sprintf('<error>Unknown conversation: %s.</error> `chat` with no argument starts one; `/resume` lists the previous ones.', $conversation));
 
             return self::FAILURE;
         }
 
         if (!$input->isInteractive() || !$output instanceof StreamOutput || !stream_isatty($output->getStream())) {
-            $output->writeln('<error>Le chat demande un terminal interactif.</error>');
+            $output->writeln('<error>The chat needs an interactive terminal.</error>');
 
             return self::FAILURE;
         }
@@ -50,10 +50,10 @@ final class ChatCommand extends Command
         if (null === $conversation) {
             $conversation = $this->conversations->start();
         } elseif ($this->conversations->transcript($conversation)->finished) {
-            // Une exécution terminée ne se rouvre pas : une neuve repart de son fil.
+            // A finished run is not reopened: a fresh one starts again from its thread.
             $from = $conversation;
             $conversation = $this->conversations->restart($from);
-            $output->writeln(\sprintf('La conversation %s était terminée : elle reprend dans %s.', $from, $conversation));
+            $output->writeln(\sprintf('The conversation %s was finished: it resumes in %s.', $from, $conversation));
         }
 
         $this->screen->open($conversation)->run();

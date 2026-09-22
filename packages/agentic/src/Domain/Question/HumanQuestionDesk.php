@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Question;
 
 /**
- * Le guichet des questions en attente. État de workflow, reconstruit par rejeu depuis les signaux
- * journalisés — jamais lu d'un stockage à côté.
+ * The desk of pending questions. Workflow state, rebuilt by replay from the journaled signals —
+ * never read from some storage on the side.
  *
- * Jumeau de {@see \Gplanchat\Agentic\Domain\Guard\ToolApprovalGate} par la forme, pas par le rôle : la porte laisse
- * passer ou non ce que le modèle a décidé, le guichet lui rapporte ce qu'il ne savait pas.
+ * A twin of {@see \Gplanchat\Agentic\Domain\Guard\ToolApprovalGate} in shape, not in role: the gate lets through or
+ * not what the model decided, the desk brings back to it what it did not know.
  */
 final class HumanQuestionDesk
 {
-    /** @var array<string, list<string>> id d'appel → réponses retenues */
+    /** @var array<string, list<string>> call id → answers kept */
     private array $answers = [];
 
     /** @var array<string, PendingQuestion> */
@@ -29,9 +29,9 @@ final class HumanQuestionDesk
      */
     public function answer(string $callId, array $answers): void
     {
-        // La première réponse gagne : un second signal arrivé après l'échéance ne doit pas
-        // rouvrir une question déjà close, sinon l'ordre du journal donnerait le verdict inverse
-        // au rejeu.
+        // The first answer wins: a second signal arriving after the deadline must not reopen an
+        // already closed question, otherwise the order of the journal would give the opposite
+        // verdict on replay.
         $this->answers[$callId] ??= array_values(array_filter(
             array_map(static fn (mixed $answer): string => trim((string) $answer), $answers),
             static fn (string $answer): bool => '' !== $answer,

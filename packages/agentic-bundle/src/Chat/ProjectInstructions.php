@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Chat;
 
 /**
- * Les consignes du projet, lues dans un fichier (`AGENTS.md`) et ajoutées au prompt système.
+ * The project instructions, read from a file (`AGENTS.md`) and appended to the system prompt.
  *
- * Lues **au démarrage d'une conversation**, hors du workflow : elles entrent dans la charge, donc
- * au journal, et le rejeu retrouve les mêmes. Modifier le fichier vaut pour les conversations
- * suivantes ; celles qui tournent gardent les consignes avec lesquelles elles ont commencé.
+ * Read **when a conversation starts**, outside the workflow: they go into the payload, hence into
+ * the journal, and a replay finds the same ones. Editing the file counts for the conversations that
+ * follow; those already running keep the instructions they started with.
  */
 final readonly class ProjectInstructions
 {
     /**
-     * Le préambule n'est jamais compacté : un fichier démesuré mangerait la fenêtre de chaque tour,
-     * pour toute la conversation. D'où un plafond, au-delà duquel le fichier est tronqué.
+     * The preamble is never compacted: an outsized file would eat the window of every turn, for the
+     * whole conversation. Hence a ceiling, beyond which the file is truncated.
      */
     public const MAX_BYTES = 32_768;
 
@@ -29,7 +29,7 @@ final readonly class ProjectInstructions
 
         return null === $instructions
             ? $systemPrompt
-            : $systemPrompt."\n\n# Consignes du projet (".basename((string) $this->path).")\n\n".$instructions;
+            : $systemPrompt."\n\n# Project instructions (".basename((string) $this->path).")\n\n".$instructions;
     }
 
     private function read(): ?string
@@ -44,8 +44,8 @@ final readonly class ProjectInstructions
         }
 
         if (\strlen($content) > self::MAX_BYTES) {
-            // mb_strcut ne coupe pas un caractère UTF-8 en deux.
-            $content = mb_strcut($content, 0, self::MAX_BYTES)."\n\n[… consignes tronquées à ".self::MAX_BYTES.' octets.]';
+            // mb_strcut never cuts a UTF-8 character in two.
+            $content = mb_strcut($content, 0, self::MAX_BYTES)."\n\n[… instructions truncated at ".self::MAX_BYTES.' bytes.]';
         }
 
         return trim($content);

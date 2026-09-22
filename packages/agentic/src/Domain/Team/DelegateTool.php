@@ -8,28 +8,28 @@ use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 
 /**
- * L'outil par lequel un agent en fait travailler un autre.
+ * The tool through which one agent puts another to work.
  *
- * Un sous-agent est un **workflow enfant** : sa propre exécution, son propre journal, son propre
- * modèle. C'est ce qui permet d'assembler une équipe où chacun a le modèle qui lui va — un petit
- * pour trier, un gros pour rédiger — sans que le parent ait à savoir comment l'autre est fait.
+ * A sub-agent is a **child workflow**: its own execution, its own journal, its own model. That is
+ * what makes it possible to assemble a team where everyone has the model that suits them — a small
+ * one to sort, a big one to write — without the parent having to know how the other one is made.
  *
- * **Ce que déléguer ne donne pas : de l'autorité.** Le délégué hérite du mode effectif de son
- * parent comme plafond ({@see \Gplanchat\Agentic\Domain\Guard\AgentMode::strictest()}), et rien ne le desserre.
- * Sinon un agent en `standard` confierait à un sous-agent en `auto` ce que sa garde lui refuse, et
- * la garde ne serait plus qu'une décoration.
+ * **What delegating does not hand over: authority.** The delegate inherits its parent's effective
+ * mode as a ceiling ({@see \Gplanchat\Agentic\Domain\Guard\AgentMode::strictest()}), and nothing loosens it. Otherwise
+ * an agent in `standard` would hand to a sub-agent in `auto` what its guard refuses it, and the
+ * guard would be nothing but decoration.
  *
- * Conséquence assumée, et c'est ce qui rend la chose sûre sans règle en plus : sous un plafond
- * `standard`, un sous-agent ne peut faire que des lectures — donc rien qui demande une approbation
- * que personne n'est là pour lui donner. Personne ne regarde un sous-agent ; il n'a donc le droit
- * de rien faire d'irréversible, à moins qu'un humain n'ait explicitement mis la chaîne en `auto`.
+ * An accepted consequence, and it is what makes the thing safe without one more rule: under a
+ * `standard` ceiling, a sub-agent can only read — hence nothing that needs an approval nobody is
+ * there to give it. Nobody watches a sub-agent; so it is allowed to do nothing irreversible,
+ * unless a human explicitly put the chain in `auto`.
  *
- * Classé `read` : déléguer n'écrit nulle part. Ce que le délégué fera, lui, repasse par sa propre
- * garde, sous le plafond hérité.
+ * Classified `read`: delegating writes nowhere. What the delegate will do goes back through its
+ * own guard, under the inherited ceiling.
  */
 final class DelegateTool
 {
-    public const TOOL = 'deleguer';
+    public const TOOL = 'delegate';
 
     private function __construct()
     {
@@ -39,22 +39,22 @@ final class DelegateTool
     {
         return new ToolDefinition(
             self::TOOL,
-            'Confie une mission à un sous-agent et attend sa réponse. À utiliser quand la tâche '
-            .'gagne à être traitée à part — un autre modèle, un contexte propre, un raisonnement '
-            .'qui n’a pas à encombrer le tien. Le sous-agent ne peut jamais faire plus que ce que '
-            .'ta propre garde t’autorise.',
+            'Hands a mission to a sub-agent and waits for its reply. To be used when the task gains '
+            .'from being handled apart — another model, a clean context, a line of reasoning that '
+            .'does not have to clutter yours. The sub-agent can never do more than what your own '
+            .'guard allows you.',
             ToolEffect::Read,
             [
                 'type' => 'object',
                 'properties' => [
                     'mission' => [
                         'type' => 'string',
-                        'description' => 'Ce que le sous-agent doit faire, en entier : il ne voit '
-                            .'rien de votre conversation, seulement cette phrase.',
+                        'description' => 'What the sub-agent must do, in full: it sees nothing of '
+                            .'your conversation, only this sentence.',
                     ],
-                    'modele' => [
+                    'model' => [
                         'type' => 'string',
-                        'description' => 'Le modèle à lui confier. À omettre pour reprendre le tien.',
+                        'description' => 'The model to hand it. Omit to take yours again.',
                     ],
                 ],
                 'required' => ['mission'],

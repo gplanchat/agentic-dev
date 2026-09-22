@@ -8,8 +8,8 @@ use Gplanchat\Agentic\Infrastructure\Durable\Activity\AgentToolActivityInterface
 use Gplanchat\AgenticBundle\Tool\AgentTools;
 
 /**
- * Route un appel d'outil vers son implémentation. Chaque appel est une activité : journalisée,
- * retentée selon ses `ActivityOptions`, et jamais ré-exécutée au rejeu.
+ * Routes a tool call to its implementation. Every call is an activity: journalled, retried
+ * according to its `ActivityOptions`, and never re-executed on replay.
  */
 final readonly class AgentToolActivityHandler implements AgentToolActivityInterface
 {
@@ -17,8 +17,8 @@ final readonly class AgentToolActivityHandler implements AgentToolActivityInterf
     {
     }
 
-    public function callTool(string $callId, string $name, array $arguments): string
+    public function callTool(string $callId, string $name, array $arguments, ?string $workspace = null): string
     {
-        return $this->tools->call($name, $arguments);
+        return $this->tools->call($name, $arguments, $workspace);
     }
 }

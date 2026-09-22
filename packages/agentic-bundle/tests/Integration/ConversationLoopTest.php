@@ -10,8 +10,8 @@ use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
- * La preuve que la boucle avance dans un seul processus : pas de `messenger:consume`, pas de
- * cluster, seulement le worker en processus que la TUI appelle.
+ * The proof that the loop moves forward in a single process: no `messenger:consume`, no cluster,
+ * only the in-process worker the TUI calls.
  */
 final class ConversationLoopTest extends KernelTestCase
 {
@@ -26,12 +26,12 @@ final class ConversationLoopTest extends KernelTestCase
 
         $id = $conversations->start();
         $worker->drain();
-        $conversations->send($id, 'Quel temps fait-il à Paris ?');
+        $conversations->send($id, 'What is the weather in Paris?');
         $worker->drain();
 
         $transcript = $conversations->transcript($id);
         self::assertFalse($transcript->working);
-        self::assertSame('Paris : 22°C, ensoleillé', $this->lastAssistant($transcript));
+        self::assertSame('Paris: 22°C, sunny', $this->lastAssistant($transcript));
         self::assertSame('weather', $transcript->steps[0]->tool);
     }
 
@@ -41,7 +41,7 @@ final class ConversationLoopTest extends KernelTestCase
 
         $id = $conversations->start();
         $worker->drain();
-        $conversations->send($id, 'Envoie un mail à l’équipe');
+        $conversations->send($id, 'Send an email to the team');
         $worker->drain();
 
         $pending = $conversations->transcript($id)->pending;
@@ -51,7 +51,7 @@ final class ConversationLoopTest extends KernelTestCase
         $conversations->decide($id, $pending[0]->callId, true);
         $worker->drain();
 
-        self::assertSame('Courriel envoyé à equipe@example.test.', $this->lastAssistant($conversations->transcript($id)));
+        self::assertSame('Email sent to team@example.test.', $this->lastAssistant($conversations->transcript($id)));
     }
 
     public function testAQuestionIsAnsweredByTheHuman(): void
@@ -60,16 +60,16 @@ final class ConversationLoopTest extends KernelTestCase
 
         $id = $conversations->start();
         $worker->drain();
-        $conversations->send($id, 'Pose-moi une question');
+        $conversations->send($id, 'Ask me a question');
         $worker->drain();
 
         $questions = $conversations->transcript($id)->questions;
         self::assertCount(1, $questions);
 
-        $conversations->answer($id, $questions[0]->callId, ['La météo']);
+        $conversations->answer($id, $questions[0]->callId, ['The weather']);
         $worker->drain();
 
-        self::assertSame('La météo', $this->lastAssistant($conversations->transcript($id)));
+        self::assertSame('The weather', $this->lastAssistant($conversations->transcript($id)));
     }
 
     public function testAWatchSleepsUntilTheAlert(): void
@@ -78,17 +78,17 @@ final class ConversationLoopTest extends KernelTestCase
 
         $id = $conversations->start();
         $worker->drain();
-        $conversations->send($id, 'Surveille la livraison');
+        $conversations->send($id, 'Watch the delivery');
         $worker->drain();
 
         $watches = $conversations->transcript($id)->watches;
         self::assertCount(1, $watches);
-        self::assertSame('commande.expediee', $watches[0]->subject->value);
+        self::assertSame('order.shipped', $watches[0]->subject->value);
 
-        $conversations->alert($id, $watches[0]->callId, 'le camion est à quai');
+        $conversations->alert($id, $watches[0]->callId, 'the truck is at the dock');
         $worker->drain();
 
-        self::assertStringContainsString('le camion est à quai', (string) $this->lastAssistant($conversations->transcript($id)));
+        self::assertStringContainsString('the truck is at the dock', (string) $this->lastAssistant($conversations->transcript($id)));
     }
 
     public function testADelegationGetsTheSubAgentAnswer(): void
@@ -97,17 +97,17 @@ final class ConversationLoopTest extends KernelTestCase
 
         $id = $conversations->start();
         $worker->drain();
-        $conversations->send($id, 'Délègue la recherche');
+        $conversations->send($id, 'Delegate the research');
         $worker->drain();
 
         $transcript = $conversations->transcript($id);
-        self::assertFalse($transcript->working, 'Le parent attend encore son sous-agent.');
-        self::assertStringContainsString('Le sous-agent', (string) $this->lastAssistant($transcript));
+        self::assertFalse($transcript->working, 'The parent is still waiting for its sub-agent.');
+        self::assertStringContainsString('The sub-agent', (string) $this->lastAssistant($transcript));
     }
 
     /**
-     * Un outil en panne, tentatives épuisées, redevient un résultat que le modèle lit : la
-     * conversation continue.
+     * A broken tool, once the retries are spent, becomes a result the model reads: the conversation
+     * carries on.
      */
     public function testAToolThatKeepsFailingIsReportedToTheModel(): void
     {
@@ -115,13 +115,13 @@ final class ConversationLoopTest extends KernelTestCase
 
         $id = $conversations->start();
         $worker->drain();
-        $conversations->send($id, 'Prends une note');
+        $conversations->send($id, 'Take a note');
         $worker->drain();
 
         $transcript = $conversations->transcript($id);
         self::assertFalse($transcript->working);
         self::assertFalse($transcript->finished);
-        self::assertSame('Échec de l\'outil « save_note » : Le disque est plein.', $this->lastAssistant($transcript));
+        self::assertSame('Tool "save_note" failed: The disk is full.', $this->lastAssistant($transcript));
     }
 
     /**

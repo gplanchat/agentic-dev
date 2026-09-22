@@ -5,26 +5,27 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Watch;
 
 /**
- * Un sujet qu'une veille peut guetter : un événement que l'application sait publier.
+ * A subject a watch can look out for: an event the application knows how to publish.
  *
- * **C'est l'acte de design, comme {@see \Gplanchat\Agentic\Domain\Guard\ToolEffect} l'est pour la
- * garde.** Une veille décrite en texte libre est une veille que rien ne pourra jamais lever : l'agent
- * écrirait « quand la livraison arrive », l'événement métier dirait `commande.expediee`, et personne
- * ne ferait le rapprochement — sans erreur, sans trace, l'agent dormirait jusqu'à son échéance.
+ * **This is the act of design, as {@see \Gplanchat\Agentic\Domain\Guard\ToolEffect} is for the
+ * guard.** A watch described in free text is a watch nothing will ever be able to lift: the agent
+ * would write "when the delivery arrives", the business event would say `order.shipped`, and nobody
+ * would make the connection — with no error, with no trace, the agent would sleep until its
+ * deadline.
  *
- * Le vocabulaire reste fermé, mais c'est l'application qui le ferme ({@see WatchSubjects}) : les
- * faits d'une boutique ne sont pas ceux d'un import de catalogue, et un composant qui les
- * énumérerait obligerait chacun à le forker pour ajouter un cas.
+ * The vocabulary stays closed, but it is the application that closes it ({@see WatchSubjects}): the
+ * facts of a shop are not those of a catalogue import, and a component that enumerated them would
+ * force everyone to fork it to add a case.
  */
 final readonly class WatchSubject
 {
     public function __construct(
         public string $value,
-        /** Ce que le modèle lit dans le schéma : sans ça il choisirait au hasard dans des chaînes opaques. */
+        /** What the model reads in the schema: without it, it would pick at random among opaque strings. */
         public string $description,
     ) {
         if ('' === trim($value)) {
-            throw new \InvalidArgumentException('Un sujet de veille doit porter un nom.');
+            throw new \InvalidArgumentException('A watch subject must carry a name.');
         }
     }
 

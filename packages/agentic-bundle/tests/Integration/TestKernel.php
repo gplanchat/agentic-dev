@@ -39,8 +39,11 @@ final class TestKernel extends Kernel
     private function configureContainer(ContainerConfigurator $container): void
     {
         $container->import(__DIR__.'/config/durable.php');
+        // Worktrees on, for the path a conversation carries: no test runs run_command through the
+        // kernel — one that did would cut a real worktree of this repository under tests/Integration.
+        $container->extension('agentic', ['sandbox' => ['enabled' => true, 'auto_allow' => ['git status', 'git status *']]]);
         $container->services()
-            // Le logger par défaut écrit sur stderr : dans une TUI, il déchirerait l'écran.
+            // The default logger writes to stderr: in a TUI, it would tear the screen apart.
             ->set('logger', Logger::class)->args(['warning', 'php://memory'])
             ->set(WeatherTool::class)->autoconfigure()
             ->set(SendEmailTool::class)->autoconfigure()

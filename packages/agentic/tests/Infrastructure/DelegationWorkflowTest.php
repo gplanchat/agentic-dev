@@ -14,12 +14,12 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * **L'autorité ne grandit pas par délégation.**
+ * **Authority does not grow by delegation.**
  *
- * C'est l'invariant de toute l'histoire d'équipes d'agents. Sans lui, déléguer est le chemin
- * d'échappement de la garde : un agent en `standard` ne peut pas envoyer de courriel, mais il
- * confierait la tâche à un sous-agent en `auto` qui l'enverrait. La garde ne serait pas contournée
- * par une faille — elle serait devenue décorative.
+ * This is the invariant of the whole agent-team story. Without it, delegating is the escape hatch
+ * of the guard: an agent in `standard` cannot send an email, but it would hand the task to a
+ * sub-agent in `auto` that would send it. The guard would not be worked around through a flaw — it
+ * would have become decorative.
  */
 #[CoversClass(AgentMode::class)]
 final class DelegationWorkflowTest extends TestCase
@@ -32,8 +32,8 @@ final class DelegationWorkflowTest extends TestCase
     }
 
     /**
-     * Un plafond refuse ce qui desserre, et **seulement** ça : un délégué qui veut être plus
-     * prudent que son plafond en a toujours le droit.
+     * A ceiling refuses what loosens it, and **only** that: a delegate that wants to be more
+     * cautious than its ceiling is always allowed to.
      */
     public function testOnlyALooserModeIsRefusedByACeiling(): void
     {
@@ -44,39 +44,39 @@ final class DelegationWorkflowTest extends TestCase
     }
 
     /**
-     * Le mode demandé au démarrage se plie au plafond — et on le lit **à travers la garde**, seul
-     * endroit où un mode veut dire quelque chose : l'outil externe part-il, ou attend-il un accord
-     * que personne ne donnera ?
+     * The mode requested at start-up bends to the ceiling — and we read it **through the guard**,
+     * the only place where a mode means something: does the external tool go out, or does it wait
+     * for an approval nobody will give?
      */
     public function testAnAgentStartedAboveItsCeilingIsClampedDown(): void
     {
         self::assertFalse(
-            $this->externalToolRan(demande: 'auto', plafond: 'standard'),
-            'Un agent délégué a envoyé un courriel que la garde de son parent lui refusait.',
+            $this->externalToolRan(requested: 'auto', ceiling: 'standard'),
+            'A delegated agent sent an email that its parent\'s guard refused it.',
         );
     }
 
     /**
-     * La moitié qu'on oublie : le plafond vaut **aussi après**. Un sous-agent qui accepterait
-     * `set_mode: auto` n'aurait pas de plafond du tout.
+     * The half that gets forgotten: the ceiling holds **afterwards too**. A sub-agent that accepted
+     * `set_mode: auto` would have no ceiling at all.
      */
     public function testASetModeSignalCannotLoosenPastTheCeiling(): void
     {
         self::assertFalse(
-            $this->externalToolRan(demande: 'standard', plafond: 'standard', signale: 'auto'),
-            'Un signal a desserré le plafond ; la garde est décorative.',
+            $this->externalToolRan(requested: 'standard', ceiling: 'standard', signalled: 'auto'),
+            'A signal loosened the ceiling; the guard is decorative.',
         );
     }
 
     /**
-     * Le témoin : sans plafond, exactement le même scénario laisse passer. Sans lui, les deux
-     * assertions ci-dessus passeraient même si la garde bloquait tout pour une autre raison.
+     * The control: with no ceiling, exactly the same scenario goes through. Without it, the two
+     * assertions above would pass even if the guard blocked everything for another reason.
      */
     public function testWithoutACeilingTheSameScenarioGoesThrough(): void
     {
         self::assertTrue(
-            $this->externalToolRan(demande: 'auto', plafond: 'auto'),
-            'Le témoin ne passe pas : le test ne prouve rien sur le plafond.',
+            $this->externalToolRan(requested: 'auto', ceiling: 'auto'),
+            'The control does not pass: the test proves nothing about the ceiling.',
         );
     }
 
@@ -84,25 +84,25 @@ final class DelegationWorkflowTest extends TestCase
     {
         $definition = DelegateTool::definition();
 
-        self::assertSame('deleguer', $definition->name);
+        self::assertSame('delegate', $definition->name);
         self::assertFalse(
             AgentMode::Standard->requiresApprovalFor($definition->effect),
-            'Déléguer n\'écrit nulle part : c\'est ce que fait le délégué qui repasse par une garde.',
+            'Delegating writes nowhere: it is what the delegate does that goes back through a guard.',
         );
     }
 
     /**
-     * Fait tourner un agent à qui le modèle demande un envoi de courriel — un effet `external`, le
-     * cas que seule `auto` laisse passer — et dit si l'activité d'outil a réellement tourné.
+     * Runs an agent the model asks for an email send from — an `external` effect, the case only
+     * `auto` lets through — and says whether the tool activity really ran.
      */
-    private function externalToolRan(string $demande, string $plafond, ?string $signale = null): bool
+    private function externalToolRan(string $requested, string $ceiling, ?string $signalled = null): bool
     {
-        $tours = 0;
-        $execute = false;
+        $turns = 0;
+        $ran = false;
 
         $environment = WorkflowTestEnvironment::inMemory([
-            'ai_model_invoke' => static function () use (&$tours): array {
-                if (0 === $tours++) {
+            'ai_model_invoke' => static function () use (&$turns): array {
+                if (0 === $turns++) {
                     return ['choices' => [['message' => ['content' => null, 'tool_calls' => [[
                         'id' => 'c1',
                         'type' => 'function',
@@ -110,32 +110,32 @@ final class DelegationWorkflowTest extends TestCase
                     ]]], 'finish_reason' => 'tool_calls']]];
                 }
 
-                return ['choices' => [['message' => ['content' => 'fini'], 'finish_reason' => 'stop']]];
+                return ['choices' => [['message' => ['content' => 'done'], 'finish_reason' => 'stop']]];
             },
-            'ai_tool_call' => static function () use (&$execute): string {
-                $execute = true;
+            'ai_tool_call' => static function () use (&$ran): string {
+                $ran = true;
 
-                return 'envoyé';
+                return 'sent';
             },
         ]);
 
-        $executionId = \sprintf('ceiling-%s-%s-%s', $demande, $plafond, $signale ?? 'rien');
+        $executionId = \sprintf('ceiling-%s-%s-%s', $requested, $ceiling, $signalled ?? 'nothing');
         $environment->getEventStore()->append(new ExecutionStarted($executionId, []));
-        if (null !== $signale) {
-            $environment->getEventStore()->append(new WorkflowSignalReceived($executionId, 'set_mode', ['mode' => $signale]));
+        if (null !== $signalled) {
+            $environment->getEventStore()->append(new WorkflowSignalReceived($executionId, 'set_mode', ['mode' => $signalled]));
         }
 
         $environment->runWorkflowClass(DurableAgentWorkflow::class, [
-            'tools' => ['send_email' => ['description' => 'Envoie un courriel.', 'effect' => 'external', 'parameters' => []]],
-            'prompt' => 'Envoie le compte rendu',
+            'tools' => ['send_email' => ['description' => 'Sends an email.', 'effect' => 'external', 'parameters' => []]],
+            'prompt' => 'Send the report',
             'maxTurns' => 1,
-            'mode' => $demande,
-            'modeCeiling' => $plafond,
-            // Personne ne validera : l'attente doit tomber vite pour que le test tienne en
-            // millisecondes plutôt qu'en quart d'heure.
+            'mode' => $requested,
+            'modeCeiling' => $ceiling,
+            // Nobody will approve: the wait must fall quickly so that the test holds in
+            // milliseconds rather than in a quarter of an hour.
             'humanTimeoutSeconds' => 0.01,
         ], $executionId);
 
-        return $execute;
+        return $ran;
     }
 }

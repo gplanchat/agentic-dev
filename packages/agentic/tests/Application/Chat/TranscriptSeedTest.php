@@ -13,15 +13,15 @@ final class TranscriptSeedTest extends TestCase
 {
     public function testTheSeedIsCutJustBeforeTheChosenUserMessage(): void
     {
-        $transcript = $this->transcript('un', 'réponse un', 'deux', 'réponse deux', 'trois', 'réponse trois');
+        $transcript = $this->transcript('one', 'answer one', 'two', 'answer two', 'three', 'answer three');
 
-        self::assertSame(['un', 'deux', 'trois'], $transcript->userMessages());
+        self::assertSame(['one', 'two', 'three'], $transcript->userMessages());
         self::assertSame(
-            [['role' => 'user', 'content' => 'un'], ['role' => 'assistant', 'content' => 'réponse un']],
+            [['role' => 'user', 'content' => 'one'], ['role' => 'assistant', 'content' => 'answer one']],
             $transcript->seedBefore(1),
         );
         self::assertSame([], $transcript->seedBefore(0));
-        self::assertCount(6, $transcript->seedBefore(99), 'Au-delà du dernier message, tout le fil.');
+        self::assertCount(6, $transcript->seedBefore(99), 'Past the last message, the whole thread.');
     }
 
     private function transcript(string ...$texts): Transcript

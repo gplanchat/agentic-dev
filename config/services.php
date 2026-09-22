@@ -9,10 +9,10 @@ return static function (ContainerConfigurator $container): void {
     $services = $container->services();
     $services->defaults()->autowire()->autoconfigure();
 
-    // Les outils de démo : chaque `AgentTool` est offert à l'agent.
+    // The demo tools: every `AgentTool` is offered to the agent.
     $services->load('App\\Tool\\', '../src/Tool/');
 
-    // Le logger par défaut écrit sur stderr : dans la TUI, il déchirerait l'écran.
+    // The default logger writes to stderr: inside the TUI, it would tear the screen apart.
     $services->set('logger', Logger::class)
         ->args(['info', '%kernel.logs_dir%/%kernel.environment%.log']);
 };

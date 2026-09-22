@@ -28,25 +28,25 @@ final class RuleBasedToolGuardTest extends TestCase
 
     public function testAnAskRuleHoldsEvenInAuto(): void
     {
-        $guard = $this->guard(['tool' => 'weather', 'decision' => 'ask', 'reason' => 'Relevé payant.']);
+        $guard = $this->guard(['tool' => 'weather', 'decision' => 'ask', 'reason' => 'Paid reading.']);
 
         $decision = $guard->decide(new ToolInvocation('c1', 'weather'), AgentMode::Auto);
         self::assertTrue($decision->needsApproval());
-        self::assertSame('Relevé payant.', $decision->reason);
+        self::assertSame('Paid reading.', $decision->reason);
     }
 
     /**
-     * L'ordre de déclaration ne compte pas : ajouter un accord ne desserre jamais un refus.
+     * The declaration order does not count: adding an approval never loosens a refusal.
      */
     public function testDenyWinsOverAskWhichWinsOverAllow(): void
     {
         $guard = $this->guard(
             ['tool' => 'send_*', 'decision' => 'allow'],
             ['tool' => 'send_email', 'decision' => 'ask'],
-            ['tool' => '*', 'when' => ['to' => '*@concurrent.test'], 'decision' => 'deny'],
+            ['tool' => '*', 'when' => ['to' => '*@competitor.test'], 'decision' => 'deny'],
         );
 
-        self::assertTrue($guard->decide(new ToolInvocation('c1', 'send_email', ['to' => 'x@concurrent.test']), AgentMode::Auto)->isDenied());
+        self::assertTrue($guard->decide(new ToolInvocation('c1', 'send_email', ['to' => 'x@competitor.test']), AgentMode::Auto)->isDenied());
         self::assertTrue($guard->decide(new ToolInvocation('c2', 'send_email', ['to' => 'x@example.test']), AgentMode::Auto)->needsApproval());
         self::assertTrue($guard->decide(new ToolInvocation('c3', 'send_sms'), AgentMode::Standard)->isAllowed());
     }
@@ -55,9 +55,9 @@ final class RuleBasedToolGuardTest extends TestCase
     {
         $guard = $this->guard(['tool' => 'send_email', 'when' => ['to' => '*@example.test'], 'decision' => 'allow']);
 
-        self::assertTrue($guard->decide(new ToolInvocation('c1', 'send_email', ['to' => 'equipe@example.test']), AgentMode::Standard)->isAllowed());
-        self::assertTrue($guard->decide(new ToolInvocation('c2', 'send_email', ['to' => 'client@ailleurs.test']), AgentMode::Standard)->needsApproval());
-        self::assertTrue($guard->decide(new ToolInvocation('c3', 'send_email', ['to' => ['liste']]), AgentMode::Standard)->needsApproval(), 'Une valeur composée ne correspond à aucun motif.');
+        self::assertTrue($guard->decide(new ToolInvocation('c1', 'send_email', ['to' => 'team@example.test']), AgentMode::Standard)->isAllowed());
+        self::assertTrue($guard->decide(new ToolInvocation('c2', 'send_email', ['to' => 'client@elsewhere.test']), AgentMode::Standard)->needsApproval());
+        self::assertTrue($guard->decide(new ToolInvocation('c3', 'send_email', ['to' => ['list']]), AgentMode::Standard)->needsApproval(), 'A compound value matches no pattern.');
     }
 
     public function testWithoutAMatchingRuleTheModeDecides(): void
@@ -74,7 +74,37 @@ final class RuleBasedToolGuardTest extends TestCase
         self::assertSame($wire, ToolRule::fromWire($wire)->toWire());
 
         $this->expectException(\InvalidArgumentException::class);
-        ToolRule::fromWire(['tool' => 'x', 'decision' => 'peut-être']);
+        ToolRule::fromWire(['tool' => 'x', 'decision' => 'maybe']);
+    }
+
+    /**
+     * The allow list of `auto` mode: ask, except for the listed commands — and only in `auto`, the
+     * other modes keeping their rule.
+     */
+    public function testAnAutoAllowlistAsksForEverythingElseInAutoOnly(): void
+    {
+        $guard = $this->guard(['tool' => 'run_command', 'decision' => 'ask', 'modes' => ['auto'], 'unless' => ['command' => ['git status', 'git status *']]]);
+
+        self::assertTrue($guard->decide(new ToolInvocation('c1', 'run_command', ['command' => 'git status --short']), AgentMode::Auto)->isAllowed());
+        self::assertTrue($guard->decide(new ToolInvocation('c2', 'run_command', ['command' => 'rm -rf src']), AgentMode::Auto)->needsApproval());
+        self::assertTrue($guard->decide(new ToolInvocation('c3', 'run_command', ['command' => 'git status']), AgentMode::Standard)->needsApproval(), 'Outside `auto`, the mode decides: an unknown tool is external.');
+    }
+
+    public function testAMissingOrCompositeArgumentNeverOpensAnAllowlist(): void
+    {
+        $guard = $this->guard(['tool' => 'run_command', 'decision' => 'ask', 'unless' => ['command' => ['*']]]);
+
+        self::assertTrue($guard->decide(new ToolInvocation('c1', 'run_command'), AgentMode::Auto)->needsApproval());
+        self::assertTrue($guard->decide(new ToolInvocation('c2', 'run_command', ['command' => ['git', 'status']]), AgentMode::Auto)->needsApproval());
+    }
+
+    public function testModesAndUnlessSurviveTheWireAndAnUnknownModeIsRefused(): void
+    {
+        $wire = ['tool' => 'run_command', 'decision' => 'ask', 'when' => [], 'reason' => '', 'modes' => ['auto'], 'unless' => ['command' => ['git *']]];
+        self::assertSame($wire, ToolRule::fromWire($wire)->toWire());
+
+        $this->expectException(\InvalidArgumentException::class);
+        ToolRule::fromWire(['tool' => 'x', 'decision' => 'allow', 'modes' => ['automatic']]);
     }
 
     /**
@@ -83,9 +113,9 @@ final class RuleBasedToolGuardTest extends TestCase
     private function guard(array ...$rules): RuleBasedToolGuard
     {
         return new RuleBasedToolGuard(RuleBasedToolGuard::rulesFromWire($rules), new ModeToolGuard(new Toolset(
-            new ToolDefinition('weather', 'Météo', ToolEffect::Read),
+            new ToolDefinition('weather', 'Weather', ToolEffect::Read),
             new ToolDefinition('save_note', 'Note', ToolEffect::Write),
-            new ToolDefinition('send_email', 'Courriel', ToolEffect::External),
+            new ToolDefinition('send_email', 'Email', ToolEffect::External),
         )));
     }
 }

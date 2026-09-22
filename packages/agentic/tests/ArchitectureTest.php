@@ -7,7 +7,7 @@ namespace Gplanchat\Agentic\Tests;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Composer ne sait pas dire qu'une couche n'importe pas une dépendance du paquet : ce test le dit.
+ * Composer cannot say that a layer does not import a dependency of the package: this test does.
  */
 final class ArchitectureTest extends TestCase
 {

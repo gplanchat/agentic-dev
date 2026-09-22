@@ -18,7 +18,7 @@ use PHPUnit\Framework\TestCase;
 final class ModelSwitchWorkflowTest extends TestCase
 {
     /**
-     * Le modèle changé par signal sert au tour suivant, et la projection le dit.
+     * The model changed by signal serves the next turn, and the projection says so.
      */
     public function testASetModelSignalSwitchesTheModelOfTheNextTurn(): void
     {
@@ -32,14 +32,15 @@ final class ModelSwitchWorkflowTest extends TestCase
         ]);
 
         $environment->getEventStore()->append(new ExecutionStarted('switch-1', []));
-        $environment->getEventStore()->append(new WorkflowSignalReceived('switch-1', 'user_message', ['text' => 'un']));
+        $environment->getEventStore()->append(new WorkflowSignalReceived('switch-1', 'user_message', ['text' => 'one']));
         $environment->getEventStore()->append(new WorkflowSignalReceived('switch-1', 'set_model', ['model' => 'mistral-large-latest']));
-        $environment->getEventStore()->append(new WorkflowSignalReceived('switch-1', 'user_message', ['text' => 'deux']));
+        $environment->getEventStore()->append(new WorkflowSignalReceived('switch-1', 'user_message', ['text' => 'two']));
 
         $environment->runWorkflowClass(DurableAgentWorkflow::class, ['model' => 'mistral-small-latest', 'maxTurns' => 2], 'switch-1');
 
-        // Les deux messages et le signal sont au journal avant le premier tour : le signal est déjà
-        // appliqué quand le premier tour part. Ce qui compte, c'est que le modèle suive le signal.
+        // Both messages and the signal are in the journal before the first turn: the signal is
+        // already applied when the first turn goes out. What counts is that the model follows the
+        // signal.
         self::assertSame('mistral-large-latest', end($models));
 
         $transcript = (new ChatTranscript($environment->getEventStore(), new InMemoryWorkflowMetadataStore()))->forExecution('switch-1');

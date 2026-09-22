@@ -37,17 +37,46 @@ final class SlashCommandsTest extends KernelTestCase
     public function testSuggestionsFollowWhatIsTyped(): void
     {
         self::assertSame(['/mode', '/model'], array_keys(SlashCommands::suggestions('/mo')));
-        self::assertSame([], SlashCommands::suggestions('/mode auto'), 'Une fois l’argument commencé, plus de suggestion.');
-        self::assertSame([], SlashCommands::suggestions('bonjour'));
+        self::assertSame([], SlashCommands::suggestions('/mode auto'), 'Once the argument is started, no more suggestions.');
+        self::assertSame([], SlashCommands::suggestions('hello'));
     }
 
     public function testToolsSayWhatTheGuardDoesInTheCurrentMode(): void
     {
         $notice = $this->commands->run($this->id, '/tools')->notice;
 
-        self::assertMatchesRegularExpression('/^weather\s+read\s+passe$/m', $notice);
-        self::assertMatchesRegularExpression('/^send_email\s+external\s+demande une validation$/m', $notice);
-        self::assertStringContainsString('deleguer', $notice);
+        self::assertMatchesRegularExpression('/^weather\s+read\s+passes$/m', $notice);
+        self::assertMatchesRegularExpression('/^send_email\s+external\s+needs approval$/m', $notice);
+        self::assertStringContainsString('delegate', $notice);
+    }
+
+    /**
+     * The sandbox allowlist is a rule like the others: gone to the journal with the conversation,
+     * shown by `/tools`, and it holds in `auto`.
+     */
+    public function testTheSandboxAllowlistHoldsInAuto(): void
+    {
+        $this->commands->run($this->id, '/mode auto');
+        $notice = $this->commands->run($this->id, '/tools')->notice;
+
+        self::assertMatchesRegularExpression('/^run_command\s+external\s+needs approval$/m', $notice);
+        self::assertStringContainsString('ask   run_command in auto unless command=git status | git status *', $notice);
+    }
+
+    /**
+     * A conversation knows its worktree from the start, and a restart — /rewind, /compact, /resume —
+     * goes on in the same one. Nothing is created until a command needs it.
+     */
+    public function testAConversationKeepsItsWorktreeAcrossRestarts(): void
+    {
+        $workspace = $this->conversations->transcript($this->id)->workspace;
+
+        self::assertStringEndsWith('/.worktrees/agentic-'.substr($this->id, 0, 8), (string) $workspace);
+        self::assertStringContainsString('Workspace: '.$workspace.' (created by the first command)', $this->commands->run($this->id, '/tools')->notice);
+
+        $restarted = $this->conversations->restart($this->id);
+        $this->worker->drain();
+        self::assertSame($workspace, $this->conversations->transcript($restarted)->workspace);
     }
 
     public function testModeChangesTheGuard(): void
@@ -55,23 +84,23 @@ final class SlashCommandsTest extends KernelTestCase
         $this->commands->run($this->id, '/mode auto');
 
         self::assertSame(AgentMode::Auto, $this->conversations->transcript($this->id)->mode);
-        self::assertMatchesRegularExpression('/^send_email\s+external\s+passe$/m', $this->commands->run($this->id, '/tools')->notice);
+        self::assertMatchesRegularExpression('/^send_email\s+external\s+passes$/m', $this->commands->run($this->id, '/tools')->notice);
         self::assertTrue($this->commands->run($this->id, '/mode turbo')->error);
     }
 
     /**
-     * Le tour d'avant garde son modèle ; celui d'après prend le nouveau.
+     * The previous turn keeps its model; the next one takes the new one.
      */
     public function testModelSwitchesFromTheNextMessage(): void
     {
-        $this->conversations->send($this->id, 'Bonjour');
+        $this->conversations->send($this->id, 'Hello');
         $this->worker->drain();
 
         $outcome = $this->commands->run($this->id, '/model mistral-large-latest');
         self::assertFalse($outcome->error);
         self::assertSame('mistral-large-latest', $this->conversations->transcript($this->id)->model);
 
-        $this->conversations->send($this->id, 'Encore');
+        $this->conversations->send($this->id, 'Again');
         $this->worker->drain();
 
         self::assertSame(['mistral-small-latest', 'mistral-large-latest'], $this->modelsCalled());
@@ -79,11 +108,11 @@ final class SlashCommandsTest extends KernelTestCase
 
     public function testAnUnknownModelIsRefusedBeforeReachingTheJournal(): void
     {
-        $outcome = $this->commands->run($this->id, '/model gpt-imaginaire');
+        $outcome = $this->commands->run($this->id, '/model gpt-imaginary');
 
         self::assertTrue($outcome->error);
         self::assertSame('mistral-small-latest', $this->conversations->transcript($this->id)->model);
-        self::assertStringNotContainsString('mistral-embed', $this->commands->run($this->id, '/model')->notice, 'Un modèle sans appel d’outils ne peut pas mener un agent.');
+        self::assertStringNotContainsString('mistral-embed', $this->commands->run($this->id, '/model')->notice, 'A model with no tool calling cannot lead an agent.');
     }
 
     public function testClearClosesAndOpensANewConversation(): void
@@ -99,42 +128,42 @@ final class SlashCommandsTest extends KernelTestCase
 
     public function testRewindListsMessagesLatestFirstThenRestartsBeforeTheChosenOne(): void
     {
-        $this->say('Quel temps fait-il à Paris ?', 'Et à Lyon ?');
+        $this->say('What is the weather in Paris?', 'And in Lyon?');
 
         $list = $this->commands->run($this->id, '/rewind');
         self::assertSame('/rewind', $list->choose);
-        self::assertSame(['2', '1'], array_column($list->choices, 'value'), 'Le plus récent d’abord.');
+        self::assertSame(['2', '1'], array_column($list->choices, 'value'), 'The most recent first.');
 
         $outcome = $this->commands->run($this->id, '/rewind 2');
         $this->worker->drain();
 
         self::assertNotNull($outcome->conversation);
-        self::assertSame('Et à Lyon ?', $outcome->prefill, 'Le message défait revient dans la saisie.');
-        self::assertSame(['Quel temps fait-il à Paris ?'], $this->conversations->transcript($outcome->conversation)->userMessages());
-        self::assertTrue($this->conversations->transcript($this->id)->finished, 'L’ancienne est close ; son journal, lui, reste.');
+        self::assertSame('And in Lyon?', $outcome->prefill, 'The undone message comes back into the input.');
+        self::assertSame(['What is the weather in Paris?'], $this->conversations->transcript($outcome->conversation)->userMessages());
+        self::assertTrue($this->conversations->transcript($this->id)->finished, 'The old one is closed; its journal, though, stays.');
         self::assertTrue($this->commands->run($outcome->conversation, '/rewind 9')->error);
     }
 
     public function testCompactRestartsFromASummary(): void
     {
-        $this->say('Quel temps fait-il à Paris ?');
+        $this->say('What is the weather in Paris?');
 
         $outcome = $this->commands->run($this->id, '/compact');
         $this->worker->drain();
 
         $first = $this->conversations->transcript((string) $outcome->conversation)->messages[0] ?? null;
-        self::assertStringStartsWith('Résumé de notre conversation précédente', (string) $first?->content);
+        self::assertStringStartsWith('Summary of our previous conversation', (string) $first?->content);
     }
 
     public function testResumeSwitchesToARunningConversationAndReopensAFinishedOne(): void
     {
-        $this->say('Quel temps fait-il à Paris ?');
+        $this->say('What is the weather in Paris?');
         $other = $this->conversations->start();
         $this->worker->drain();
 
         $list = $this->commands->run($other, '/resume');
         self::assertContains($this->id, array_column($list->choices, 'value'));
-        self::assertNotContains($other, array_column($list->choices, 'value'), 'La conversation affichée n’est pas proposée.');
+        self::assertNotContains($other, array_column($list->choices, 'value'), 'The conversation on screen is not offered.');
 
         self::assertSame($this->id, $this->commands->run($other, '/resume '.substr($this->id, 0, 8))->conversation);
 
@@ -144,7 +173,7 @@ final class SlashCommandsTest extends KernelTestCase
         $this->worker->drain();
 
         self::assertNotSame($this->id, $reopened);
-        self::assertSame(['Quel temps fait-il à Paris ?'], $this->conversations->transcript((string) $reopened)->userMessages());
+        self::assertSame(['What is the weather in Paris?'], $this->conversations->transcript((string) $reopened)->userMessages());
     }
 
     public function testAnUnknownCommandSaysSo(): void

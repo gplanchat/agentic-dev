@@ -20,35 +20,35 @@ final class WatchTest extends TestCase
 {
     private static function subjects(): WatchSubjects
     {
-        return new WatchSubjects(new WatchSubject('commande.expediee', 'une commande a quitté l’entrepôt'));
+        return new WatchSubjects(new WatchSubject('order.shipped', 'an order has left the warehouse'));
     }
 
     public function testTheApplicationVocabularyIsWhatTheModelIsOffered(): void
     {
         $schema = WatchTool::definition(self::subjects())->parameters;
 
-        self::assertSame(['commande.expediee'], $schema['properties']['sujet']['enum']);
+        self::assertSame(['order.shipped'], $schema['properties']['subject']['enum']);
     }
 
     /**
-     * Refus visible plutôt que veille morte : aucun événement ne lèverait jamais ce sujet.
+     * A visible refusal rather than a dead watch: no event would ever lift this subject.
      */
     public function testAnUnknownSubjectIsRefusedInsteadOfArmingADeadWatch(): void
     {
         $this->expectException(UnknownWatchSubject::class);
 
-        Watch::fromArguments('c1', ['sujet' => 'livraison.bientot'], self::subjects());
+        Watch::fromArguments('c1', ['subject' => 'delivery.soon'], self::subjects());
     }
 
     public function testTheFirstAlertWins(): void
     {
         $desk = new WatchDesk();
-        $desk->watch(Watch::fromArguments('c1', ['sujet' => 'commande.expediee', 'intention' => 'prévenir le client'], self::subjects()));
+        $desk->watch(Watch::fromArguments('c1', ['subject' => 'order.shipped', 'intent' => 'warn the customer'], self::subjects()));
 
-        $desk->raise('c1', 'colis parti');
+        $desk->raise('c1', 'parcel gone');
         $desk->raise('c1', 'second signal');
 
-        self::assertSame('colis parti', $desk->observationOf('c1'));
+        self::assertSame('parcel gone', $desk->observationOf('c1'));
         self::assertSame([], $desk->pending());
     }
 }

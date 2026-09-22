@@ -9,7 +9,7 @@ use Gplanchat\Agentic\Application\Help\CommandSummary;
 use Symfony\Component\Console\Application;
 
 /**
- * Adaptateur du port {@see CommandCatalog} : les commandes enregistrées dans une application Console.
+ * Adapter of the {@see CommandCatalog} port: the commands registered in a Console application.
  */
 final readonly class ConsoleCommandCatalog implements CommandCatalog
 {
@@ -20,7 +20,7 @@ final readonly class ConsoleCommandCatalog implements CommandCatalog
     public function all(): iterable
     {
         foreach ($this->application->all() as $name => $command) {
-            // Un alias est une seconde clé pour la même commande : on ne la liste qu'une fois.
+            // An alias is a second key for the same command: we list it only once.
             if ($name === $command->getName() && !$command->isHidden()) {
                 yield new CommandSummary($name, $command->getDescription());
             }

@@ -10,6 +10,7 @@ use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Infrastructure\Durable\ChatTranscript;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
+use Gplanchat\AgenticBundle\Sandbox\Worktrees;
 use Gplanchat\AgenticBundle\Tool\AgentTools;
 use Gplanchat\Durable\Observation\WorkflowRunStatus;
 use Gplanchat\Durable\Port\WorkflowResumeDispatcher;
@@ -22,13 +23,13 @@ use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Component\Uid\Uuid;
 
 /**
- * Adaptateur du port {@see Conversations} : une conversation est une exécution de
- * {@see DurableAgentWorkflow}, chaque intention un signal envoyé par le bus.
+ * Adapter of the {@see Conversations} port: a conversation is a run of
+ * {@see DurableAgentWorkflow}, every intent a signal sent through the bus.
  */
 final readonly class DurableConversations implements Conversations
 {
     /**
-     * @param array<string, mixed> $options charge de démarrage du workflow, hors outils
+     * @param array<string, mixed> $options the workflow start payload, tools aside
      */
     public function __construct(
         private WorkflowResumeDispatcher $dispatcher,
@@ -40,12 +41,13 @@ final readonly class DurableConversations implements Conversations
         private EventStoreInterface $events,
         private WorkflowRunCatalogInterface $runs,
         private array $options = [],
+        private ?Worktrees $worktrees = null,
     ) {
     }
 
     public function start(): string
     {
-        return $this->launch([], false);
+        return $this->launch([], false, null);
     }
 
     public function restart(string $from, ?int $keepUserMessages = null, bool $compact = false): string
@@ -57,8 +59,9 @@ final readonly class DurableConversations implements Conversations
             $this->close($from);
         }
 
-        // Un fil vide n'a rien à résumer : la compaction coûterait un appel modèle pour rien.
-        return $this->launch($history, $compact && [] !== $history);
+        // An empty thread has nothing to summarise: compaction would cost a model call for nothing.
+        // The worktree carries over: /rewind, /compact and /resume go on with the same work.
+        return $this->launch($history, $compact && [] !== $history, $transcript->workspace);
     }
 
     public function exists(string $conversation): bool
@@ -81,7 +84,7 @@ final readonly class DurableConversations implements Conversations
             $said = $this->transcript($run->runId)->userMessages();
             $recent[] = new ConversationSummary(
                 $run->runId,
-                $said[0] ?? '(rien de dit)',
+                $said[0] ?? '(nothing said)',
                 WorkflowRunStatus::Running !== $run->status,
                 $run->startedAt,
             );
@@ -95,15 +98,18 @@ final readonly class DurableConversations implements Conversations
     /**
      * @param list<array{role: string, content: string}> $history
      */
-    private function launch(array $history, bool $compact): string
+    private function launch(array $history, bool $compact, ?string $workspace): string
     {
         $conversation = (string) Uuid::v4();
+        // Only a path: the worktree is created by the first command that needs it.
+        $workspace ??= $this->worktrees?->pathFor($conversation);
         $this->dispatcher->dispatchNewWorkflowRun($conversation, DurableAgentWorkflow::class, [
             ...$this->options,
             'systemPrompt' => $this->instructions->appendTo((string) ($this->options['systemPrompt'] ?? DurableAgentWorkflow::SYSTEM_PROMPT)),
             'tools' => $this->tools->toolset()->toWire(),
             'history' => $history,
             'compactHistory' => $compact,
+            'workspace' => $workspace,
         ]);
 
         return $conversation;
@@ -126,7 +132,7 @@ final readonly class DurableConversations implements Conversations
 
     public function alert(string $conversation, string $callId, string $observation): void
     {
-        $this->signal($conversation, 'alerte', ['callId' => $callId, 'observation' => $observation]);
+        $this->signal($conversation, 'alert', ['callId' => $callId, 'observation' => $observation]);
     }
 
     public function setMode(string $conversation, AgentMode $mode): void
@@ -136,10 +142,10 @@ final readonly class DurableConversations implements Conversations
 
     public function setModel(string $conversation, string $model): void
     {
-        // Le workflow ne valide pas : un nom inconnu ferait échouer l'appel modèle du tour suivant,
-        // donc toute la conversation. On refuse ici, avant que le signal soit journalisé.
+        // The workflow does not validate: an unknown name would make the next turn's model call
+        // fail, hence the whole conversation. We refuse here, before the signal is journalled.
         if (!\in_array($model, $this->models(), true)) {
-            throw new \InvalidArgumentException(\sprintf('Modèle inconnu : « %s ».', $model));
+            throw new \InvalidArgumentException(\sprintf('Unknown model: "%s".', $model));
         }
 
         $this->signal($conversation, 'set_model', ['model' => $model]);

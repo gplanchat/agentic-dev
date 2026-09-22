@@ -9,7 +9,7 @@ use Symfony\Component\Dotenv\Dotenv;
 
 require dirname(__DIR__).'/vendor/autoload.php';
 
-// .env, puis .env.local et .env.$APP_ENV.local : les secrets restent hors du dépôt.
+// .env, then .env.local and .env.$APP_ENV.local: secrets stay out of the repository.
 (new Dotenv())->bootEnv(dirname(__DIR__).'/.env');
 
 $kernel = new Kernel($_SERVER['APP_ENV'] ?? 'dev', (bool) ($_SERVER['APP_DEBUG'] ?? true));

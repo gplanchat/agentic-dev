@@ -9,7 +9,7 @@ use Gplanchat\Durable\Transport\FireWorkflowTimersMessage;
 use Gplanchat\Durable\Transport\ResumeWorkflowMessage;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
-// Un seul processus : journal et transports en mémoire, la TUI fait office de worker.
+// A single process: journal and transports in memory, the TUI acts as the worker.
 return static function (ContainerConfigurator $container): void {
     $container->extension('framework', [
         'secret' => 'test',
@@ -23,7 +23,7 @@ return static function (ContainerConfigurator $container): void {
             'routing' => [
                 ResumeWorkflowMessage::class => 'durable_workflows',
                 ActivityMessage::class => 'durable_activities',
-                // Un `DelayStamp` sur `sync://` est ignoré : les échéances ne tireraient jamais.
+                // A `DelayStamp` on `sync://` is ignored: the deadlines would never fire.
                 FireWorkflowTimersMessage::class => 'durable_workflows',
                 DeliverWorkflowSignalMessage::class => 'sync',
                 DeliverWorkflowUpdateMessage::class => 'sync',
@@ -36,14 +36,14 @@ return static function (ContainerConfigurator $container): void {
         'workflow_metadata' => ['type' => 'in_memory'],
         'temporal' => ['dsn' => null],
         'activity_transport' => ['type' => 'messenger', 'transport_name' => 'durable_activities'],
-        // Sans borne, une activité qui échoue est retentée sans fin, et l'écran reste sur « réfléchit… ».
+        // Without a bound, a failing activity is retried endlessly, and the screen stays on "thinking…".
         'max_activity_retries' => 3,
     ]);
 
     $container->extension('agentic', [
-        'watch_subjects' => ['commande.expediee' => 'une commande a quitté l’entrepôt'],
+        'watch_subjects' => ['order.shipped' => 'an order has left the warehouse'],
         'tool_rules' => [
-            ['tool' => 'weather', 'when' => ['city' => 'Lyon'], 'decision' => 'deny', 'reason' => 'Lyon est hors périmètre.'],
+            ['tool' => 'weather', 'when' => ['city' => 'Lyon'], 'decision' => 'deny', 'reason' => 'Lyon is out of scope.'],
         ],
     ]);
 };

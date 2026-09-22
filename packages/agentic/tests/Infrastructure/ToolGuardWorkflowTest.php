@@ -23,23 +23,23 @@ final class ToolGuardWorkflowTest extends TestCase
     private static function tools(): Toolset
     {
         return new Toolset(
-            new ToolDefinition('weather', 'Météo', ToolEffect::Read),
+            new ToolDefinition('weather', 'Weather', ToolEffect::Read),
             new ToolDefinition('save_note', 'Note', ToolEffect::Write),
-            new ToolDefinition('send_email', 'Courriel', ToolEffect::External),
+            new ToolDefinition('send_email', 'Email', ToolEffect::External),
         );
     }
 
     public static function matrix(): \Generator
     {
-        yield 'auto laisse tout passer' => [AgentMode::Auto, 'send_email', false];
-        yield 'auto laisse passer une écriture' => [AgentMode::Auto, 'save_note', false];
-        yield 'edition laisse passer une écriture' => [AgentMode::Edition, 'save_note', false];
-        yield 'edition demande pour un effet externe' => [AgentMode::Edition, 'send_email', true];
-        yield 'standard laisse passer une lecture' => [AgentMode::Standard, 'weather', false];
-        yield 'standard demande pour une écriture' => [AgentMode::Standard, 'save_note', true];
-        yield 'standard demande pour un effet externe' => [AgentMode::Standard, 'send_email', true];
-        // Le défaut prudent : un outil non classé est traité comme externe.
-        yield 'un outil inconnu est traité comme externe' => [AgentMode::Standard, 'rm_rf', true];
+        yield 'auto lets everything through' => [AgentMode::Auto, 'send_email', false];
+        yield 'auto lets a write through' => [AgentMode::Auto, 'save_note', false];
+        yield 'edition lets a write through' => [AgentMode::Edition, 'save_note', false];
+        yield 'edition asks for an external effect' => [AgentMode::Edition, 'send_email', true];
+        yield 'standard lets a read through' => [AgentMode::Standard, 'weather', false];
+        yield 'standard asks for a write' => [AgentMode::Standard, 'save_note', true];
+        yield 'standard asks for an external effect' => [AgentMode::Standard, 'send_email', true];
+        // The cautious default: an unclassified tool is treated as external.
+        yield 'an unknown tool is treated as external' => [AgentMode::Standard, 'rm_rf', true];
     }
 
     #[DataProvider('matrix')]
@@ -59,9 +59,9 @@ final class ToolGuardWorkflowTest extends TestCase
     }
 
     /**
-     * Sans réponse avant l'échéance, la demande tombe — et elle tombe du côté sûr : refus.
-     * L'horloge virtuelle du runner in-memory avance d'échéance en échéance, donc le minuteur tire
-     * sans attendre réellement.
+     * With no answer before the deadline, the request falls — and it falls on the safe side: a
+     * refusal. The virtual clock of the in-memory runner moves from deadline to deadline, so the
+     * timer fires without really waiting.
      */
     public function testAnApprovalThatIsNeverAnsweredExpiresAsARefusal(): void
     {
@@ -84,28 +84,28 @@ final class ToolGuardWorkflowTest extends TestCase
             'ai_tool_call' => static function (array $payload) use (&$toolCalls): string {
                 ++$toolCalls;
 
-                return 'envoyé';
+                return 'sent';
             },
         ]);
 
         $result = $environment->run(
             static fn ($workflowEnvironment): string => (new DurableAgentWorkflow($workflowEnvironment))->run(
-                ['send_email' => ['description' => 'Envoi', 'effect' => 'external']],
+                ['send_email' => ['description' => 'Send', 'effect' => 'external']],
                 mode: 'standard',
-                prompt: 'Envoie un mail',
+                prompt: 'Send an email',
                 maxTurns: 1,
                 humanTimeoutSeconds: 5.0,
             ),
             'guard-timeout-1',
         );
 
-        self::assertSame(0, $toolCalls, 'Une validation expirée a quand même déclenché l\'outil.');
+        self::assertSame(0, $toolCalls, 'An expired approval triggered the tool anyway.');
         self::assertSame(ApprovalOutcome::Expired->message(), $result);
     }
 
     /**
-     * Un refus n'est pas une exception : il redevient un résultat d'outil rendu au modèle, qui
-     * continue. L'activité, elle, n'est jamais planifiée.
+     * A refusal is not an exception: it goes back as a tool result handed to the model, which
+     * carries on. The activity, for its part, is never scheduled.
      */
     public function testADeniedToolNeverReachesItsActivityAndTheAgentKeepsGoing(): void
     {
@@ -123,32 +123,32 @@ final class ToolGuardWorkflowTest extends TestCase
 
                 $last = end($payload['payload']['messages']);
 
-                return ['choices' => [['message' => ['content' => 'Compris : '.$last['content']], 'finish_reason' => 'stop']]];
+                return ['choices' => [['message' => ['content' => 'Understood: '.$last['content']], 'finish_reason' => 'stop']]];
             },
             'ai_tool_call' => static function (array $payload) use (&$toolCalls): string {
                 ++$toolCalls;
 
-                return 'envoyé';
+                return 'sent';
             },
         ]);
 
         $result = $environment->run(
             static fn ($workflowEnvironment): string => (new DurableAgentWorkflow($workflowEnvironment))->run(
-                ['send_email' => ['description' => 'Envoi', 'effect' => 'external']],
-                prompt: 'Envoie un mail',
+                ['send_email' => ['description' => 'Send', 'effect' => 'external']],
+                prompt: 'Send an email',
                 maxTurns: 1,
                 guard: new ModeToolGuard(self::tools(), ['send_email']),
             ),
             'guard-deny-1',
         );
 
-        self::assertSame(0, $toolCalls, 'L\'activité d\'un outil refusé a quand même été planifiée.');
-        self::assertStringContainsString('interdit par la politique', $result);
+        self::assertSame(0, $toolCalls, 'The activity of a refused tool was scheduled anyway.');
+        self::assertStringContainsString('is forbidden by the agent policy', $result);
     }
 
     /**
-     * Les hooks de décision voyagent dans la charge : un accord laisse partir l'envoi en `standard`
-     * sans attendre personne, un refus l'arrête même en `auto`.
+     * The decision hooks travel in the payload: an allow lets the send go out in `standard` without
+     * waiting for anyone, a deny stops it even in `auto`.
      */
     public function testToolRulesFromThePayloadDecideBeforeTheMode(): void
     {
@@ -161,7 +161,7 @@ final class ToolGuardWorkflowTest extends TestCase
                         return ['choices' => [['message' => ['content' => null, 'tool_calls' => [[
                             'id' => 'call_1',
                             'type' => 'function',
-                            'function' => ['name' => 'send_email', 'arguments' => '{"to":"equipe@example.test"}'],
+                            'function' => ['name' => 'send_email', 'arguments' => '{"to":"team@example.test"}'],
                         ]]], 'finish_reason' => 'tool_calls']]];
                     }
 
@@ -172,21 +172,21 @@ final class ToolGuardWorkflowTest extends TestCase
                 'ai_tool_call' => static function () use (&$toolCalls): string {
                     ++$toolCalls;
 
-                    return 'envoyé';
+                    return 'sent';
                 },
             ]);
 
             $environment->runWorkflowClass(DurableAgentWorkflow::class, [
-                'tools' => ['send_email' => ['description' => 'Envoi', 'effect' => 'external']],
+                'tools' => ['send_email' => ['description' => 'Send', 'effect' => 'external']],
                 'mode' => $mode,
-                'prompt' => 'Envoie un mail',
+                'prompt' => 'Send an email',
                 'maxTurns' => 1,
-                // Si la règle ne jouait pas, l'attente d'une validation expirerait aussitôt.
+                // If the rule did not play, the wait for an approval would expire straight away.
                 'humanTimeoutSeconds' => 0.01,
                 'toolRules' => [['tool' => 'send_email', 'when' => ['to' => '*@example.test'], 'decision' => $decision]],
             ], 'rules-'.$decision);
 
-            self::assertSame($expectedCalls, $toolCalls, \sprintf('Règle « %s » en mode %s.', $decision, $mode));
+            self::assertSame($expectedCalls, $toolCalls, \sprintf('Rule "%s" in %s mode.', $decision, $mode));
         }
     }
 }

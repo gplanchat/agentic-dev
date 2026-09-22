@@ -7,16 +7,18 @@ namespace Gplanchat\Agentic\Infrastructure\Durable\Activity;
 use Gplanchat\Durable\Attribute\AsActivityMethod;
 
 /**
- * Un outil d'agent est un effet de bord : c'est une activité, pas du code workflow.
+ * An agent tool is a side effect: it is an activity, not workflow code.
  *
- * ponytail: un seul contrat générique pour le prototype. Un outil qui a besoin de sa propre
- * politique de retentative ou d'une compensation mérite son propre contrat d'activité.
+ * ponytail: a single generic contract for the prototype. A tool that needs its own retry policy or
+ * a compensation deserves its own activity contract.
  */
 interface AgentToolActivityInterface
 {
     /**
      * @param array<string, mixed> $arguments
+     * @param string|null          $workspace the conversation's working directory, from its start
+     *                                        payload — never from the model; `null` = the project
      */
     #[AsActivityMethod('ai_tool_call')]
-    public function callTool(string $callId, string $name, array $arguments): string;
+    public function callTool(string $callId, string $name, array $arguments, ?string $workspace = null): string;
 }

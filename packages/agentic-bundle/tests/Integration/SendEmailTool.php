@@ -12,7 +12,7 @@ final class SendEmailTool implements AgentTool
 {
     public function definition(): ToolDefinition
     {
-        return new ToolDefinition('send_email', 'Envoie un courriel.', ToolEffect::External, [
+        return new ToolDefinition('send_email', 'Sends an email.', ToolEffect::External, [
             'type' => 'object',
             'properties' => ['to' => ['type' => 'string'], 'body' => ['type' => 'string']],
             'required' => ['to', 'body'],
@@ -21,6 +21,6 @@ final class SendEmailTool implements AgentTool
 
     public function __invoke(array $arguments): string
     {
-        return \sprintf('Courriel envoyé à %s.', (string) ($arguments['to'] ?? '?'));
+        return \sprintf('Email sent to %s.', (string) ($arguments['to'] ?? '?'));
     }
 }

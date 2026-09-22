@@ -5,16 +5,16 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Context;
 
 /**
- * Un tour de conversation : le message de l'humain, et tout ce que l'agent a produit en réponse —
- * ses appels d'outils, leurs résultats, sa réponse finale.
+ * One conversation turn: the human's message, and everything the agent produced in reply — its
+ * tool calls, their results, its final answer.
  *
- * C'est **l'unité indivisible de la compaction**. Un message `assistant` qui demande des outils et
- * les `tool` qui lui répondent forment un bloc : couper au milieu laisse un résultat orphelin, que
- * les fournisseurs refusent. Faire du tour un type plutôt qu'une convention rend la faute
- * impossible à commettre par distraction.
+ * This is **the indivisible unit of compaction**. An `assistant` message asking for tools and the
+ * `tool` messages answering it form one block: cutting through the middle leaves an orphaned
+ * result, which providers refuse. Making the turn a type rather than a convention makes the
+ * mistake impossible to commit by inattention.
  *
- * Les messages eux-mêmes restent des tableaux : c'est du fil, la forme exacte appartient au
- * fournisseur, et la retyper reviendrait à réécrire son protocole.
+ * The messages themselves stay arrays: this is wire, the exact shape belongs to the provider, and
+ * retyping it would amount to rewriting its protocol.
  */
 final readonly class Turn
 {
@@ -32,7 +32,7 @@ final readonly class Turn
     public static function of(array $messages): self
     {
         if ([] === $messages) {
-            throw new \InvalidArgumentException('Un tour porte au moins un message.');
+            throw new \InvalidArgumentException('A turn carries at least one message.');
         }
 
         return new self($messages);

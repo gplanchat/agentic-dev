@@ -13,19 +13,19 @@ use Gplanchat\Agentic\Domain\Watch\Watch;
 use Gplanchat\Durable\Duration;
 
 /**
- * L'état de la conversation tel que le journal le raconte.
+ * The state of the conversation as the journal tells it.
  *
- * `working` et `finished` sont dérivés, pas stockés : c'est une projection, elle n'a pas d'état
- * propre à tenir à jour.
+ * `working` and `finished` are derived, not stored: this is a projection, it has no state of its
+ * own to keep up to date.
  */
 final readonly class Transcript implements \JsonSerializable
 {
     /**
      * @param list<TranscriptMessage> $messages
      * @param list<ToolStep>          $steps
-     * @param list<PendingApproval>   $pending   validations retenues par la garde
-     * @param list<PendingQuestion>   $questions questions posées par l'agent
-     * @param list<Watch>             $watches   veilles en cours
+     * @param list<PendingApproval>   $pending   approvals held back by the guard
+     * @param list<PendingQuestion>   $questions questions asked by the agent
+     * @param list<Watch>             $watches   watches in progress
      */
     public function __construct(
         public array $messages,
@@ -37,20 +37,22 @@ final readonly class Transcript implements \JsonSerializable
         public ?Duration $humanTimeout,
         public bool $working,
         public bool $finished,
-        /** Pourquoi l'exécution a échoué, si elle a échoué. */
+        /** Why the execution failed, if it failed. */
         public ?string $failure = null,
-        /** Le modèle du prochain tour. */
+        /** The model of the next turn. */
         public string $model = '',
-        /** Les outils de l'application figés au démarrage — hors outils toujours offerts. */
+        /** The application's tools frozen at start-up — excluding the always-offered tools. */
         public Toolset $tools = new Toolset(),
-        /** @var list<ToolRule> les hooks de décision figés au démarrage */
+        /** @var list<ToolRule> the decision hooks frozen at start-up */
         public array $rules = [],
+        /** The working directory the tools act in, frozen at start-up; `null` = the project. */
+        public ?string $workspace = null,
     ) {
     }
 
     /**
-     * Ce qu'une exécution neuve doit reprendre de celle-ci : le fil parlé, sans la mécanique
-     * d'outils du run qui s'achève.
+     * What a brand new execution must carry over from this one: the spoken thread, without the tool
+     * mechanics of the run that is ending.
      *
      * @return list<array{role: string, content: string}>
      */
@@ -63,9 +65,9 @@ final readonly class Transcript implements \JsonSerializable
     }
 
     /**
-     * Le fil parlé, coupé juste avant un message de l'humain — c'est ce que `/rewind` reprend.
+     * The spoken thread, cut just before a message from the human — that is what `/rewind` resumes.
      *
-     * @param int $userMessage le rang du message humain où couper, à partir de 0 ; au-delà du dernier, tout le fil
+     * @param int $userMessage the rank of the human message to cut at, starting from 0; past the last one, the whole thread
      *
      * @return list<array{role: string, content: string}>
      */
@@ -84,7 +86,7 @@ final readonly class Transcript implements \JsonSerializable
     }
 
     /**
-     * Ce que l'humain a dit, dans l'ordre.
+     * What the human said, in order.
      *
      * @return list<string>
      */

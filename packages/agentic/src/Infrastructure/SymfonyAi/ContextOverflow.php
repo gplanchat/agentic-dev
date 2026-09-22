@@ -5,15 +5,15 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Infrastructure\SymfonyAi;
 
 /**
- * Reconnaître un dépassement de fenêtre dans ce que le fournisseur a répondu.
+ * Recognising a window overflow in what the provider replied.
  *
- * Ce n'est pas une panne de transport, c'est une **réponse** : « ta charge est trop grosse ».
- * La rejouer telle quelle donnera le même verdict, donc la politique de retentative de Durable
- * n'a rien à faire ici — c'est au code workflow de changer la charge et de redemander. D'où le
- * traitement à part de {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ModelInvocationActivityHandler}, qui relève sur
- * toutes les autres erreurs mais journalise celle-ci comme une donnée.
+ * This is not a transport failure, it is a **reply**: "your payload is too big". Replaying it as is
+ * will give the same verdict, so Durable's retry policy has no business here — it is up to the
+ * workflow code to change the payload and ask again. Hence the separate handling in
+ * {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ModelInvocationActivityHandler}, which throws on every other error but
+ * journals this one as data.
  *
- * Les codes viennent du pont Mistral, qui les reconnaît de la même façon pour lever son
+ * The codes come from the Mistral bridge, which recognises them the same way to throw its
  * `ExceedContextSizeException`.
  *
  * @see \Symfony\AI\Platform\Bridge\Mistral\Llm\ResultConverter
@@ -25,7 +25,7 @@ final class ContextOverflow
     }
 
     /**
-     * @param array<string, mixed> $data corps de la réponse du fournisseur
+     * @param array<string, mixed> $data body of the provider's reply
      */
     public static function detected(array $data): bool
     {

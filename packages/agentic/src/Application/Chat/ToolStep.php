@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Application\Chat;
 
 /**
- * Un appel d'outil effectivement exécuté, avec son résultat quand l'activité est revenue.
+ * A tool call actually executed, with its result once the activity has come back.
  */
 final readonly class ToolStep implements \JsonSerializable
 {
@@ -26,9 +26,10 @@ final readonly class ToolStep implements \JsonSerializable
     }
 
     /**
-     * `callId` sort jusqu'au fil : c'est lui qui permet d'apparier un appel affiché à l'activité
-     * qui l'exécute, donc de dire « celle-ci tourne encore ». Apparier sur le nom et les arguments
-     * marcherait jusqu'au premier agent qui appelle deux fois le même outil pareil.
+     * `callId` goes all the way out to the wire: it is what makes it possible to match a displayed
+     * call to the activity running it, hence to say "this one is still running". Matching on the
+     * name and the arguments would work until the first agent that calls the same tool twice the
+     * same way.
      *
      * @return array{callId: string, tool: string, arguments: array<string, mixed>, result: string|null}
      */

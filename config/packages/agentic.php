@@ -6,19 +6,37 @@ use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigura
 
 return static function (ContainerConfigurator $container): void {
     $container->extension('agentic', [
-        // Vide : un client scripté répond, sans réseau ni clé.
+        // Empty: a scripted client answers, with no network and no key.
         'mistral_api_key' => '%env(default::MISTRAL_API_KEY)%',
-        // Les hooks de décision, avant le mode : deny > ask > allow, motifs fnmatch sur l'outil et
-        // ses arguments. Par exemple :
+        // The decision hooks, before the mode: deny > ask > allow, fnmatch patterns on the tool and
+        // on its arguments. For instance:
         //   ['tool' => 'send_email', 'when' => ['to' => '*@example.test'], 'decision' => 'allow'],
-        //   ['tool' => 'send_email', 'when' => ['to' => '*@concurrent.test'], 'decision' => 'deny', 'reason' => 'Jamais aux concurrents.'],
+        //   ['tool' => 'send_email', 'when' => ['to' => '*@competitor.test'], 'decision' => 'deny', 'reason' => 'Never to competitors.'],
         'tool_rules' => [],
-        // Les consignes du projet, ajoutées au prompt système de chaque nouvelle conversation.
+        // run_command, inside a bubblewrap sandbox: no network, nothing of the disk but what is
+        // mounted; .env.local and var/ hidden, .git read-only. The agent writes in its own worktree
+        // (`worktrees`), not in the project; `shared` are the paths bound from the project into it —
+        // vendor/ among them, since a worktree has none. Outside auto, every command asks; in auto,
+        // only those of auto_allow pass (fnmatch patterns).
+        'sandbox' => [
+            'enabled' => true,
+            // The bundle shares vendor/ by default; the packages have their own, and the bundle
+            // suite runs with cwd=packages/agentic-bundle.
+            'shared' => ['vendor', 'packages/*/vendor'],
+            // The machine's default PHP is 8.2; the bundle wants 8.4, so its suite runs through php8.4.
+            'auto_allow' => [
+                'git status', 'git status *', 'git diff', 'git diff *', 'git log', 'git log *',
+                'vendor/bin/phpunit', 'vendor/bin/phpunit *',
+                'php8.2 vendor/bin/phpunit', 'php8.2 vendor/bin/phpunit *',
+                'php8.4 vendor/bin/phpunit', 'php8.4 vendor/bin/phpunit *',
+            ],
+        ],
+        // The project instructions, appended to the system prompt of every new conversation.
         // 'instructions_file' => '%kernel.project_dir%/AGENTS.md',
         'watch_subjects' => [
-            'commande.expediee' => 'une commande a quitté l’entrepôt',
-            'paiement.recu' => 'un paiement a été encaissé',
-            'fournisseur.a_repondu' => 'un fournisseur a répondu à une demande',
+            'order.shipped' => 'an order has left the warehouse',
+            'payment.received' => 'a payment has been collected',
+            'supplier.replied' => 'a supplier answered a request',
         ],
     ]);
 };

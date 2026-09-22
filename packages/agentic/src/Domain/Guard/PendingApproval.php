@@ -7,14 +7,14 @@ namespace Gplanchat\Agentic\Domain\Guard;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 
 /**
- * Un appel d'outil retenu par la garde, en attente d'une décision humaine.
+ * A tool call held back by the guard, waiting for a human decision.
  */
 final readonly class PendingApproval implements \JsonSerializable
 {
     /**
      * @param array<string, mixed> $arguments
-     * @param float|null           $expiresAt instant (epoch, secondes) où l'échéance tranchera à la
-     *                                        place de l'humain ; `null` = pas d'échéance
+     * @param float|null           $expiresAt instant (epoch, seconds) where the deadline will decide in
+     *                                        place of the human; `null` = no deadline
      */
     public function __construct(
         public string $callId,

@@ -5,22 +5,22 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Guard;
 
 /**
- * Ce que fait un outil, déclaré avec son schéma. C'est cette classification — et pas le nom de
- * l'outil — que le mode consulte.
+ * What a tool does, declared along with its schema. It is this classification — and not the name of
+ * the tool — that the mode consults.
  */
 enum ToolEffect: string
 {
-    /** N'écrit rien : peut être rejoué sans conséquence. */
+    /** Writes nothing: can be replayed without consequence. */
     case Read = 'read';
 
-    /** Écrit dans le périmètre de l'application. */
+    /** Writes inside the perimeter of the application. */
     case Write = 'write';
 
-    /** Sort du périmètre : mail, paiement, appel à un tiers. Ce qui ne se compense pas d'un clic. */
+    /** Leaves the perimeter: mail, payment, third-party call. What a click does not undo. */
     case External = 'external';
 
     /**
-     * Rien à défaire : un outil en lecture peut partir sans que personne n'ait à trancher.
+     * Nothing to undo: a read tool can go out without anyone having to decide.
      */
     public function isHarmless(): bool
     {
@@ -28,7 +28,7 @@ enum ToolEffect: string
     }
 
     /**
-     * Sort du périmètre de l'application : aucune compensation ne le rattrape.
+     * Leaves the perimeter of the application: no compensation catches it back.
      */
     public function isIrreversible(): bool
     {

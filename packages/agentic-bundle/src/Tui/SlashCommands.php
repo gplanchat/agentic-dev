@@ -16,21 +16,21 @@ use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 use Gplanchat\Agentic\Domain\Watch\WatchTool;
 
 /**
- * Les commandes du chat, tapées après un `/` au lieu d'un message. Elles ne partent jamais au
- * modèle : chacune devient un signal ou une lecture du fil.
+ * The chat commands, typed after a `/` instead of a message. They never go to the model: each one
+ * becomes a signal or a reading of the thread.
  */
 final readonly class SlashCommands
 {
-    /** @var array<string, string> commande → ce qu'elle fait */
+    /** @var array<string, string> command → what it does */
     public const COMMANDS = [
-        '/help' => 'liste les commandes',
-        '/mode' => 'affiche ou change le mode : /mode standard|edition|auto',
-        '/model' => 'affiche ou change le modèle : /model <nom>',
-        '/tools' => 'liste les outils et ce que la garde en fait dans le mode courant',
-        '/clear' => 'clôt la conversation et en ouvre une neuve',
-        '/rewind' => 'revient avant un de tes messages : /rewind [n°]',
-        '/compact' => 'repart d’un résumé de la conversation, pour alléger le contexte',
-        '/resume' => 'reprend une conversation passée : /resume [identifiant]',
+        '/help' => 'lists the commands',
+        '/mode' => 'shows or changes the mode: /mode standard|edition|auto',
+        '/model' => 'shows or changes the model: /model <name>',
+        '/tools' => 'lists the tools and what the guard makes of them in the current mode',
+        '/clear' => 'closes the conversation and opens a fresh one',
+        '/rewind' => 'goes back before one of your messages: /rewind [no.]',
+        '/compact' => 'restarts from a summary of the conversation, to lighten the context',
+        '/resume' => 'resumes a past conversation: /resume [identifier]',
     ];
 
     public function __construct(private Conversations $conversations)
@@ -43,7 +43,7 @@ final readonly class SlashCommands
     }
 
     /**
-     * Les commandes dont le nom commence par ce qui est tapé — tant que seul le nom est tapé.
+     * The commands whose name starts with what is typed — as long as only the name is typed.
      *
      * @return array<string, string>
      */
@@ -72,7 +72,7 @@ final readonly class SlashCommands
             '/rewind' => $this->rewind($conversation, $argument),
             '/compact' => $this->compact($conversation),
             '/resume' => $this->resume($conversation, $argument),
-            default => new SlashOutcome(\sprintf('Commande inconnue : %s. /help pour la liste.', $name), error: true),
+            default => new SlashOutcome(\sprintf('Unknown command: %s. /help for the list.', $name), error: true),
         };
     }
 
@@ -92,7 +92,7 @@ final readonly class SlashCommands
         $current = $this->conversations->transcript($conversation)->mode;
         if (null === $argument) {
             return new SlashOutcome(\sprintf(
-                'Mode : %s. Possibles : %s.',
+                'Mode: %s. Possible: %s.',
                 $current->value,
                 implode(', ', array_map(static fn (AgentMode $mode): string => $mode->value, AgentMode::cases())),
             ));
@@ -100,19 +100,19 @@ final readonly class SlashCommands
 
         $mode = AgentMode::tryFrom(strtolower($argument));
         if (null === $mode) {
-            return new SlashOutcome(\sprintf('Mode inconnu : « %s ».', $argument), error: true);
+            return new SlashOutcome(\sprintf('Unknown mode: "%s".', $argument), error: true);
         }
 
         $this->conversations->setMode($conversation, $mode);
 
-        return new SlashOutcome(\sprintf('Mode : %s.', $mode->value));
+        return new SlashOutcome(\sprintf('Mode: %s.', $mode->value));
     }
 
     private function model(string $conversation, ?string $argument): SlashOutcome
     {
         if (null === $argument) {
             return new SlashOutcome(\sprintf(
-                "Modèle : %s.\nDisponibles : %s.",
+                "Model: %s.\nAvailable: %s.",
                 $this->conversations->transcript($conversation)->model,
                 implode(', ', $this->conversations->models()),
             ));
@@ -121,47 +121,50 @@ final readonly class SlashCommands
         try {
             $this->conversations->setModel($conversation, $argument);
         } catch (\InvalidArgumentException $refused) {
-            return new SlashOutcome($refused->getMessage().' /model pour la liste.', error: true);
+            return new SlashOutcome($refused->getMessage().' /model for the list.', error: true);
         }
 
-        return new SlashOutcome(\sprintf('Modèle : %s, à partir du prochain message.', $argument));
+        return new SlashOutcome(\sprintf('Model: %s, from the next message on.', $argument));
     }
 
     private function tools(string $conversation): string
     {
         $transcript = $this->conversations->transcript($conversation);
-        // La même garde que celle de l'agent : les règles du projet, puis le mode.
+        // The same guard as the agent's: the project rules, then the mode.
         $guard = new RuleBasedToolGuard($transcript->rules, new ModeToolGuard($transcript->tools));
         $width = max([0, ...array_map(static fn (ToolDefinition $tool): int => mb_strlen($tool->name), $transcript->tools->definitions)]);
 
         $lines = [];
         foreach ($transcript->tools as $tool) {
-            $decision = $guard->decide(new ToolInvocation('apercu', $tool->name), $transcript->mode);
+            $decision = $guard->decide(new ToolInvocation('preview', $tool->name), $transcript->mode);
             $lines[] = \sprintf(
                 '%s  %-8s  %s',
                 str_pad($tool->name, $width),
                 $tool->effect->value,
                 match (true) {
-                    $decision->isDenied() => 'refusé',
-                    $decision->needsApproval() => 'demande une validation',
-                    default => 'passe',
+                    $decision->isDenied() => 'denied',
+                    $decision->needsApproval() => 'needs approval',
+                    default => 'passes',
                 },
             );
         }
 
         $rules = array_map(static fn (ToolRule $rule): string => \sprintf(
-            '  %-5s %s%s%s',
+            '  %-5s %s%s%s%s%s',
             $rule->toWire()['decision'],
             $rule->tool,
+            [] === $rule->modes ? '' : ' in '.implode('|', array_map(static fn (AgentMode $mode): string => $mode->value, $rule->modes)),
             implode('', array_map(static fn (string $argument, string $pattern): string => \sprintf(' %s=%s', $argument, $pattern), array_keys($rule->when), $rule->when)),
+            implode('', array_map(static fn (string $argument, array $patterns): string => \sprintf(' unless %s=%s', $argument, implode(' | ', $patterns)), array_keys($rule->unless), $rule->unless)),
             '' === $rule->reason ? '' : ' — '.$rule->reason,
         ), $transcript->rules);
 
         return implode("\n", [
-            ...([] === $lines ? ['Aucun outil déclaré par l’application.'] : $lines),
+            ...([] === $lines ? ['No tool declared by the application.'] : $lines),
             '',
-            \sprintf('Mode %s. Toujours offerts : %s.', $transcript->mode->value, implode(', ', [AskUserQuestion::TOOL, WatchTool::TOOL, DelegateTool::TOOL])),
-            ...([] === $rules ? [] : ['Règles du projet (refus > demande > accord, avant le mode) :', ...$rules]),
+            \sprintf('Mode %s. Always offered: %s.', $transcript->mode->value, implode(', ', [AskUserQuestion::TOOL, WatchTool::TOOL, DelegateTool::TOOL])),
+            ...(null === $transcript->workspace ? [] : [\sprintf('Workspace: %s%s', $transcript->workspace, is_dir($transcript->workspace) ? '' : ' (created by the first command)')]),
+            ...([] === $rules ? [] : ['Project rules (deny > ask > allow, before the mode):', ...$rules]),
         ]);
     }
 
@@ -169,28 +172,28 @@ final readonly class SlashCommands
     {
         $said = $this->conversations->transcript($conversation)->userMessages();
         if ([] === $said) {
-            return new SlashOutcome('Rien à défaire : tu n’as encore rien dit.', error: true);
+            return new SlashOutcome('Nothing to undo: you have not said anything yet.', error: true);
         }
 
         if (null === $argument) {
             $choices = [];
             foreach (array_reverse($said, true) as $index => $text) {
-                // Libellé court, texte en description : la liste réserve au libellé une colonne étroite.
-                $choices[] = ['value' => (string) ($index + 1), 'label' => \sprintf('n° %d', $index + 1), 'description' => self::excerpt($text)];
+                // Short label, text as the description: the list gives the label a narrow column.
+                $choices[] = ['value' => (string) ($index + 1), 'label' => \sprintf('#%d', $index + 1), 'description' => self::excerpt($text)];
             }
 
-            return new SlashOutcome('Revenir avant quel message ? Entrée choisit, Échap annule.', choices: $choices, choose: '/rewind');
+            return new SlashOutcome('Go back before which message? Enter chooses, Esc cancels.', choices: $choices, choose: '/rewind');
         }
 
         $number = filter_var($argument, \FILTER_VALIDATE_INT, ['options' => ['min_range' => 1, 'max_range' => \count($said)]]);
         if (false === $number) {
-            return new SlashOutcome(\sprintf('Il faut un numéro de message entre 1 et %d.', \count($said)), error: true);
+            return new SlashOutcome(\sprintf('A message number between 1 and %d is needed.', \count($said)), error: true);
         }
 
         $restarted = $this->conversations->restart($conversation, keepUserMessages: $number - 1);
 
         return new SlashOutcome(
-            \sprintf('Retour avant « %s », dans la conversation %s. Le message est dans la saisie, à reprendre ou à changer.', self::excerpt($said[$number - 1]), substr($restarted, 0, 8)),
+            \sprintf('Back before "%s", in conversation %s. The message is in the input, to take up again or to change.', self::excerpt($said[$number - 1]), substr($restarted, 0, 8)),
             conversation: $restarted,
             prefill: $said[$number - 1],
         );
@@ -199,12 +202,12 @@ final readonly class SlashCommands
     private function compact(string $conversation): SlashOutcome
     {
         if ([] === $this->conversations->transcript($conversation)->userMessages()) {
-            return new SlashOutcome('Rien à compacter : la conversation est vide.', error: true);
+            return new SlashOutcome('Nothing to compact: the conversation is empty.', error: true);
         }
 
         $restarted = $this->conversations->restart($conversation, compact: true);
 
-        return new SlashOutcome(\sprintf('La conversation repart d’un résumé, dans %s.', substr($restarted, 0, 8)), conversation: $restarted);
+        return new SlashOutcome(\sprintf('The conversation restarts from a summary, in %s.', substr($restarted, 0, 8)), conversation: $restarted);
     }
 
     private function resume(string $conversation, ?string $argument): SlashOutcome
@@ -216,30 +219,30 @@ final readonly class SlashCommands
 
         if (null === $argument) {
             if ([] === $others) {
-                return new SlashOutcome('Aucune autre conversation à reprendre.', error: true);
+                return new SlashOutcome('No other conversation to resume.', error: true);
             }
 
-            return new SlashOutcome('Reprendre quelle conversation ? Entrée choisit, Échap annule.', choices: array_map(static fn ($summary): array => [
+            return new SlashOutcome('Resume which conversation? Enter chooses, Esc cancels.', choices: array_map(static fn ($summary): array => [
                 'value' => $summary->id,
                 'label' => $summary->startedAt?->setTimezone(new \DateTimeZone(date_default_timezone_get()))->format('d/m H:i') ?? '--/-- --:--',
-                'description' => \sprintf('%s  (%s)', self::excerpt($summary->title), $summary->finished ? 'terminée' : 'en cours'),
+                'description' => \sprintf('%s  (%s)', self::excerpt($summary->title), $summary->finished ? 'finished' : 'running'),
             ], $others), choose: '/resume');
         }
 
         $found = array_values(array_filter($others, static fn ($summary): bool => str_starts_with($summary->id, $argument)));
         if (1 !== \count($found)) {
-            return new SlashOutcome(\sprintf([] === $found ? 'Aucune conversation ne commence par « %s ».' : 'Plusieurs conversations commencent par « %s » : précise.', $argument), error: true);
+            return new SlashOutcome(\sprintf([] === $found ? 'No conversation starts with "%s".' : 'Several conversations start with "%s": be more precise.', $argument), error: true);
         }
 
         $summary = $found[0];
         if (!$summary->finished) {
-            return new SlashOutcome(\sprintf('Reprise de « %s ».', self::excerpt($summary->title)), conversation: $summary->id);
+            return new SlashOutcome(\sprintf('Resuming "%s".', self::excerpt($summary->title)), conversation: $summary->id);
         }
 
-        // Une exécution terminée ne se rouvre pas : une neuve repart de son fil.
+        // A finished run is not reopened: a fresh one starts again from its thread.
         $restarted = $this->conversations->restart($summary->id);
 
-        return new SlashOutcome(\sprintf('« %s » était terminée : elle reprend dans %s.', self::excerpt($summary->title), substr($restarted, 0, 8)), conversation: $restarted);
+        return new SlashOutcome(\sprintf('"%s" was finished: it resumes in %s.', self::excerpt($summary->title), substr($restarted, 0, 8)), conversation: $restarted);
     }
 
     private static function excerpt(string $text): string
@@ -253,6 +256,6 @@ final readonly class SlashCommands
     {
         $this->conversations->close($conversation);
 
-        return new SlashOutcome('Nouvelle conversation.', conversation: $this->conversations->start());
+        return new SlashOutcome('New conversation.', conversation: $this->conversations->start());
     }
 }

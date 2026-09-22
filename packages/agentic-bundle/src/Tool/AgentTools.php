@@ -8,7 +8,7 @@ use Gplanchat\Agentic\Application\Tool\AgentTool;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
 
 /**
- * Les outils que l'application a déclarés (services {@see AgentTool}), indexés par nom.
+ * The tools the application has declared ({@see AgentTool} services), indexed by name.
  */
 final class AgentTools
 {
@@ -29,17 +29,19 @@ final class AgentTools
 
     /**
      * @param array<string, mixed> $arguments
+     * @param string|null          $workspace the conversation's working directory, from its start payload
      */
-    public function call(string $name, array $arguments): string
+    public function call(string $name, array $arguments, ?string $workspace = null): string
     {
         $tool = $this->byName()[$name] ?? null;
         if (null === $tool) {
-            // ponytail: l'échec remonte et tue l'appel agent. Le renvoyer au modèle comme résultat
-            // d'outil est l'autre politique possible — c'est DUR011 qui doit trancher.
-            throw new \InvalidArgumentException(\sprintf('Outil « %s » inconnu.', $name));
+            // ponytail: the failure bubbles up and kills the agent call. Handing it back to the
+            // model as a tool result is the other possible policy — DUR011 is the one to decide.
+            throw new \InvalidArgumentException(\sprintf('Unknown tool "%s".', $name));
         }
 
-        return $tool($arguments);
+        // ponytail: a single tool acts in a workspace. The file tools will make it an interface.
+        return $tool instanceof RunCommandTool ? $tool->inWorkspace($arguments, $workspace) : $tool($arguments);
     }
 
     /**

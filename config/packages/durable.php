@@ -10,10 +10,9 @@ use Symfony\Component\Lock\LockFactory;
 
 use function Symfony\Component\DependencyInjection\Loader\Configurator\inline_service;
 
-// Le journal sur SQLite : les conversations survivent à la fermeture de la TUI, et se reprennent.
-// Les transports Messenger restent en mémoire — la TUI est le seul worker, et reprendre une
-// conversation ouvre une exécution neuve depuis son fil. Seul plafond : un tour en cours au moment
-// de quitter est perdu.
+// The journal on SQLite: conversations survive the TUI being closed, and can be resumed.
+// The Messenger transports stay in memory — the TUI is the only worker, and resuming a conversation
+// opens a fresh execution from its thread. One ceiling only: a turn in flight when you quit is lost.
 return static function (ContainerConfigurator $container): void {
     $container->services()
         ->set('app.durable_connection', Connection::class)
@@ -29,7 +28,7 @@ return static function (ContainerConfigurator $container): void {
         'child_workflow' => ['parent_link_store' => ['type' => 'dbal']],
         'temporal' => ['dsn' => null],
         'activity_transport' => ['type' => 'messenger', 'transport_name' => 'durable_activities'],
-        // Sans borne, une activité qui échoue est retentée sans fin, et l'écran reste sur « réfléchit… ».
+        // Without a bound, a failing activity is retried forever, and the screen stays on "thinking…".
         'max_activity_retries' => 3,
     ]);
 };

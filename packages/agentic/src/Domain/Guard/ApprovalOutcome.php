@@ -5,10 +5,10 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Guard;
 
 /**
- * Ce qu'est devenue une demande de validation. Trois issues, pas un booléen : « refusé » et
- * « jamais répondu » se ressemblent dans leurs effets — l'outil ne part pas — mais pas du tout
- * dans ce qu'elles disent. L'un est une décision, l'autre est une absence de décision, et un
- * journal qui les confond ne permet plus de savoir si quelqu'un a regardé.
+ * What an approval request has become. Three outcomes, not a boolean: "refused" and "never
+ * answered" look alike in their effects — the tool does not go out — but not at all in what they
+ * say. One is a decision, the other is the absence of a decision, and a journal that conflates
+ * them no longer lets anyone know whether someone actually looked.
  */
 enum ApprovalOutcome: string
 {
@@ -17,7 +17,7 @@ enum ApprovalOutcome: string
     case Expired = 'expired';
 
     /**
-     * Seule issue qui laisse partir l'outil.
+     * The only outcome that lets the tool go out.
      */
     public function isApproved(): bool
     {
@@ -25,8 +25,8 @@ enum ApprovalOutcome: string
     }
 
     /**
-     * Personne n'a tranché : l'échéance l'a fait à sa place. Distinct d'un refus, qui est une
-     * décision.
+     * Nobody decided: the deadline did it in their place. Distinct from a refusal, which is a
+     * decision.
      */
     public function isExpired(): bool
     {
@@ -34,14 +34,14 @@ enum ApprovalOutcome: string
     }
 
     /**
-     * Ce que le modèle lit à la place du résultat de l'outil.
+     * What the model reads in place of the tool result.
      */
     public function message(): string
     {
         return match ($this) {
             self::Approved => '',
-            self::Refused => 'Refusé par l’utilisateur.',
-            self::Expired => 'Refusé : aucune validation reçue avant l’échéance.',
+            self::Refused => 'Refused by the user.',
+            self::Expired => 'Refused: no approval arrived before the deadline.',
         };
     }
 }

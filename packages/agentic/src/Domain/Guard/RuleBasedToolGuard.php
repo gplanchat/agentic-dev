@@ -7,12 +7,11 @@ namespace Gplanchat\Agentic\Domain\Guard;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 
 /**
- * La garde configurable : des règles d'abord, le mode ensuite.
+ * The configurable guard: rules first, the mode afterwards.
  *
- * Parmi les règles qui s'appliquent à un appel, **le refus l'emporte sur la demande, qui l'emporte
- * sur l'accord** — l'ordre de déclaration ne compte pas, si bien qu'ajouter une règle ne peut jamais
- * desserrer un refus déjà posé. Aucune règle ne s'applique : c'est la garde de repli qui tranche,
- * c'est-à-dire le mode.
+ * Among the rules that apply to a call, **deny wins over ask, which wins over allow** — the
+ * declaration order does not count, so that adding a rule can never loosen a refusal already set.
+ * No rule applies: the fallback guard decides, that is to say the mode.
  */
 final readonly class RuleBasedToolGuard implements ToolGuardInterface
 {
@@ -27,7 +26,7 @@ final readonly class RuleBasedToolGuard implements ToolGuardInterface
 
     public function decide(ToolInvocation $toolCall, AgentMode $mode): ToolDecision
     {
-        $matched = array_filter($this->rules, static fn (ToolRule $rule): bool => $rule->matches($toolCall));
+        $matched = array_filter($this->rules, static fn (ToolRule $rule): bool => $rule->matches($toolCall, $mode));
 
         foreach ([ToolVerdict::Deny, ToolVerdict::Ask, ToolVerdict::Allow] as $verdict) {
             foreach ($matched as $rule) {
@@ -52,7 +51,7 @@ final readonly class RuleBasedToolGuard implements ToolGuardInterface
 
     private static function decision(ToolRule $rule, ToolInvocation $call): ToolDecision
     {
-        $reason = '' !== $rule->reason ? $rule->reason : \sprintf('Une règle du projet vise « %s ».', $call->name);
+        $reason = '' !== $rule->reason ? $rule->reason : \sprintf('A project rule targets "%s".', $call->name);
 
         return match ($rule->verdict) {
             ToolVerdict::Allow => ToolDecision::allow(),

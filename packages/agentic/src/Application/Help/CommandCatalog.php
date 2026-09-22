@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Application\Help;
 
 /**
- * Port : où trouver les commandes que l'application expose.
+ * Port: where to find the commands the application exposes.
  */
 interface CommandCatalog
 {

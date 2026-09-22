@@ -12,24 +12,24 @@ use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\TextWidget;
 
 /**
- * Dix rangées : « haut », huit rangées de fil, « bas ».
+ * Ten rows: "top", eight rows of thread, "bottom".
  */
 final class ThreadWidgetTest extends TestCase
 {
     public function testTheScreenFillsTheTerminalWithTheFooterOnTheLastRow(): void
     {
-        $lines = $this->render((new ThreadWidget())->setText('court'));
+        $lines = $this->render((new ThreadWidget())->setText('short'));
 
         self::assertCount(10, $lines);
-        self::assertSame('bas', $lines[9]);
+        self::assertSame('bottom', $lines[9]);
     }
 
     public function testALongThreadKeepsItsEndAboveTheFooter(): void
     {
         $lines = $this->render($this->fifty());
 
-        self::assertSame('ligne 50', $lines[8], 'La dernière ligne du fil est juste au-dessus du bas.');
-        self::assertSame('bas', $lines[9]);
+        self::assertSame('line 50', $lines[8], 'The last line of the thread is right above the bottom.');
+        self::assertSame('bottom', $lines[9]);
     }
 
     public function testScrollingUpShowsOlderLinesAndSaysHowManyAreBelow(): void
@@ -39,9 +39,9 @@ final class ThreadWidgetTest extends TestCase
 
         $lines = $this->render($thread->scroll(5));
 
-        self::assertSame('ligne 45', $lines[7], 'Cinq lignes plus récentes sont cachées sous la fenêtre.');
-        self::assertStringStartsWith('▼ 5 lignes plus récentes', $lines[8]);
-        self::assertSame('bas', $lines[9]);
+        self::assertSame('line 45', $lines[7], 'Five newer lines are hidden below the window.');
+        self::assertStringStartsWith('▼ 5 newer lines below', $lines[8]);
+        self::assertSame('bottom', $lines[9]);
     }
 
     public function testScrollingStopsAtTheFirstLineAndComesBackToTheBottom(): void
@@ -50,29 +50,29 @@ final class ThreadWidgetTest extends TestCase
         $this->render($thread);
 
         $lines = $this->render($thread->scroll(1000));
-        self::assertSame('ligne 1', $lines[1], 'On ne remonte pas au-delà du début du fil.');
+        self::assertSame('line 1', $lines[1], 'One does not scroll past the start of the thread.');
 
         $lines = $this->render($thread->scrollToBottom());
         self::assertSame(0, $thread->offset());
-        self::assertSame('ligne 50', $lines[8]);
+        self::assertSame('line 50', $lines[8]);
     }
 
     public function testTheModelAnswerIsRenderedAsMarkdown(): void
     {
         $thread = (new ThreadWidget())->setEntries([
-            ['› Quel temps ?', false],
-            ["Il fait **27°C**.\n\n- prends une casquette", true],
+            ['› What weather?', false],
+            ["It is **27°C**.\n\n- take a cap", true],
         ]);
 
         $lines = $this->render($thread);
 
-        self::assertContains('Il fait 27°C.', $lines, 'Le gras est mis en forme, pas affiché avec ses astérisques.');
-        self::assertContains('• prends une casquette', $lines);
+        self::assertContains('It is 27°C.', $lines, 'The bold is formatted, not shown with its asterisks.');
+        self::assertContains('• take a cap', $lines);
     }
 
     private function fifty(): ThreadWidget
     {
-        return (new ThreadWidget())->setText(implode("\n", array_map(static fn (int $i): string => 'ligne '.$i, range(1, 50))));
+        return (new ThreadWidget())->setText(implode("\n", array_map(static fn (int $i): string => 'line '.$i, range(1, 50))));
     }
 
     /**
@@ -82,7 +82,7 @@ final class ThreadWidgetTest extends TestCase
     {
         $terminal = new VirtualTerminal(60, 10);
         $tui = new Tui(terminal: $terminal);
-        $tui->add(new TextWidget('haut'))->add($thread)->add(new TextWidget('bas'));
+        $tui->add(new TextWidget('top'))->add($thread)->add(new TextWidget('bottom'));
         $tui->start();
         $tui->tick();
 
@@ -91,7 +91,7 @@ final class ThreadWidgetTest extends TestCase
             explode("\n", str_replace("\r", '', AnsiUtils::stripAnsiCodes($terminal->getOutput()))),
         );
         $tui->stop();
-        // Le fil n'appartient qu'à un écran à la fois : on le détache pour le rendu suivant.
+        // The thread belongs to a single screen at a time: we detach it for the next rendering.
         $tui->remove($thread);
 
         return $lines;

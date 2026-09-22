@@ -14,17 +14,17 @@ use PHPUnit\Framework\TestCase;
 final class HumanQuestionDeskTest extends TestCase
 {
     /**
-     * Les arguments viennent du modèle : une option sans libellé est jetée, pas fatale.
+     * The arguments come from the model: an option without a label is thrown away, not fatal.
      */
     public function testAnOptionWithoutLabelIsDropped(): void
     {
         $question = PendingQuestion::fromArguments('c1', [
-            'question' => 'Quelle suite ?',
-            'options' => [['label' => 'Continuer'], ['label' => '  '], 'n’importe quoi'],
+            'question' => 'What comes next?',
+            'options' => [['label' => 'Carry on'], ['label' => '  '], 'anything at all'],
         ]);
 
         self::assertCount(1, $question->options);
-        self::assertSame('Continuer', $question->options[0]->label);
+        self::assertSame('Carry on', $question->options[0]->label);
     }
 
     public function testTheFirstAnswerWinsAndBlankAnswersAreIgnored(): void

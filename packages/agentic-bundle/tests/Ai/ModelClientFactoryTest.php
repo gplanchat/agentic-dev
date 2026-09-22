@@ -11,7 +11,7 @@ use PHPUnit\Framework\TestCase;
 final class ModelClientFactoryTest extends TestCase
 {
     /**
-     * `%env(default::MISTRAL_API_KEY)%` vaut `null` quand la variable manque : c'est le cas sans clé.
+     * `%env(default::MISTRAL_API_KEY)%` is `null` when the variable is missing: that is the no-key case.
      */
     public function testWithoutAKeyTheScriptedClientAnswers(): void
     {

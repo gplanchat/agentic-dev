@@ -8,7 +8,7 @@ use Symfony\Component\Console\Application;
 use Symfony\Component\Console\Command\Command;
 
 /**
- * L'application TUI `agentic`. Ses commandes sont les services marqués
+ * The `agentic` TUI application. Its commands are the services tagged
  * {@see \Gplanchat\AgenticBundle\AgenticBundle::COMMAND_TAG}.
  */
 final class AgenticApplication extends Application

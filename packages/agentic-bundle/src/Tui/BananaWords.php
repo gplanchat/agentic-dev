@@ -5,36 +5,36 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Tui;
 
 /**
- * Ce que dit la banane pendant que l'agent travaille — l'équivalent des « Pondering… » de Claude
- * Code. Purement décoratif : rien ici n'entre au journal, le hasard y est donc permis.
+ * What the banana says while the agent works — the equivalent of Claude Code's "Pondering…".
+ * Purely decorative: nothing here goes into the journal, so randomness is allowed.
  */
 final class BananaWords
 {
     public const PHRASES = [
-        'Épluche la question',
-        'Mûrit au soleil',
-        'Consulte le bananier',
-        'Compte les régimes',
-        'Glisse sur une peau de banane',
-        'Prépare un banana split',
-        'Mixe un smoothie',
-        'Danse le Peanut Butter Jelly',
-        'Négocie avec les singes',
-        'Cherche la courbure idéale',
-        'Jongle avec trois bananes',
-        'Vérifie le taux de potassium',
-        'Remonte le régime',
-        'Pèle les hypothèses',
-        'Tartine le beurre de cacahuète',
-        'Fait flamber la banane',
-        'Brunit un peu sur les bords',
-        'Grimpe au cocotier (erreur de rayon)',
+        'Peeling the question',
+        'Ripening in the sun',
+        'Consulting the banana tree',
+        'Counting the bunches',
+        'Slipping on a banana peel',
+        'Preparing a banana split',
+        'Blending a smoothie',
+        'Dancing the Peanut Butter Jelly',
+        'Negotiating with the monkeys',
+        'Looking for the perfect curve',
+        'Juggling three bananas',
+        'Checking the potassium level',
+        'Revving up the bunch',
+        'Peeling the assumptions',
+        'Spreading the peanut butter',
+        'Flambeing the banana',
+        'Browning a little at the edges',
+        'Climbing the coconut tree (wrong aisle)',
     ];
 
-    /** Braille : une cellule de large partout, contrairement aux emojis. */
+    /** Braille: one cell wide everywhere, unlike emojis. */
     private const SPINNER = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
-    /** Une phrase tient ce nombre de temps avant de laisser la place à la suivante. */
+    /** A phrase holds for this many beats before giving way to the next one. */
     private const BEATS_PER_PHRASE = 8;
 
     private int $first;
@@ -45,7 +45,7 @@ final class BananaWords
     }
 
     /**
-     * Une nouvelle série commence : la banane ne répète pas sa dernière blague d'entrée de jeu.
+     * A new run starts: the banana does not repeat its last joke right away.
      */
     public function shuffle(): void
     {

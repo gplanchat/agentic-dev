@@ -5,18 +5,18 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Question;
 
 /**
- * Une question posée à l'humain, en attente de sa réponse.
+ * A question put to the human, waiting for their answer.
  *
- * C'est l'inverse de la garde : celle-ci décide si un outil que le modèle a choisi peut partir,
- * celle-là est un outil dont le seul effet est d'aller chercher une information que le modèle n'a
- * pas. Même primitive — un signal et une attente — deux intentions.
+ * It is the reverse of the guard: the guard decides whether a tool the model chose may go out,
+ * this one is a tool whose only effect is to go and fetch a piece of information the model does
+ * not have. Same primitive — a signal and a wait — two intentions.
  */
 final readonly class PendingQuestion implements \JsonSerializable
 {
     /**
      * @param list<QuestionOption> $options
-     * @param float|null           $expiresAt instant (epoch) où l'échéance répondra « rien » à la
-     *                                        place de l'humain
+     * @param float|null           $expiresAt instant (epoch) where the deadline will answer "nothing" in
+     *                                        place of the human
      */
     public function __construct(
         public string $callId,
@@ -29,9 +29,9 @@ final readonly class PendingQuestion implements \JsonSerializable
     }
 
     /**
-     * Fabrique de frontière : les arguments viennent du modèle, donc en tableaux, et rien ne
-     * garantit qu'il ait respecté le schéma. Une option sans libellé est jetée plutôt que de
-     * faire échouer le tour.
+     * A boundary factory: the arguments come from the model, hence as arrays, and nothing
+     * guarantees it honoured the schema. An option without a label is thrown away rather than
+     * failing the turn.
      *
      * @param array<string, mixed> $arguments
      */

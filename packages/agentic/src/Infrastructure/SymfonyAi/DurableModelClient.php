@@ -16,11 +16,11 @@ use Gplanchat\Agentic\Infrastructure\SymfonyAi\JournaledHttpResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
 
 /**
- * La couture basse de Symfony AI : `Provider` a déjà normalisé la conversation et les schémas
- * d'outils en tableaux, il ne reste que l'appel HTTP — qu'on remplace par une activité.
+ * The low seam of Symfony AI: `Provider` has already normalised the conversation and the tool
+ * schemas into arrays, all that is left is the HTTP call — which we replace with an activity.
  *
- * Conséquence : `Runner::run()` devient du code workflow ordinaire, rejoué, dont la seule jambe non
- * déterministe sort du journal.
+ * A consequence: `Runner::run()` becomes ordinary workflow code, replayed, whose only
+ * non-deterministic leg comes out of the journal.
  */
 final class DurableModelClient implements ModelClientInterface
 {
@@ -42,22 +42,23 @@ final class DurableModelClient implements ModelClientInterface
     public function request(Model $model, array|string $payload, array $options = []): RawResultInterface
     {
         if (!\is_array($payload)) {
-            throw new \InvalidArgumentException('Un payload textuel ne traverse pas la frontière d\'activité de ce prototype.');
+            throw new \InvalidArgumentException('A textual payload does not cross the activity boundary of this prototype.');
         }
 
         if (true === ($options['stream'] ?? false)) {
-            // Une activité rend une valeur une fois : un flux de deltas ne se rejoue pas.
-            throw new \LogicException('Le streaming est incompatible avec le rejeu : journalise le résultat assemblé, streame sur un canal latéral.');
+            // An activity returns a value once: a stream of deltas does not replay.
+            throw new \LogicException('Streaming is incompatible with replay: journal the assembled result, stream on a side channel.');
         }
 
-        // Préventif : on ne part jamais au-dessus du plafond. La compaction est pure, donc elle
-        // rend le même payload à chaque rejeu.
+        // Preventive: we never go out above the ceiling. Compaction is pure, so it returns the same
+        // payload on every replay.
         $payload['messages'] = $this->budget->fit($payload['messages'] ?? []);
 
         $data = $this->environment->await($this->stub->invokeModel($model->getName(), $payload, $options));
 
-        // Réactif : le fournisseur a compté autrement que nous. Rejouer la même charge donnerait
-        // le même verdict — c'est la charge qu'il faut changer, pas l'appel qu'il faut retenter.
+        // Reactive: the provider counted differently from us. Replaying the same payload would give
+        // the same verdict — it is the payload that has to change, not the call that has to be
+        // retried.
         if (ContextOverflow::detected($data)) {
             $payload['messages'] = $this->budget->halved()->fit($payload['messages']);
             $data = $this->environment->await($this->stub->invokeModel($model->getName(), $payload, $options));

@@ -7,17 +7,17 @@ namespace Gplanchat\Agentic\Infrastructure\SymfonyAi;
 use Symfony\AI\Platform\Result\RawResultInterface;
 
 /**
- * La réponse du fournisseur telle que le journal la rend.
+ * The provider's reply as the journal returns it.
  *
- * Les convertisseurs des ponts ne sont pas de simples fonctions `tableau → résultat` : celui de
- * Mistral commence par regarder le code HTTP pour distinguer un dépassement de contexte d'une
- * panne. Il lui faut donc un objet réponse, pas seulement des données.
+ * The bridges' converters are not plain `array → result` functions: Mistral's starts by looking at
+ * the HTTP code to tell a context overflow from a failure. It therefore needs a response object,
+ * not just data.
  *
- * Ici il n'y a plus de réponse HTTP — elle a eu lieu dans l'activité, il y a peut-être trois
- * jours. Ce qui est journalisé est **toujours** un succès : {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ModelInvocationActivityHandler}
- * relève sur tout code >= 400, de sorte que la politique de retentative de Durable s'applique à
- * un 429 ou un 503 (DUR011) au lieu de laisser le code workflow s'étrangler dessus. D'où le 200
- * en dur : c'est la seule issue qui atteigne jamais le rejeu.
+ * Here there is no HTTP response any more — it happened inside the activity, perhaps three days
+ * ago. What is journaled is **always** a success: {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ModelInvocationActivityHandler}
+ * throws on any code >= 400, so that Durable's retry policy applies to a 429 or a 503 (DUR011)
+ * instead of letting the workflow code choke on it. Hence the hard-coded 200: it is the only
+ * outcome that ever reaches the replay.
  */
 final readonly class JournaledHttpResult implements RawResultInterface
 {
@@ -36,7 +36,7 @@ final readonly class JournaledHttpResult implements RawResultInterface
 
     public function getDataStream(): iterable
     {
-        // Une activité rend une valeur une fois : un flux de deltas ne se rejoue pas.
+        // An activity returns a value once: a stream of deltas does not replay.
         yield from [];
     }
 

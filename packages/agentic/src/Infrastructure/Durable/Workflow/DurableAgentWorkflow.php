@@ -29,78 +29,77 @@ use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Result\MultiPartResult;
 
 /**
- * Un agent durable : **une conversation = une exécution**.
+ * A durable agent: **one conversation = one execution**.
  *
- * La boucle d'appel d'outils de Symfony AI (`Agent::call()` → `Runner::run()`) tourne en code
- * workflow ; ses deux jambes non déterministes passent par le journal ({@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableModelClient},
- * {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableToolExecutor}), donc elle se rejoue et la `MessageBag` se reconstruit seule.
+ * Symfony AI's tool-calling loop (`Agent::call()` → `Runner::run()`) runs in workflow code; its two
+ * non-deterministic legs go through the journal ({@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableModelClient},
+ * {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableToolExecutor}), so it replays and the `MessageBag` rebuilds itself.
  *
- * Un seul type pour deux usages, qui ne diffèrent que par les paramètres :
- * - `prompt` + `maxTurns: 1` — une question, une réponse, l'exécution se termine ;
- * - sans `prompt` — un chat : chaque message humain arrive par un signal `user_message`, et entre
- *   deux messages le workflow est *suspendu*, pas en attente dans un processus. Il peut le rester
- *   des jours, à travers un redéploiement.
+ * A single type for two uses, which differ only by the parameters:
+ * - `prompt` + `maxTurns: 1` — one question, one answer, the execution ends;
+ * - without `prompt` — a chat: every human message arrives through a `user_message` signal, and
+ *   between two messages the workflow is *suspended*, not waiting inside a process. It can stay
+ *   that way for days, across a redeployment.
  *
- * Chaque appel d'outil passe par une garde ({@see ToolGuardInterface}) : selon le mode il passe, il
- * est refusé, ou il suspend l'exécution jusqu'à un signal `tool_decision`.
+ * Every tool call goes through a guard ({@see ToolGuardInterface}): depending on the mode it goes
+ * through, it is refused, or it suspends execution until a `tool_decision` signal.
  *
- * L'agent dispose en plus de deux outils dont l'exécution est une suspension :
- * `demander_a_l_utilisateur` attend un signal `question_answered` — là l'humain autorise, ici il
- * renseigne — et `surveiller` attend un signal `alerte`, levé par le dehors. Le réveil rend à
- * l'agent l'observation **et l'intention qu'il avait écrite en s'inscrivant** : il n'a rien à se
- * rappeler, le journal le lui dit.
+ * The agent additionally has two tools whose execution is a suspension: `ask_user` waits for a
+ * `question_answered` signal — there the human authorises, here they inform — and `watch` waits for
+ * an `alert` signal, raised from outside. Waking hands the agent back the observation **and the
+ * intent it had written when registering**: it has nothing to remember, the journal tells it.
  *
- * `humanTimeoutSeconds` borne toute attente humaine pour l'instance d'agent : pas de réponse vaut
- * refus pour une validation, « rien choisi » pour une question. Le minuteur étant journalisé
- * (DUR032), l'échéance survit au redémarrage comme l'attente elle-même.
+ * `humanTimeoutSeconds` bounds every human wait for the agent instance: no answer counts as a
+ * refusal for an approval, as "nothing chosen" for a question. The timer being journaled (DUR032),
+ * the deadline survives a restart just as the wait itself does.
  *
- * `contextTokens` borne la conversation : une conversation durable grossit sans fin, et le jour
- * où elle dépasse la fenêtre du modèle l'agent ne rate pas un tour, il ne peut plus en faire un
- * seul. La compaction abandonne les tours les plus anciens — par tours entiers, pour ne pas
- * laisser de résultat d'outil orphelin — et elle est **pure**, donc rejouée à l'identique.
+ * `contextTokens` bounds the conversation: a durable conversation grows without end, and the day it
+ * overflows the model window the agent does not miss a turn, it can no longer take a single one.
+ * Compaction drops the oldest turns — by whole turns, so as not to leave an orphaned tool result —
+ * and it is **pure**, hence replayed identically.
  *
- * Contraintes de rejeu, à ne pas relâcher : `symfony/ai` épinglé (`Runner` est `@internal`, sa
- * boucle est le contrat de déterminisme), pas de streaming, schémas d'outils figés dans le payload,
- * aucun store de messages externe — le journal est la seule source de vérité.
+ * Replay constraints, not to be relaxed: `symfony/ai` pinned (`Runner` is `@internal`, its loop is
+ * the determinism contract), no streaming, tool schemas frozen in the payload, no external message
+ * store — the journal is the only source of truth.
  *
- * Deux bornes ferment le run, et aucune ne perd le fil :
- * - `idleTimeoutSeconds` — un silence assez long vaut une fin. Le run se termine, la page propose
- *   de le reprendre, et le fil repart dans la charge de la nouvelle exécution.
- * - `rolloverAfterTurns` — au bout de N tours, `continueAsNew` ouvre un run neuf **dans la même
- *   exécution** : même `workflowId`, même URL, journal vierge, fil transporté.
+ * Two bounds close the run, and neither loses the thread:
+ * - `idleTimeoutSeconds` — a long enough silence counts as an ending. The run ends, the page offers
+ *   to resume it, and the thread starts again in the payload of the new execution.
+ * - `rolloverAfterTurns` — after N turns, `continueAsNew` opens a brand new run **inside the same
+ *   execution**: same `workflowId`, same URL, blank journal, thread carried over.
  *
- * Ce qui est transporté est le fil *parlé*, pas le journal : les appels d'outils et leurs retours
- * appartiennent au run qui s'achève. Et `compactHistory` le réduit à un résumé avant le premier
- * tour — ce qu'on veut d'une reprise froide, où rejouer la conversation mot pour mot ferait payer
- * au premier tour tout ce que le run précédent avait déjà coûté.
+ * What is carried over is the *spoken* thread, not the journal: the tool calls and their returns
+ * belong to the run that is ending. And `compactHistory` reduces it to a summary before the first
+ * turn — which is what one wants from a cold resume, where replaying the conversation word for word
+ * would make the first turn pay again everything the previous run had already cost.
  *
- * Le relais n'a pas la même surface selon le backend, et c'est ce qui le rend opt-in : sur Temporal
- * le `workflowId` ne bouge pas, donc l'URL du chat non plus ; sur les autres,
- * {@see \Gplanchat\Durable\Handler\ResumeWorkflowHandler} ouvre le run suivant sous un
- * `executionId` neuf, qu'il faudrait suivre. La clôture sur inactivité, elle, se comporte pareil
- * partout — c'est le chemin par défaut.
+ * The relay does not have the same surface depending on the backend, and that is what makes it
+ * opt-in: on Temporal the `workflowId` does not move, so neither does the chat URL; on the others,
+ * {@see \Gplanchat\Durable\Handler\ResumeWorkflowHandler} opens the next run under a brand new
+ * `executionId`, which would have to be followed. Closing on inactivity, for its part, behaves the
+ * same everywhere — it is the default path.
  */
 #[AsWorkflow(self::TYPE)]
 final class DurableAgentWorkflow
 {
     /**
-     * Le journal et Temporal désignent un workflow par son alias, jamais par son FQCN
-     * ({@see \Gplanchat\Durable\WorkflowRegistry}) : `continueAsNew` doit donner celui-là.
+     * The journal and Temporal designate a workflow by its alias, never by its FQCN
+     * ({@see \Gplanchat\Durable\WorkflowRegistry}): `continueAsNew` must give that one.
      */
     public const TYPE = 'Ai_DurableAgent';
 
-    /** La consigne par défaut. Une constante parce qu'un appelant a besoin de la citer. */
-    public const SYSTEM_PROMPT = 'Tu es un assistant concis. Utilise les outils quand ils répondent mieux que toi.';
+    /** The default instruction. A constant because a caller needs to quote it. */
+    public const SYSTEM_PROMPT = 'You are a concise assistant. Use the tools when they answer better than you do.';
 
     /**
-     * Ce qu'on demande au modèle quand une conversation froide redémarre.
+     * What is asked of the model when a cold conversation restarts.
      *
-     * Le résumé remplace le fil : il doit donc porter ce dont le tour suivant a besoin — la demande,
-     * ce qui a été fait, ce qui reste ouvert — et rien de la mécanique.
+     * The summary replaces the thread: it must therefore carry what the next turn needs — the
+     * request, what has been done, what is still open — and nothing of the mechanics.
      */
-    private const COMPACTION_PROMPT = 'Tu reprends une conversation interrompue. Résume-la en '
-        . 'quelques phrases : ce que la personne a demandé, ce qui a été fait pour elle, et ce qui '
-        . 'reste en suspens. Écris le résumé seul, sans préambule ni formule d\'introduction.';
+    private const COMPACTION_PROMPT = 'You are resuming an interrupted conversation. Summarise it in '
+        . 'a few sentences: what the person asked for, what has been done for them, and what is '
+        . 'still outstanding. Write the summary alone, with no preamble and no opening formula.';
 
     /** @var list<string> */
     private array $inbox = [];
@@ -110,14 +109,14 @@ final class DurableAgentWorkflow
     private AgentMode $mode = AgentMode::Standard;
 
     /**
-     * Le modèle du prochain tour. État de workflow comme le mode : `set_model` est journalisé, donc
-     * le rejeu retrouve le même modèle au même tour.
+     * The model of the next turn. Workflow state like the mode: `set_model` is journaled, so the
+     * replay finds the same model on the same turn.
      */
     private string $model = '';
 
     /**
-     * Ce que cet agent ne peut pas dépasser, quoi qu'il demande. `auto` pour un agent de premier
-     * rang — c'est-à-dire aucune borne — et le mode effectif du parent pour un délégué.
+     * What this agent cannot go past, whatever it asks for. `auto` for a first-rank agent — that is
+     * to say no bound at all — and the parent's effective mode for a delegate.
      */
     private AgentMode $ceiling = AgentMode::Auto;
 
@@ -136,8 +135,8 @@ final class DurableAgentWorkflow
     }
 
     /**
-     * Une file, pas un champ : un second message posté pendant que l'agent travaille écraserait le
-     * premier. L'ordre de consommation est l'ordre du journal, donc stable au rejeu.
+     * A queue, not a field: a second message posted while the agent is working would overwrite the
+     * first. The order of consumption is the order of the journal, hence stable on replay.
      *
      * @param array<string, mixed> $payload
      */
@@ -151,7 +150,8 @@ final class DurableAgentWorkflow
     }
 
     /**
-     * L'accord — ou le refus — d'un appel d'outil. L'exécution suspendue sur sa condition reprend ici.
+     * The approval — or the refusal — of a tool call. The execution suspended on its condition
+     * resumes here.
      *
      * @param array<string, mixed> $payload
      */
@@ -165,8 +165,8 @@ final class DurableAgentWorkflow
     }
 
     /**
-     * La réponse à une question posée par l'agent. C'est l'autre sens de la conversation : ici
-     * l'humain ne pilote pas, il renseigne.
+     * The answer to a question asked by the agent. This is the other direction of the conversation:
+     * here the human does not steer, they inform.
      *
      * @param array<string, mixed> $payload
      */
@@ -180,13 +180,13 @@ final class DurableAgentWorkflow
     }
 
     /**
-     * L'alerte qui lève une veille. Elle vient du dehors — une supervision, un webhook, un autre
-     * agent — et c'est le journal, pas le modèle, qui rappellera à l'agent ce qu'il comptait faire.
+     * The alert that lifts a watch. It comes from outside — a monitoring system, a webhook, another
+     * agent — and it is the journal, not the model, that will remind the agent what it meant to do.
      *
      * @param array<string, mixed> $payload
      */
-    #[AsSignalMethod('alerte')]
-    public function onAlerte(array $payload): void
+    #[AsSignalMethod('alert')]
+    public function onAlert(array $payload): void
     {
         $callId = (string) ($payload['callId'] ?? '');
         if ('' !== $callId) {
@@ -195,37 +195,37 @@ final class DurableAgentWorkflow
     }
 
     /**
-     * Changer de mode en cours de conversation est journalisé, donc rejoué à l'identique.
+     * Changing mode in the middle of a conversation is journaled, hence replayed identically.
      *
      * @param array<string, mixed> $payload
      */
     /**
-     * Le mode change, **sans jamais desserrer le plafond**.
+     * The mode changes, **without ever loosening the ceiling**.
      *
-     * Le plafond vaut à l'entrée *et* en cours de route : un sous-agent qui accepterait
-     * `set_mode: auto` n'aurait pas de plafond du tout, et déléguer redeviendrait le chemin
-     * d'échappement de la garde. Un agent de premier rang a `auto` pour plafond — la borne ne lui
-     * coûte rien.
+     * The ceiling holds on entry *and* along the way: a sub-agent that accepted `set_mode: auto`
+     * would have no ceiling at all, and delegating would again become the escape hatch of the
+     * guard. A first-rank agent has `auto` as its ceiling — the bound costs it nothing.
      */
     #[AsSignalMethod('set_mode')]
     public function onSetMode(array $payload): void
     {
-        $demande = AgentMode::tryFrom((string) ($payload['mode'] ?? ''));
-        if (null === $demande || $demande->loosens($this->ceiling)) {
+        $requested = AgentMode::tryFrom((string) ($payload['mode'] ?? ''));
+        if (null === $requested || $requested->loosens($this->ceiling)) {
             return;
         }
 
-        $this->mode = $demande;
+        $this->mode = $requested;
     }
 
     /**
      * @param array<string, mixed> $payload
      */
     /**
-     * Le modèle change pour le tour suivant ; le tour en cours finit avec le sien.
+     * The model changes for the next turn; the turn in progress finishes with its own.
      *
-     * Aucune validation ici : le catalogue des modèles vit hors du workflow, et le lire au rejeu le
-     * ferait dépendre de la configuration du jour. C'est l'adaptateur qui refuse un nom inconnu.
+     * No validation here: the catalogue of models lives outside the workflow, and reading it on
+     * replay would make it depend on the configuration of the day. It is the adapter that refuses an
+     * unknown name.
      *
      * @param array<string, mixed> $payload
      */
@@ -245,15 +245,15 @@ final class DurableAgentWorkflow
     }
 
     /**
-     * Réduire une conversation froide à ce qu'il faut en savoir.
+     * Reducing a cold conversation to what needs to be known of it.
      *
-     * Un appel modèle, pas une boucle d'agent : il n'y a rien à outiller ici, et passer par
-     * `Runner` ne ferait qu'exposer la compaction aux gardes et aux appels d'outils. L'appel sort
-     * du journal comme les autres — donc rejoué, donc payé une fois.
+     * A model call, not an agent loop: there is nothing to tool here, and going through `Runner`
+     * would only expose the compaction to the guards and to tool calls. The call goes out of the
+     * journal like the others — hence replayed, hence paid for once.
      *
-     * Un résumé vide n'est pas un résumé : le fil repart alors tel quel. C'est le seul choix qui
-     * garde l'affichage et le sac d'accord — la projection, elle aussi, retombe sur le fil brut
-     * quand le journal ne porte pas de résumé exploitable.
+     * An empty summary is not a summary: the thread then starts again as is. It is the only choice
+     * that keeps the display and the bag in agreement — the projection, too, falls back on the raw
+     * thread when the journal carries no usable summary.
      *
      * @param list<TranscriptMessage> $thread
      *
@@ -266,8 +266,8 @@ final class DurableAgentWorkflow
                 ->activityStub(ModelInvocationActivityInterface::class)
                 ->compactConversation($model, ['messages' => [
                     ['role' => 'system', 'content' => self::COMPACTION_PROMPT],
-                    // Sans étiquette : ce qui part au modèle est la conversation, pas la façon
-                    // dont on la lui a présentée la fois d'avant.
+                    // Without the label: what goes out to the model is the conversation, not the way
+                    // it was presented to it the time before.
                     ...TranscriptMessage::listToWire(
                         array_map(static fn (TranscriptMessage $m): TranscriptMessage => $m->stripped(), $thread),
                     ),
@@ -280,19 +280,20 @@ final class DurableAgentWorkflow
     }
 
     /**
-     * La charge arrive du journal, donc en tableaux : `$tools` est converti en
-     * {@see Toolset} dès l'entrée, et plus rien en dessous ne manipule de tableau associatif.
+     * The payload arrives from the journal, hence as arrays: `$tools` is converted to a
+     * {@see Toolset} on entry, and nothing below it handles an associative array any more.
      *
      * @param array<string, array{description?: string, parameters?: array<string, mixed>|null, effect?: string}> $tools
-     * @param float|null                                                                                         $idleTimeoutSeconds silence au bout duquel l'exécution se termine ; `null` = jamais
-     * @param int|null                                                                                           $rolloverAfterTurns tours au bout desquels le run passe la main à un run neuf ; `null` = jamais
-     * @param bool                                                                                               $compactHistory     remplacer le fil repris par un résumé avant le premier tour
-     * @param list<array{role?: string, content?: string|null}>                                                   $history            le fil repris d'une exécution précédente
-     * @param list<string>                                                                                        $pending            messages reçus mais pas encore traités, transmis par le run précédent
-     * @param array<string, string>                                                                               $watchSubjects      le vocabulaire des veilles de l'application, sujet → description
-     * @param list<array<string, mixed>>                                                                          $toolRules          les hooks de décision du projet ({@see \Gplanchat\Agentic\Domain\Guard\ToolRule})
+     * @param float|null                                                                                         $idleTimeoutSeconds silence after which the execution ends; `null` = never
+     * @param int|null                                                                                           $rolloverAfterTurns turns after which the run hands over to a brand new run; `null` = never
+     * @param bool                                                                                               $compactHistory     replace the resumed thread with a summary before the first turn
+     * @param list<array{role?: string, content?: string|null}>                                                   $history            the thread resumed from a previous execution
+     * @param list<string>                                                                                        $pending            messages received but not processed yet, handed over by the previous run
+     * @param array<string, string>                                                                               $watchSubjects      the application's watch vocabulary, subject → description
+     * @param list<array<string, mixed>>                                                                          $toolRules          the project's decision hooks ({@see \Gplanchat\Agentic\Domain\Guard\ToolRule})
+     * @param string|null                                                                                         $workspace          the conversation's working directory, handed to the tools; `null` = the project
      *
-     * @return string la dernière réponse de l'agent
+     * @return string the agent's last reply
      */
     #[AsWorkflowMethod]
     public function run(
@@ -314,19 +315,20 @@ final class DurableAgentWorkflow
         ?ToolGuardInterface $guard = null,
         array $watchSubjects = [],
         array $toolRules = [],
+        ?string $workspace = null,
     ): string {
-        // Le plafond d'abord : le mode demandé s'y plie, il ne le contourne pas.
+        // The ceiling first: the requested mode bends to it, it does not go around it.
         $this->ceiling = AgentMode::tryFrom($modeCeiling) ?? AgentMode::Auto;
         $this->mode = AgentMode::strictest($this->ceiling, AgentMode::tryFrom($mode) ?? AgentMode::Standard);
 
-        // Ce que le run précédent n'a pas eu le temps de traiter passe devant : ces messages sont
-        // arrivés avant ceux que le nouveau run recevra.
+        // What the previous run did not have the time to process goes first: these messages arrived
+        // before the ones the new run will receive.
         foreach ($pending as $carried) {
             $this->inbox[] = (string) $carried;
         }
 
-        // Une question posée au démarrage est le premier message de la file : rien à distinguer
-        // ensuite entre elle et celles qui arriveront par signal.
+        // A question asked at start-up is the first message of the queue: nothing to tell apart
+        // afterwards between it and the ones that will arrive by signal.
         if (null !== $prompt && '' !== trim($prompt)) {
             $this->inbox[] = trim($prompt);
         }
@@ -346,12 +348,13 @@ final class DurableAgentWorkflow
             budget: new ContextBudget($contextTokens),
             subjects: WatchSubjects::fromWire($watchSubjects),
             rules: RuleBasedToolGuard::rulesFromWire($toolRules),
+            workspace: $workspace,
         );
         $agent = $build();
         $agentModel = $this->model;
 
-        // Le sac est reconstruit à chaque rejeu ; `$thread` en est la trace transportable — mêmes
-        // tours, forme du fil, sans les appels d'outils.
+        // The bag is rebuilt on every replay; `$thread` is its carryable trace — same turns, the
+        // shape of the thread, without the tool calls.
         $thread = TranscriptMessage::listFromWire($history);
         if ($compactHistory && [] !== $thread) {
             $thread = $this->compact($model, $thread);
@@ -374,8 +377,8 @@ final class DurableAgentWorkflow
                     $idleTimeoutSeconds,
                 );
             } catch (DeadlineExceededException) {
-                // Un silence assez long vaut une fin. Rien n'est perdu : le fil est au journal, et
-                // la page propose de le reprendre dans une exécution neuve.
+                // A long enough silence counts as an ending. Nothing is lost: the thread is in the
+                // journal, and the page offers to resume it in a brand new execution.
                 break;
             }
 
@@ -387,40 +390,41 @@ final class DurableAgentWorkflow
             $messages->add(Message::ofUser($text));
             $thread[] = TranscriptMessage::user($text);
 
-            // `Runner` ajoute lui-même les messages de la boucle d'outils au sac, mais pas la
-            // réponse finale : elle sort de la boucle sans y passer.
-            // Un `set_model` reçu depuis le dernier tour : l'agent est remonté avec le nouveau modèle.
-            // Le sac de messages, lui, ne bouge pas — la conversation continue.
+            // `Runner` adds the messages of the tool loop to the bag itself, but not the final
+            // reply: that one leaves the loop without going through it.
+            // A `set_model` received since the last turn: the agent is rebuilt with the new model.
+            // The message bag, for its part, does not move — the conversation goes on.
             if ($agentModel !== $this->model) {
                 $agent = $build();
                 $agentModel = $this->model;
             }
 
             $result = $agent->call($messages)->getResult();
-            // Le sac reçoit le résultat entier — `Message::toContent()` déplie un `MultiPartResult`,
-            // et le bloc de raisonnement repart ainsi au tour suivant. Le fil, lui, ne veut que le
-            // texte : `getContent()` d'un multi-parts rend un tableau, pas une chaîne.
+            // The bag receives the whole result — `Message::toContent()` unfolds a `MultiPartResult`,
+            // and the reasoning block thus goes back out on the next turn. The thread, for its part,
+            // only wants the text: `getContent()` of a multi-part returns an array, not a string.
             $messages->add(Message::ofAssistant($result));
             $answer = $result instanceof MultiPartResult ? $result->asText() : (string) $result->getContent();
             $thread[] = TranscriptMessage::assistant($answer);
 
             ++$turns;
 
-            // Le relais se prend ici, entre deux tours : rien n'est en vol, aucune garde n'attend
-            // de décision, et ce que la file a reçu pendant le tour part avec.
+            // The relay is taken here, between two turns: nothing is in flight, no guard is waiting
+            // for a decision, and what the queue received during the turn goes along with it.
             //
-            // ponytail: le seuil est un nombre de tours, pas la vraie grandeur. Ce qui coûte, c'est
-            // que chaque tour renvoie tout le sac au modèle — la taille de la charge du dernier
-            // `ai_model_invoke` est le déclencheur juste, le compte de tours n'en est que le proxy.
+            // ponytail: the threshold is a number of turns, not the real quantity. What costs is
+            // that every turn sends the whole bag back to the model — the size of the payload of the
+            // last `ai_model_invoke` is the right trigger, the turn count is only its proxy.
             if (null !== $rolloverAfterTurns && $turns >= $rolloverAfterTurns && !$this->closed) {
-                // ponytail: un signal qui arrive pendant la tâche qui émet la commande peut se
-                // perdre — fenêtre irréductible, et la raison pour laquelle le relais est opt-in
-                // là où la clôture sur inactivité est le chemin par défaut.
+                // ponytail: a signal that arrives during the task issuing the command can be lost —
+                // an irreducible window, and the reason why the relay is opt-in where closing on
+                // inactivity is the default path.
                 $this->environment->continueAsNew(self::TYPE, [
                     'tools' => $tools,
                     'model' => $this->model,
                     'mode' => $this->mode->value,
-                    // Le plafond suit le relais : sinon un délégué retrouverait `auto` au run suivant.
+                    // The ceiling follows the relay: otherwise a delegate would find `auto` again on
+                    // the next run.
                     'modeCeiling' => $this->ceiling->value,
                     'systemPrompt' => $systemPrompt,
                     'maxTurns' => $maxTurns,
@@ -429,14 +433,15 @@ final class DurableAgentWorkflow
                     'contextTokens' => $contextTokens,
                     'idleTimeoutSeconds' => $idleTimeoutSeconds,
                     'rolloverAfterTurns' => $rolloverAfterTurns,
-                    // Le relais transmet le fil tel quel : il a lieu au milieu d'une conversation
-                    // vivante, où perdre le détail se paierait tout de suite. La compaction est
-                    // pour les reprises froides.
+                    // The relay hands the thread over as is: it happens in the middle of a living
+                    // conversation, where losing the detail would be paid for straight away.
+                    // Compaction is for cold resumes.
                     'compactHistory' => false,
                     'history' => TranscriptMessage::listToWire($thread),
                     'pending' => $this->inbox,
                     'watchSubjects' => $watchSubjects,
                     'toolRules' => $toolRules,
+                    'workspace' => $workspace,
                 ]);
             }
         }

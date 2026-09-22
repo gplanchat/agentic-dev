@@ -30,19 +30,20 @@ use Symfony\AI\Platform\Platform;
 use Symfony\AI\Platform\Provider;
 
 /**
- * Monte un `Agent` Symfony AI dont les deux jambes non déterministes passent par le journal.
+ * Assembles a Symfony AI `Agent` whose two non-deterministic legs go through the journal.
  *
- * Le montage est du code workflow : il est réexécuté à chaque rejeu, donc il doit rester pur —
- * pas de lecture de conteneur, pas d'horloge, pas de hasard.
+ * The assembly is workflow code: it is re-executed on every replay, so it must stay pure — no
+ * container lookup, no clock, no randomness.
  */
 final class DurableAgentFactory
 {
     /**
      * @param \Closure(): AgentMode|null $mode
-     * @param Duration|null              $humanTimeout échéance de toute attente humaine — validation
-     *                                                 comme réponse à une question — globale à
-     *                                                 cette instance d'agent
-     * @param list<ToolRule>             $rules        les hooks de décision, avant le mode
+     * @param Duration|null              $humanTimeout deadline of every human wait — approval as
+     *                                                 well as answer to a question — global to this
+     *                                                 agent instance
+     * @param list<ToolRule>             $rules        the decision hooks, before the mode
+     * @param string|null                $workspace    the conversation's working directory
      */
     public static function create(
         WorkflowEnvironment $environment,
@@ -58,15 +59,16 @@ final class DurableAgentFactory
         ?ContextBudget $budget = null,
         WatchSubjects $subjects = new WatchSubjects(),
         array $rules = [],
+        ?string $workspace = null,
     ): Agent {
-        // Toujours offerts : un agent qui ne peut pas demander invente, et un agent qui ne peut
-        // pas attendre bâcle.
+        // Always offered: an agent that cannot ask makes things up, and an agent that cannot wait
+        // botches the job.
         $tools = $tools->with(AskUserQuestion::definition(), WatchTool::definition($subjects), DelegateTool::definition());
 
-        // Le pont Mistral fournit tout ce qui est **pur** — la normalisation de la conversation,
-        // le catalogue, la conversion du JSON en résultat — et c'est ce qui tourne en code
-        // workflow, donc rejoué. Seul son client HTTP est remplacé : lui seul sort du processus,
-        // et c'est précisément ce qui doit devenir une activité.
+        // The Mistral bridge provides everything that is **pure** — the normalisation of the
+        // conversation, the catalogue, the conversion of the JSON into a result — and that is what
+        // runs in workflow code, hence replayed. Only its HTTP client is replaced: it alone leaves
+        // the process, and that is precisely what must become an activity.
         $platform = new Platform([
             new Provider(
                 'durable-mistral',
@@ -83,7 +85,7 @@ final class DurableAgentFactory
             toolbox: new SchemaOnlyToolbox($tools),
             toolExecutor: new DurableToolExecutor(
                 $environment,
-                // Les hooks de décision d'abord ; sans règle qui s'applique, le mode.
+                // The decision hooks first; with no rule applying, the mode.
                 $guard ?? new RuleBasedToolGuard($rules, new ModeToolGuard($tools)),
                 $gate ?? new ToolApprovalGate(),
                 $desk ?? new HumanQuestionDesk(),
@@ -92,6 +94,7 @@ final class DurableAgentFactory
                 $humanTimeout,
                 $model,
                 $subjects,
+                workspace: $workspace,
             ),
             maxToolCalls: $maxToolCalls,
         );

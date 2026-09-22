@@ -7,13 +7,13 @@ namespace Gplanchat\Agentic\Domain\Guard;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 
 /**
- * L'état d'attente d'un accord humain. C'est de l'**état de workflow** : il est reconstruit par
- * rejeu depuis les signaux journalisés et les minuteurs, jamais lu d'un stockage à côté.
+ * The state of waiting for a human approval. This is **workflow state**: it is rebuilt by replay
+ * from the journaled signals and timers, never read from some storage on the side.
  *
- * C'est ce qui distingue cette validation de l'événement `ToolCallRequested`
- * de Symfony AI : `deny()` est un hook synchrone dans le processus courant, ici l'agent peut rester
- * suspendu trois jours, à travers un redéploiement, jusqu'à ce que quelqu'un tranche — ou que
- * l'échéance tranche à sa place.
+ * That is what sets this approval apart from Symfony AI's `ToolCallRequested` event: `deny()` is a
+ * synchronous hook in the current process, whereas here the agent can stay suspended for three
+ * days, across a redeployment, until someone decides — or until the deadline decides in their
+ * place.
  */
 final class ToolApprovalGate
 {
@@ -29,7 +29,7 @@ final class ToolApprovalGate
     }
 
     /**
-     * Une décision humaine, arrivée par signal.
+     * A human decision, arrived by signal.
      */
     public function decide(string $callId, bool $approved): void
     {
@@ -37,7 +37,7 @@ final class ToolApprovalGate
     }
 
     /**
-     * L'échéance a tranché faute de réponse. Distinct d'un refus : personne n'a rien décidé.
+     * The deadline decided for lack of an answer. Distinct from a refusal: nobody decided anything.
      */
     public function timeout(string $callId): void
     {
@@ -64,9 +64,9 @@ final class ToolApprovalGate
 
     private function settle(string $callId, ApprovalOutcome $outcome): void
     {
-        // La première issue gagne : un signal arrivé après le tir de l'échéance ne doit pas
-        // ressusciter un appel que le workflow a déjà tranché — au rejeu, l'ordre du journal
-        // rejouerait l'inverse.
+        // The first outcome wins: a signal arriving after the deadline fired must not resurrect a
+        // call the workflow has already settled — on replay, the order of the journal would replay
+        // the opposite.
         $this->outcomes[$callId] ??= $outcome;
         unset($this->pending[$callId]);
     }

@@ -13,39 +13,40 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * La veille : l'agent dort, et se réveille en retrouvant ce qu'il comptait faire.
+ * The watch: the agent sleeps, and wakes up finding again what it meant to do.
  *
- * C'est ce qu'un watcher de processus ne sait pas faire. Ici l'intention est écrite au journal au
- * moment de l'inscription — l'agent n'a pas à s'en souvenir trois jours plus tard, on la lui rend.
+ * That is what a process watcher cannot do. Here the intent is written into the journal at the
+ * moment of registration — the agent does not have to remember it three days later, it is handed
+ * back to it.
  */
 #[CoversClass(WatchTool::class)]
 final class WatchWorkflowTest extends TestCase
 {
     private const CALL = 'w1';
 
-    public function testTheAlertHandsBackBothTheObservationAndTheIntention(): void
+    public function testTheAlertHandsBackBothTheObservationAndTheIntent(): void
     {
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
-        $this->alertUpFront($environment, 'watch-1', 'le camion est à quai');
+        $this->alertUpFront($environment, 'watch-1', 'the truck is at the dock');
 
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'watch-1');
 
-        self::assertStringContainsString('le camion est à quai', $answer);
-        self::assertStringContainsString('Enregistrer la réception', $answer, 'Le réveil a oublié de rendre l’intention.');
+        self::assertStringContainsString('the truck is at the dock', $answer);
+        self::assertStringContainsString('Record the goods receipt', $answer, 'Waking forgot to hand back the intent.');
     }
 
     /**
-     * Sans alerte, la veille tombe — et elle rend quand même l'intention, pour que l'agent sache
-     * de quoi il parle en reprenant la main.
+     * With no alert, the watch falls — and it still hands back the intent, so that the agent knows
+     * what it is talking about when it takes over.
      */
-    public function testAWatchNobodyRaisesExpiresAndStillRecallsTheIntention(): void
+    public function testAWatchNobodyRaisesExpiresAndStillRecallsTheIntent(): void
     {
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
 
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'watch-2');
 
-        self::assertStringContainsString('expiré sans alerte', $answer);
-        self::assertStringContainsString('Enregistrer la réception', $answer);
+        self::assertStringContainsString('expired without an alert', $answer);
+        self::assertStringContainsString('Record the goods receipt', $answer);
     }
 
     public function testAWatchNeverReachesAnActivity(): void
@@ -55,11 +56,11 @@ final class WatchWorkflowTest extends TestCase
         $handlers['ai_tool_call'] = static function () use (&$toolCalls): string {
             ++$toolCalls;
 
-            return 'exécuté';
+            return 'ran';
         };
 
         $environment = WorkflowTestEnvironment::inMemory($handlers);
-        $this->alertUpFront($environment, 'watch-3', 'le camion est à quai');
+        $this->alertUpFront($environment, 'watch-3', 'the truck is at the dock');
 
         $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'watch-3');
 
@@ -75,7 +76,7 @@ final class WatchWorkflowTest extends TestCase
                     $offered[] = $tool['function']['name'] ?? '?';
                 }
 
-                return ['choices' => [['message' => ['content' => 'Bonjour.'], 'finish_reason' => 'stop']]];
+                return ['choices' => [['message' => ['content' => 'Hello.'], 'finish_reason' => 'stop']]];
             },
         ]);
 
@@ -89,7 +90,7 @@ final class WatchWorkflowTest extends TestCase
         $environment->getEventStore()->append(new ExecutionStarted($executionId, []));
         $environment->getEventStore()->append(new WorkflowSignalReceived(
             $executionId,
-            'alerte',
+            'alert',
             ['callId' => self::CALL, 'observation' => $observation],
         ));
     }
@@ -99,7 +100,7 @@ final class WatchWorkflowTest extends TestCase
      */
     private function input(): array
     {
-        return ['prompt' => 'Surveille la livraison', 'maxTurns' => 1, 'mode' => 'auto', 'watchSubjects' => ['commande.expediee' => 'une commande a quitté l’entrepôt']];
+        return ['prompt' => 'Watch the delivery', 'maxTurns' => 1, 'mode' => 'auto', 'watchSubjects' => ['order.shipped' => 'an order has left the warehouse']];
     }
 
     /**
@@ -116,9 +117,9 @@ final class WatchWorkflowTest extends TestCase
                         'id' => self::CALL,
                         'type' => 'function',
                         'function' => ['name' => WatchTool::TOOL, 'arguments' => json_encode([
-                            'sujet' => 'commande.expediee',
-                            'observation' => 'La livraison arrive à l’entrepôt',
-                            'intention' => 'Enregistrer la réception et prévenir l’équipe',
+                            'subject' => 'order.shipped',
+                            'observation' => 'The delivery arrives at the warehouse',
+                            'intent' => 'Record the goods receipt and warn the team',
                             'deadlineSeconds' => 5,
                         ], \JSON_UNESCAPED_UNICODE)],
                     ]]], 'finish_reason' => 'tool_calls']]];
@@ -132,8 +133,8 @@ final class WatchWorkflowTest extends TestCase
     }
 
     /**
-     * Un sujet hors du vocabulaire ne doit pas armer une veille : rien ne pourrait jamais la
-     * lever, et l'agent dormirait jusqu'à son échéance sans que personne ne le sache.
+     * A subject outside the vocabulary must not arm a watch: nothing could ever lift it, and the
+     * agent would sleep until its deadline without anyone knowing.
      */
     public function testAnUnknownSubjectIsRefusedInsteadOfArmingADeadWatch(): void
     {
@@ -145,9 +146,9 @@ final class WatchWorkflowTest extends TestCase
                         'id' => self::CALL,
                         'type' => 'function',
                         'function' => ['name' => WatchTool::TOOL, 'arguments' => json_encode([
-                            'sujet' => 'livraison.arrivee',
-                            'observation' => 'Le camion',
-                            'intention' => 'Prévenir',
+                            'subject' => 'delivery.arrived',
+                            'observation' => 'The truck',
+                            'intent' => 'Warn',
                         ], \JSON_UNESCAPED_UNICODE)],
                     ]]], 'finish_reason' => 'tool_calls']]];
                 }
@@ -158,9 +159,9 @@ final class WatchWorkflowTest extends TestCase
             },
         ]);
 
-        $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'watch-refus');
+        $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'watch-refused');
 
-        self::assertStringContainsString('Sujet de veille inconnu', $answer);
-        self::assertStringContainsString('commande.expediee', $answer, 'Le refus doit dire ce qui est acceptable.');
+        self::assertStringContainsString('Unknown watch subject', $answer);
+        self::assertStringContainsString('order.shipped', $answer, 'The refusal must say what is acceptable.');
     }
 }

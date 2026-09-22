@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Guard;
 
 /**
- * Trois issues : passer, demander à l'humain, refuser. Le refus n'est pas une exception — il
- * redevient un résultat d'outil rendu au modèle, qui peut alors s'adapter au lieu de planter.
+ * Three outcomes: go through, ask the human, refuse. A refusal is not an exception — it goes back
+ * as a tool result handed to the model, which can then adapt instead of crashing.
  */
 final readonly class ToolDecision
 {
@@ -17,7 +17,7 @@ final readonly class ToolDecision
     }
 
     /**
-     * L'appel part sans que personne n'ait à trancher.
+     * The call goes out without anyone having to decide.
      */
     public function isAllowed(): bool
     {
@@ -25,7 +25,7 @@ final readonly class ToolDecision
     }
 
     /**
-     * L'appel suspend l'exécution jusqu'à une décision humaine — ou jusqu'à l'échéance.
+     * The call suspends execution until a human decision — or until the deadline.
      */
     public function needsApproval(): bool
     {
@@ -33,7 +33,7 @@ final readonly class ToolDecision
     }
 
     /**
-     * L'appel ne partira pas, quel que soit le mode : la politique l'interdit.
+     * The call will not go out, whatever the mode: the policy forbids it.
      */
     public function isDenied(): bool
     {

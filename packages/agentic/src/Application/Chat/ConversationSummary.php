@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Application\Chat;
 
 /**
- * Une conversation passée, telle que `/resume` la propose.
+ * A past conversation, as `/resume` offers it.
  */
 final readonly class ConversationSummary
 {
     public function __construct(
         public string $id,
-        /** Le premier message de l'humain : ce qui permet de la reconnaître. */
+        /** The first message from the human: what makes it recognisable. */
         public string $title,
         public bool $finished,
         public ?\DateTimeImmutable $startedAt = null,

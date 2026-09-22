@@ -7,12 +7,12 @@ namespace Gplanchat\Agentic\Infrastructure\SymfonyAi;
 use Symfony\Contracts\HttpClient\ResponseInterface;
 
 /**
- * La réponse HTTP telle que le journal la restitue — un 200 et un corps, rien d'autre.
+ * The HTTP response as the journal gives it back — a 200 and a body, nothing else.
  *
- * Les convertisseurs des ponts exigent une vraie `ResponseInterface` : celui de Mistral appelle
- * `throwOnHttpError($response)` avant de regarder les données. Au rejeu il n'y a plus de socket,
- * seulement ce que l'activité a rapporté — et ce qu'elle rapporte est toujours un succès, puisque
- * {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ModelInvocationActivityHandler} relève sur tout code >= 400.
+ * The bridges' converters require a real `ResponseInterface`: Mistral's calls
+ * `throwOnHttpError($response)` before looking at the data. On replay there is no socket any more,
+ * only what the activity reported — and what it reports is always a success, since
+ * {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ModelInvocationActivityHandler} throws on any code >= 400.
  */
 final readonly class JournaledHttpResponse implements ResponseInterface
 {
@@ -52,7 +52,7 @@ final readonly class JournaledHttpResponse implements ResponseInterface
 
     public function cancel(): void
     {
-        // Rien à annuler : l'appel a eu lieu dans l'activité, peut-être il y a trois jours.
+        // Nothing to cancel: the call happened inside the activity, perhaps three days ago.
     }
 
     public function getInfo(?string $type = null): mixed

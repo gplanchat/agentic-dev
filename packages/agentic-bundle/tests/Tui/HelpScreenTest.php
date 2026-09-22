@@ -15,7 +15,7 @@ final class HelpScreenTest extends TestCase
     public static function quitKeys(): \Generator
     {
         yield 'q' => ['q'];
-        yield 'Échap' => ["\e"];
+        yield 'Esc' => ["\e"];
         yield 'Ctrl+C' => ["\x03"];
     }
 

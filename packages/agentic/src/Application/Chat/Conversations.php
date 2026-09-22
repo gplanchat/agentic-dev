@@ -7,15 +7,15 @@ namespace Gplanchat\Agentic\Application\Chat;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 
 /**
- * Port : ce qu'une interface — terminal ou web — peut faire d'une conversation avec un agent.
+ * Port: what an interface — terminal or web — can do with a conversation with an agent.
  *
- * Une conversation est une exécution de workflow ; chaque intention ci-dessous devient un signal,
- * donc est journalisée et rejouée. Rien n'est attendu ici : l'interface relit {@see transcript()}.
+ * A conversation is a workflow execution; every intent below becomes a signal, hence is journaled
+ * and replayed. Nothing is awaited here: the interface reads {@see transcript()} back.
  */
 interface Conversations
 {
     /**
-     * @return string l'identifiant de la conversation
+     * @return string the identifier of the conversation
      */
     public function start(): string;
 
@@ -33,12 +33,12 @@ interface Conversations
     public function setMode(string $conversation, AgentMode $mode): void;
 
     /**
-     * @throws \InvalidArgumentException si le modèle n'est pas connu
+     * @throws \InvalidArgumentException if the model is not known
      */
     public function setModel(string $conversation, string $model): void;
 
     /**
-     * Les modèles qu'une conversation peut prendre : ceux qui savent appeler des outils.
+     * The models a conversation can take: the ones that know how to call tools.
      *
      * @return list<string>
      */
@@ -47,27 +47,27 @@ interface Conversations
     public function close(string $conversation): void;
 
     /**
-     * Le journal connaît-il cette conversation ? Un identifiant inconnu doit être refusé, pas ouvert
-     * sur un écran vide qui ne répondra jamais.
+     * Does the journal know this conversation? An unknown identifier must be refused, not opened on
+     * an empty screen that will never answer.
      */
     public function exists(string $conversation): bool;
 
     /**
-     * Les conversations les plus récentes d'abord.
+     * The most recent conversations first.
      *
      * @return list<ConversationSummary>
      */
     public function recent(int $limit = 20): array;
 
     /**
-     * Une conversation neuve qui repart du fil d'une autre — c'est ainsi que se reprend une
-     * conversation terminée, qu'on revient en arrière, ou qu'on compacte. Le journal de l'ancienne
-     * n'est jamais réécrit ; elle est close si elle tournait encore.
+     * A brand new conversation starting again from the thread of another one — that is how a
+     * finished conversation is resumed, how one goes back, or how one compacts. The journal of the
+     * old one is never rewritten; it is closed if it was still running.
      *
-     * @param int|null $keepUserMessages ne garder du fil que ce qui précède ce message humain (0 = le premier) ; `null` = tout
-     * @param bool     $compact          résumer le fil repris avant le premier tour
+     * @param int|null $keepUserMessages keep from the thread only what precedes this human message (0 = the first one); `null` = everything
+     * @param bool     $compact          summarise the resumed thread before the first turn
      *
-     * @return string la nouvelle conversation
+     * @return string the new conversation
      */
     public function restart(string $from, ?int $keepUserMessages = null, bool $compact = false): string;
 

@@ -13,7 +13,7 @@ final class Kernel extends BaseKernel
 
     public function boot(): void
     {
-        // Le logger écrit dans un fichier (voir config/services.php) : son dossier doit exister.
+        // The logger writes to a file (see config/services.php): its directory must exist.
         is_dir($this->getLogDir()) || mkdir($this->getLogDir(), 0o777, true);
 
         parent::boot();

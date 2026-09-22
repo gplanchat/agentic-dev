@@ -24,11 +24,11 @@ final class ToolsetTest extends TestCase
     }
 
     /**
-     * Un effet non déclaré ou mal orthographié tombe du côté prudent : externe.
+     * An effect that is undeclared or misspelled falls on the cautious side: external.
      */
     public function testAnUndeclaredEffectIsExternal(): void
     {
-        $tools = Toolset::fromWire(['a' => ['description' => ''], 'b' => ['effect' => 'lecture']]);
+        $tools = Toolset::fromWire(['a' => ['description' => ''], 'b' => ['effect' => 'reading']]);
 
         self::assertSame(ToolEffect::External, $tools->effectOf('a'));
         self::assertSame(ToolEffect::External, $tools->effectOf('b'));

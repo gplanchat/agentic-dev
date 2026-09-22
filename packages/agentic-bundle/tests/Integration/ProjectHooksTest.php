@@ -11,7 +11,7 @@ use Gplanchat\Durable\Store\WorkflowMetadataStore;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 /**
- * Les hooks de décision et AGENTS.md, de la configuration jusqu'à l'agent.
+ * The decision hooks and AGENTS.md, from the configuration all the way to the agent.
  */
 final class ProjectHooksTest extends KernelTestCase
 {
@@ -27,8 +27,8 @@ final class ProjectHooksTest extends KernelTestCase
 
         $prompt = (string) ($container->get(WorkflowMetadataStore::class)->get($id)['payload']['systemPrompt'] ?? '');
 
-        self::assertStringContainsString('# Consignes du projet (AGENTS.md)', $prompt);
-        self::assertStringContainsString('cite tes sources', $prompt);
+        self::assertStringContainsString('# Project instructions (AGENTS.md)', $prompt);
+        self::assertStringContainsString('cite your sources', $prompt);
     }
 
     public function testADenyRuleFromTheConfigStopsTheCallAndTheAgentIsTold(): void
@@ -39,16 +39,16 @@ final class ProjectHooksTest extends KernelTestCase
 
         $id = $conversations->start();
         $worker->drain();
-        $conversations->send($id, 'Quel temps fait-il à Lyon ?');
+        $conversations->send($id, 'What is the weather in Lyon?');
         $worker->drain();
 
         $transcript = $conversations->transcript($id);
-        self::assertSame([], $transcript->steps, 'L’outil refusé n’a pas été exécuté.');
+        self::assertSame([], $transcript->steps, 'The denied tool was not executed.');
         $messages = $transcript->messages;
-        self::assertStringContainsString('Lyon est hors périmètre.', (string) end($messages)->content);
+        self::assertStringContainsString('Lyon is out of scope.', (string) end($messages)->content);
 
-        // Paris n'est pas visé : la règle est conditionnée à l'argument.
-        $conversations->send($id, 'Et à Paris ?');
+        // Paris is not targeted: the rule is conditioned on the argument.
+        $conversations->send($id, 'And in Paris?');
         $worker->drain();
         self::assertSame('weather', $conversations->transcript($id)->steps[0]->tool);
     }
@@ -61,6 +61,6 @@ final class ProjectHooksTest extends KernelTestCase
 
         $notice = (new SlashCommands($container->get(Conversations::class)))->run($id, '/tools')->notice;
 
-        self::assertStringContainsString('deny  weather city=Lyon — Lyon est hors périmètre.', $notice);
+        self::assertStringContainsString('deny  weather city=Lyon — Lyon is out of scope.', $notice);
     }
 }

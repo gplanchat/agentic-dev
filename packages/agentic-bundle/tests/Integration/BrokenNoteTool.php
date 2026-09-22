@@ -9,17 +9,17 @@ use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 
 /**
- * Un outil qui échoue toujours : ce que la conversation montre quand les tentatives sont épuisées.
+ * A tool that always fails: what the conversation shows once the retries are spent.
  */
 final class BrokenNoteTool implements AgentTool
 {
     public function definition(): ToolDefinition
     {
-        return new ToolDefinition('save_note', 'Enregistre une note.', ToolEffect::Read);
+        return new ToolDefinition('save_note', 'Saves a note.', ToolEffect::Read);
     }
 
     public function __invoke(array $arguments): string
     {
-        throw new \RuntimeException('Le disque est plein.');
+        throw new \RuntimeException('The disk is full.');
     }
 }

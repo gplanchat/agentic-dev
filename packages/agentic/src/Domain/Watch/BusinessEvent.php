@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Watch;
 
 /**
- * Un fait de l'application, dit dans le vocabulaire que les veilles connaissent.
+ * A fact of the application, stated in the vocabulary the watches know.
  *
- * `details` est libre : il n'entre pas dans l'appariement — c'est le `subject` qui apparie — mais
- * il fait le texte que l'agent relira au réveil, à la place d'un résultat d'outil. Un objet plutôt
- * qu'un tableau, parce que c'est ce qui traverse la frontière entre le métier et l'agent.
+ * `details` is free-form: it plays no part in the matching — it is the `subject` that matches — but
+ * it makes the text the agent will read on waking, in place of a tool result. An object rather
+ * than an array, because this is what crosses the boundary between the business and the agent.
  */
 final readonly class BusinessEvent
 {
@@ -23,7 +23,7 @@ final readonly class BusinessEvent
     }
 
     /**
-     * Ce que l'agent lit au réveil. Pas de JSON : c'est un modèle qui va le relire.
+     * What the agent reads on waking. No JSON: a model is going to read it.
      */
     public function describe(): string
     {
@@ -35,7 +35,7 @@ final readonly class BusinessEvent
             '%s (%s)',
             $this->subject->describe(),
             implode(', ', array_map(
-                static fn (string $key, mixed $value): string => \sprintf('%s : %s', $key, var_export($value, true)),
+                static fn (string $key, mixed $value): string => \sprintf('%s: %s', $key, var_export($value, true)),
                 array_keys($this->details),
                 $this->details,
             )),

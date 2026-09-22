@@ -13,7 +13,7 @@ use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\TextWidget;
 
 /**
- * Écran d'aide : la liste des commandes, fermée par q, Échap ou Ctrl+C.
+ * Help screen: the list of commands, closed by q, Esc or Ctrl+C.
  */
 final class HelpScreen
 {
@@ -23,12 +23,12 @@ final class HelpScreen
         $tui = new Tui(terminal: $terminal);
 
         $width = max(array_map(static fn (CommandSummary $c): int => mb_strlen($c->name), $commands) ?: [0]);
-        $lines = ["\e[1mAgentic — commandes disponibles\e[0m", ''];
+        $lines = ["\e[1mAgentic — available commands\e[0m", ''];
         foreach ($commands as $command) {
             $lines[] = \sprintf("  \e[32m%s\e[0m  %s", str_pad($command->name, $width), $command->description);
         }
         $lines[] = '';
-        $lines[] = "\e[2mq, Échap ou Ctrl+C pour quitter\e[0m";
+        $lines[] = "\e[2mq, Esc or Ctrl+C to quit\e[0m";
         $tui->add(new TextWidget(implode("\n", $lines)));
 
         $quit = new Keybindings(['quit' => ['q', Key::ESCAPE, 'ctrl+c']]);

@@ -14,10 +14,10 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * L'outil dont l'exécution est une suspension : son résultat n'est pas calculé, il est attendu.
+ * The tool whose execution is a suspension: its result is not computed, it is awaited.
  *
- * C'est l'inverse de la garde — celle-ci décide si un outil que le modèle a choisi peut partir,
- * celui-là va chercher ce que le modèle ne sait pas. Même primitive, un signal et une attente.
+ * It is the reverse of the guard — the guard decides whether a tool the model chose may go out,
+ * this one goes and fetches what the model does not know. Same primitive, a signal and a wait.
  */
 #[CoversClass(AskUserQuestion::class)]
 final class AskUserQuestionWorkflowTest extends TestCase
@@ -33,7 +33,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
                     $offered[] = $tool['function']['name'] ?? '?';
                 }
 
-                return self::text('Bonjour.');
+                return self::text('Hello.');
             },
         ]);
 
@@ -46,24 +46,24 @@ final class AskUserQuestionWorkflowTest extends TestCase
     {
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
 
-        // La réponse est déjà au journal : le workflow l'applique en atteignant sa condition.
-        // C'est bien un signal — le même que celui qu'enverrait la page, à la même place.
-        $this->answerUpFront($environment, 'question-1', ['Par lot']);
+        // The answer is already in the journal: the workflow applies it on reaching its condition.
+        // It really is a signal — the same one the page would send, in the same place.
+        $this->answerUpFront($environment, 'question-1', ['Batch']);
 
-        self::assertSame('Compris : Par lot', $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-1'));
+        self::assertSame('Understood: Batch', $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-1'));
     }
 
     public function testSeveralAnswersTravelTogetherWhenTheQuestionAllowsIt(): void
     {
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
-        $this->answerUpFront($environment, 'question-2', ['Par lot', 'En arrière-plan']);
+        $this->answerUpFront($environment, 'question-2', ['Batch', 'In the background']);
 
-        self::assertSame('Compris : Par lot ; En arrière-plan', $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-2'));
+        self::assertSame('Understood: Batch; In the background', $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-2'));
     }
 
     /**
-     * Sans réponse, l'agent ne reste pas planté : l'échéance lui rend une phrase qui le lui dit,
-     * et il poursuit. L'horloge virtuelle du runner avance d'échéance en échéance.
+     * With no answer, the agent does not stay stuck: the deadline hands it back a sentence saying
+     * so, and it carries on. The runner's virtual clock moves from deadline to deadline.
      */
     public function testAQuestionNobodyAnswersExpiresAndTheAgentIsToldSo(): void
     {
@@ -71,48 +71,48 @@ final class AskUserQuestionWorkflowTest extends TestCase
 
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(5.0), 'question-3');
 
-        self::assertStringContainsString('Aucune réponse', $answer);
+        self::assertStringContainsString('No answer', $answer);
     }
 
     /**
-     * La garde reste devant, pas à côté : elle décide de **tous** les appels, y compris de celui-ci.
+     * The guard stays in front, not on the side: it decides on **every** call, including this one.
      *
-     * En mode `standard`, où toute écriture demande une validation, poser une question passe sans
-     * rien demander — elle est classée `read`. Si la garde l'avait retenue, ce test resterait
-     * suspendu faute de signal `tool_decision`, et c'est exactement ce qu'il vérifie.
+     * In `standard` mode, where every write needs an approval, asking a question goes through
+     * without asking anything — it is classified `read`. Had the guard held it back, this test
+     * would stay suspended for want of a `tool_decision` signal, and that is exactly what it checks.
      */
     public function testAskingIsNotSomethingOneHasToApproveFirst(): void
     {
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
-        $this->answerUpFront($environment, 'question-5', ['Par lot']);
+        $this->answerUpFront($environment, 'question-5', ['Batch']);
 
         $input = ['mode' => 'standard'] + $this->input();
 
         self::assertSame(
-            'Compris : Par lot',
+            'Understood: Batch',
             $environment->runWorkflowClass(DurableAgentWorkflow::class, $input, 'question-5'),
         );
     }
 
     /**
-     * Et l'inverse tient aussi : une politique qui interdit de poser des questions les interdit
-     * pour de bon. C'est la preuve que la garde est bien en amont — sinon le guichet suspendrait
-     * l'exécution avant qu'elle n'ait son mot à dire.
+     * And the reverse holds too: a policy that forbids asking questions forbids them for good. That
+     * is the proof that the guard really is upstream — otherwise the desk would suspend the
+     * execution before it had its say.
      */
     public function testAPolicyCanForbidAskingAltogether(): void
     {
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
 
-        // Aucun signal n'est déposé : si la question atteignait le guichet, l'exécution resterait
-        // suspendue au lieu de rendre une réponse.
+        // No signal is dropped: if the question reached the desk, the execution would stay suspended
+        // instead of returning an answer.
         $input = ['guard' => new ModeToolGuard(denied: [AskUserQuestion::TOOL])] + $this->input();
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $input, 'question-6');
 
-        self::assertStringContainsString('interdit par la politique', $answer);
+        self::assertStringContainsString('is forbidden by the agent policy', $answer);
     }
 
     /**
-     * Aucune activité n'est planifiée pour une question : il n'y a rien à exécuter.
+     * No activity is scheduled for a question: there is nothing to run.
      */
     public function testAQuestionNeverReachesAnActivity(): void
     {
@@ -121,11 +121,11 @@ final class AskUserQuestionWorkflowTest extends TestCase
         $handlers['ai_tool_call'] = static function (array $payload) use (&$toolCalls): string {
             ++$toolCalls;
 
-            return 'exécuté';
+            return 'ran';
         };
 
         $environment = WorkflowTestEnvironment::inMemory($handlers);
-        $this->answerUpFront($environment, 'question-4', ['Par lot']);
+        $this->answerUpFront($environment, 'question-4', ['Batch']);
 
         $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-4');
 
@@ -133,7 +133,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
     }
 
     /**
-     * L'ordre compte : le curseur des messages ne lit que ce qui suit `ExecutionStarted`.
+     * The order counts: the message cursor only reads what follows `ExecutionStarted`.
      *
      * @param list<string> $answers
      */
@@ -148,16 +148,16 @@ final class AskUserQuestionWorkflowTest extends TestCase
     }
 
     /**
-     * La forme de production : c'est le chargeur de définition qui enregistre les
-     * `#[AsSignalMethod]`. Instancier la classe dans une closure les laisserait sur le carreau, et
-     * aucun signal n'atteindrait jamais sa condition.
+     * The production shape: it is the definition loader that registers the `#[AsSignalMethod]`.
+     * Instantiating the class inside a closure would leave them by the wayside, and no signal would
+     * ever reach its condition.
      *
      * @return array<string, mixed>
      */
     private function input(?float $timeout = null): array
     {
         return [
-            'prompt' => 'Importe le catalogue',
+            'prompt' => 'Import the catalogue',
             'maxTurns' => 1,
             'mode' => 'auto',
             'humanTimeoutSeconds' => $timeout,
@@ -165,7 +165,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
     }
 
     /**
-     * Premier tour : le modèle pose la question. Second tour : il relit ce qu'on lui a répondu.
+     * First turn: the model asks the question. Second turn: it reads back what it was answered.
      *
      * @return array<string, callable>
      */
@@ -177,11 +177,11 @@ final class AskUserQuestionWorkflowTest extends TestCase
             'ai_model_invoke' => static function (array $payload) use (&$round): array {
                 if (0 === $round++) {
                     return self::toolCall(self::CALL, AskUserQuestion::TOOL, [
-                        'question' => 'Comment veux-tu importer ?',
+                        'question' => 'How do you want to import?',
                         'header' => 'Import',
                         'options' => [
-                            ['label' => 'Par lot', 'description' => 'Tout d’un coup'],
-                            ['label' => 'En arrière-plan', 'description' => 'Au fil de l’eau'],
+                            ['label' => 'Batch', 'description' => 'All at once'],
+                            ['label' => 'In the background', 'description' => 'Streaming'],
                         ],
                         'multiSelect' => true,
                     ]);
@@ -189,7 +189,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
 
                 $last = end($payload['payload']['messages']);
 
-                return self::text('Compris : '.$last['content']);
+                return self::text('Understood: '.$last['content']);
             },
         ];
     }

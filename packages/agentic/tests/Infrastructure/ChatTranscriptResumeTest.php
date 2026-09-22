@@ -17,21 +17,21 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Une exécution qui en reprend une autre — clôture sur inactivité, ou continue-as-new — porte son
- * fil dans sa charge de démarrage. Tant qu'aucun appel modèle ne l'a réémis, c'est la seule trace
- * qu'en ait le journal.
+ * An execution that resumes another one — closing on inactivity, or continue-as-new — carries its
+ * thread in its start payload. As long as no model call has re-emitted it, that is the only trace
+ * the journal has of it.
  */
 #[CoversClass(ChatTranscript::class)]
 #[CoversClass(Transcript::class)]
 #[CoversClass(TranscriptMessage::class)]
 final class ChatTranscriptResumeTest extends TestCase
 {
-    private const EXECUTION = 'chat-repris';
+    private const EXECUTION = 'chat-resumed';
 
     /** @var list<array{role: string, content: string}> */
     private const HISTORY = [
-        ['role' => 'user', 'content' => 'Bonjour'],
-        ['role' => 'assistant', 'content' => 'Bonjour !'],
+        ['role' => 'user', 'content' => 'Hello'],
+        ['role' => 'assistant', 'content' => 'Hello there!'],
     ];
 
     private InMemoryEventStore $eventStore;
@@ -52,27 +52,27 @@ final class ChatTranscriptResumeTest extends TestCase
         $transcript = $this->transcript->forExecution(self::EXECUTION);
 
         self::assertSame(
-            ['Bonjour', 'Bonjour !'],
+            ['Hello', 'Hello there!'],
             array_map(static fn (TranscriptMessage $message): ?string => $message->content, $transcript->messages),
         );
-        self::assertFalse($transcript->working, 'un fil repris n’est pas un tour en cours');
+        self::assertFalse($transcript->working, 'a carried thread is not a turn in progress');
     }
 
     /**
-     * Sans compter le fil repris du côté des messages reçus, un run repris paraît au repos pendant
-     * qu'il travaille : le premier signal de ce run seul ne fait pas le poids face au sac entier.
+     * Without counting the carried thread on the received-messages side, a resumed run looks idle
+     * while it is working: the first signal of that run alone is no match for the whole bag.
      */
     public function testASignalOnAResumedRunStillCountsAsWorking(): void
     {
         $this->metadataStore->save(self::EXECUTION, 'Ai_DurableAgent', ['history' => self::HISTORY]);
-        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Et Lyon ?']));
+        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'And Lyon?']));
 
         self::assertTrue($this->transcript->forExecution(self::EXECUTION)->working);
     }
 
     /**
-     * Après un continue-as-new, le store de métadonnées porte encore la charge du **premier** run.
-     * Seul l'événement du run courant dit ce que ce run a repris.
+     * After a continue-as-new, the metadata store still carries the payload of the **first** run.
+     * Only the event of the current run says what this run resumed.
      */
     public function testTheRunEventWinsOverTheStaleMetadataPayload(): void
     {
@@ -82,22 +82,22 @@ final class ChatTranscriptResumeTest extends TestCase
         $transcript = $this->transcript->forExecution(self::EXECUTION);
 
         self::assertCount(2, $transcript->messages);
-        self::assertSame('Bonjour !', $transcript->messages[1]->content);
+        self::assertSame('Hello there!', $transcript->messages[1]->content);
     }
 
     /**
-     * Le journal du run courant l'emporte dès qu'il porte le fil : la charge de démarrage n'est
-     * qu'un repli.
+     * The journal of the current run wins as soon as it carries the thread: the start payload is
+     * only a fallback.
      */
     public function testAModelCallSupersedesTheCarriedThread(): void
     {
         $this->metadataStore->save(self::EXECUTION, 'Ai_DurableAgent', ['history' => self::HISTORY]);
-        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'Et Lyon ?']));
+        $this->eventStore->append(new WorkflowSignalReceived(self::EXECUTION, 'user_message', ['text' => 'And Lyon?']));
         $this->eventStore->append(new ActivityScheduled(self::EXECUTION, 'a1', 'ai_model_invoke', [
             'payload' => ['messages' => [
-                ['role' => 'user', 'content' => 'Bonjour'],
-                ['role' => 'assistant', 'content' => 'Bonjour !'],
-                ['role' => 'user', 'content' => 'Et Lyon ?'],
+                ['role' => 'user', 'content' => 'Hello'],
+                ['role' => 'assistant', 'content' => 'Hello there!'],
+                ['role' => 'user', 'content' => 'And Lyon?'],
             ]],
         ]));
 
@@ -105,37 +105,37 @@ final class ChatTranscriptResumeTest extends TestCase
     }
 
     /**
-     * Ce qui repart est le fil parlé. Un `role: tool` et un message d'assistant qui ne porte que
-     * des `tool_calls` racontent la mécanique du run qui s'achève : les rejouer remplirait le
-     * suivant de bulles vides et de références d'appels qui n'existent plus.
+     * What starts again is the spoken thread. A `role: tool` and an assistant message that carries
+     * nothing but `tool_calls` tell the mechanics of the run that is ending: replaying them would
+     * fill the next one with empty bubbles and with references to calls that no longer exist.
      */
     public function testTheSeedDropsToolNoise(): void
     {
         $this->eventStore->append(new ActivityScheduled(self::EXECUTION, 'a1', 'ai_model_invoke', [
             'payload' => ['messages' => [
-                ['role' => 'system', 'content' => 'Tu es concis.'],
-                ['role' => 'user', 'content' => 'Météo à Lyon ?'],
+                ['role' => 'system', 'content' => 'You are concise.'],
+                ['role' => 'user', 'content' => 'Weather in Lyon?'],
                 ['role' => 'assistant', 'content' => null, 'tool_calls' => [
                     ['id' => 'c1', 'function' => ['name' => 'weather', 'arguments' => '{"city":"Lyon"}']],
                 ]],
                 ['role' => 'tool', 'content' => '18 °C'],
-                ['role' => 'assistant', 'content' => 'Il fait 18 °C.'],
+                ['role' => 'assistant', 'content' => 'It is 18 °C.'],
             ]],
         ]));
 
         self::assertSame([
-            ['role' => 'user', 'content' => 'Météo à Lyon ?'],
-            ['role' => 'assistant', 'content' => 'Il fait 18 °C.'],
+            ['role' => 'user', 'content' => 'Weather in Lyon?'],
+            ['role' => 'assistant', 'content' => 'It is 18 °C.'],
         ], $this->transcript->forExecution(self::EXECUTION)->seed());
     }
     /**
-     * Un résumé peut arriver en morceaux `thinking`/`text` — c'est la forme d'un modèle qui
-     * raisonne, et la compaction passe par la même porte que le reste.
+     * A summary can arrive as `thinking`/`text` chunks — that is the shape of a model that reasons,
+     * and compaction comes through the same door as the rest.
      *
-     * La projection lisait `content` brut et n'en gardait que ce qui était **déjà une chaîne** :
-     * un résumé en morceaux était ignoré, et le fil repris s'affichait en entier alors que le
-     * modèle, lui, ne verrait que le résumé. {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion} fait le même
-     * découpage des deux côtés.
+     * The projection used to read the raw `content` and keep only what was **already a string**: a
+     * chunked summary was ignored, and the resumed thread was displayed in full while the model, for
+     * its part, would only see the summary. {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion} does the same
+     * splitting on both sides.
      */
     public function testAChunkedDigestIsReadLikeAnyOtherAnswer(): void
     {
@@ -143,15 +143,15 @@ final class ChatTranscriptResumeTest extends TestCase
         $this->eventStore->append(new ActivityScheduled(self::EXECUTION, 'c1', 'ai_model_compact', []));
         $this->eventStore->append(new ActivityCompleted(self::EXECUTION, 'c1', [
             'choices' => [['message' => ['content' => [
-                ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'Je pèse ce qui compte.']]],
-                ['type' => 'text', 'text' => 'On s\'est salués.'],
+                ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'I weigh up what matters.']]],
+                ['type' => 'text', 'text' => 'We said hello to each other.'],
             ]]]],
         ]));
 
         $transcript = $this->transcript->forExecution(self::EXECUTION);
 
         self::assertSame(
-            ['Résumé de notre conversation précédente : On s\'est salués.'],
+            ['Summary of our previous conversation: We said hello to each other.'],
             array_map(static fn (TranscriptMessage $message): ?string => $message->content, $transcript->messages),
         );
     }

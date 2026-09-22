@@ -8,20 +8,20 @@ use Gplanchat\Agentic\Application\Chat\ToolCallRef;
 use Gplanchat\Agentic\Application\Chat\TranscriptMessage;
 
 /**
- * La réponse d'un fournisseur « chat completions », lue une fois pour toutes.
+ * The reply of a "chat completions" provider, read once and for all.
  *
- * `$data['choices'][0]['message'][…]` s'écrivait à la main partout où on en avait besoin — le
- * workflow pour la compaction, la projection trois fois, le modèle scripté pour la fabriquer.
- * Autant d'occasions de se tromper de niveau, et un changement de fournisseur à faire autant de
- * fois. Ici la forme est décrite une fois, dans les deux sens.
+ * `$data['choices'][0]['message'][…]` was written by hand everywhere it was needed — the workflow
+ * for the compaction, the projection three times, the scripted model to build it. That many
+ * chances to get the level wrong, and a change of provider to make that many times. Here the shape
+ * is described once, both ways.
  *
- * Fabrique de frontière comme {@see \Gplanchat\Agentic\Domain\Context\Conversation} : `fromWire()` pour ce qui sort
- * du journal, `toWire()` pour ce que le modèle scripté y écrit. Le fil reste le fil, il ne
- * traverse plus le code.
+ * A boundary factory like {@see \Gplanchat\Agentic\Domain\Context\Conversation}: `fromWire()` for what comes out
+ * of the journal, `toWire()` for what the scripted model writes into it. The wire stays the wire,
+ * it no longer runs through the code.
  *
- * Ce qui n'y passe **pas** : l'enveloppe d'erreur. {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ContextOverflow} lit un
- * `error.code`, pas un `choice` — un dépassement de fenêtre n'est pas une complétion, et le faire
- * transiter par ce type reviendrait à en fabriquer une vide.
+ * What does **not** go through it: the error envelope. {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ContextOverflow} reads an
+ * `error.code`, not a `choice` — a window overflow is not a completion, and passing it through this
+ * type would amount to manufacturing an empty one.
  */
 final readonly class ChatCompletion
 {
@@ -36,8 +36,8 @@ final readonly class ChatCompletion
     }
 
     /**
-     * `null` quand le journal ne porte pas de réponse — et c'est une information, pas un défaut :
-     * c'est elle qui distingue un tour en cours d'un tour fini.
+     * `null` when the journal carries no reply — and that is information, not a shortcoming: it is
+     * what tells a turn in progress from a finished one.
      */
     public static function fromWire(mixed $result): ?self
     {
@@ -71,11 +71,11 @@ final readonly class ChatCompletion
     }
 
     /**
-     * La forme exacte qu'attend le convertisseur du pont — c'est du fil, il part tel quel.
+     * The exact shape the bridge's converter expects — this is wire, it goes out as is.
      *
-     * Le raisonnement s'écrit en morceaux `thinking`/`text` et non dans un `reasoning_content` à
-     * côté : c'est la forme de Mistral, et `splitContent()` lit les deux ({@see TranscriptMessage}).
-     * Sans raisonnement on garde la chaîne simple qu'attendent tous les autres modèles.
+     * The reasoning is written as `thinking`/`text` chunks and not in a `reasoning_content` on the
+     * side: that is Mistral's shape, and `splitContent()` reads both ({@see TranscriptMessage}).
+     * Without reasoning we keep the plain string every other model expects.
      *
      * @return array<string, mixed>
      */

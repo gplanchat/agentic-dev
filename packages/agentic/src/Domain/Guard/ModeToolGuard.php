@@ -8,18 +8,18 @@ use Gplanchat\Agentic\Domain\Tool\Toolset;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 
 /**
- * La garde par défaut : une liste de refus qui l'emporte toujours, puis la règle du mode
+ * The default guard: a deny list that always wins, then the rule of the mode
  * ({@see AgentMode::requiresApprovalFor()}).
  *
- * ponytail: pas de moteur de règles. Un outil inconnu est traité comme `external` — le défaut
- * prudent. Des conditions sur les arguments (« ce chemin, pas cet autre ») justifieraient une
- * seconde implémentation de {@see ToolGuardInterface}, pas une option de plus ici.
+ * ponytail: no rules engine. An unknown tool is treated as `external` — the cautious default.
+ * Conditions on arguments ("this path, not that one") would justify a second implementation of
+ * {@see ToolGuardInterface}, not one more option here.
  */
 final class ModeToolGuard implements ToolGuardInterface
 {
     /**
-     * @param Toolset      $tools  ce que l'agent peut faire, et ce que chaque outil fait
-     * @param list<string> $denied outils refusés quel que soit le mode
+     * @param Toolset      $tools  what the agent can do, and what each tool does
+     * @param list<string> $denied tools refused whatever the mode
      */
     public function __construct(
         private readonly Toolset $tools = new Toolset(),
@@ -32,13 +32,13 @@ final class ModeToolGuard implements ToolGuardInterface
         $name = $toolCall->name;
 
         if (\in_array($name, $this->denied, true)) {
-            return ToolDecision::deny(\sprintf('L\'outil « %s » est interdit par la politique de l\'agent.', $name));
+            return ToolDecision::deny(\sprintf('Tool "%s" is forbidden by the agent policy.', $name));
         }
 
         $effect = $this->tools->effectOf($name);
 
         return $mode->requiresApprovalFor($effect)
-            ? ToolDecision::ask(\sprintf('« %s » (%s) demande une validation en mode %s.', $name, $effect->value, $mode->value))
+            ? ToolDecision::ask(\sprintf('"%s" (%s) needs approval in %s mode.', $name, $effect->value, $mode->value))
             : ToolDecision::allow();
     }
 }

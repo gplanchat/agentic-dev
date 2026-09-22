@@ -5,17 +5,17 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Watch;
 
 /**
- * Le modèle a demandé une veille sur un sujet que l'application ne publie pas.
+ * The model asked for a watch on a subject the application does not publish.
  *
- * Levée à la frontière et rattrapée dans le code de workflow : l'agent reçoit la liste des sujets
- * connus à la place d'un résultat d'outil, et reprend la main. Une exception plutôt qu'un `null`
- * parce qu'il n'y a rien à faire d'une veille sans sujet — la laisser passer, c'est endormir
- * l'agent pour rien.
+ * Thrown at the boundary and caught in the workflow code: the agent receives the list of known
+ * subjects in place of a tool result, and takes over. An exception rather than a `null` because
+ * there is nothing to do with a watch without a subject — letting it through means putting the
+ * agent to sleep for nothing.
  */
 final class UnknownWatchSubject extends \InvalidArgumentException
 {
     public function __construct(public readonly string $subject)
     {
-        parent::__construct(\sprintf('Sujet de veille inconnu : « %s ».', $subject));
+        parent::__construct(\sprintf('Unknown watch subject: "%s".', $subject));
     }
 }

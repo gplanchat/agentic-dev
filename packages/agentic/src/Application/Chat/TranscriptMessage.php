@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Application\Chat;
 
 /**
- * Un message du fil. Le `role` reste la chaîne du fournisseur : c'est le vocabulaire du protocole,
- * pas du domaine, et un rôle inconnu ne doit pas faire échouer la lecture du journal.
+ * A message of the thread. The `role` stays the provider's string: it is the vocabulary of the
+ * protocol, not of the domain, and an unknown role must not make reading the journal fail.
  */
 final readonly class TranscriptMessage implements \JsonSerializable
 {
-    /** Ce qui annonce un résumé dans le fil — à l'affichage, jamais au modèle. */
-    private const COMPACTION_PREFIX = 'Résumé de notre conversation précédente : ';
+    /** What announces a summary in the thread — for display, never to the model. */
+    private const COMPACTION_PREFIX = 'Summary of our previous conversation: ';
 
     /**
      * @param list<ToolCallRef> $toolCalls
@@ -40,17 +40,17 @@ final readonly class TranscriptMessage implements \JsonSerializable
     }
 
     /**
-     * Sépare le dit du pensé, dans la forme que le pont Mistral donne à un tour raisonné : une
-     * liste de morceaux `thinking` et `text` à la place de la chaîne habituelle.
+     * Separates what was said from what was thought, in the shape the Mistral bridge gives a
+     * reasoned turn: a list of `thinking` and `text` chunks in place of the usual string.
      *
-     * Le contrat générique, lui, met le raisonnement dans un `reasoning_content` à côté — que
-     * Mistral refuse par un 422. Les deux formes se lisent donc ici, parce que le fil est une
-     * projection du journal et qu'un journal porte ce que le fournisseur du jour y a écrit :
-     * changer de pont ne doit pas rendre illisibles les conversations d'avant.
+     * The generic contract, for its part, puts the reasoning in a `reasoning_content` on the side —
+     * which Mistral refuses with a 422. Both shapes are therefore read here, because the thread is a
+     * projection of the journal and a journal carries what the provider of the day wrote in it:
+     * changing bridge must not make the conversations of before unreadable.
      *
-     * @param mixed $content la valeur brute de `message.content`
+     * @param mixed $content the raw value of `message.content`
      *
-     * @return array{0: string|null, 1: string|null} le texte, puis le raisonnement
+     * @return array{0: string|null, 1: string|null} the text, then the reasoning
      */
     public static function splitContent(mixed $content, ?string $sidecar = null): array
     {
@@ -93,11 +93,11 @@ final readonly class TranscriptMessage implements \JsonSerializable
     }
 
     /**
-     * Le résumé qui remplace une conversation reprise.
+     * The summary that replaces a resumed conversation.
      *
-     * Une fabrique et pas deux `sprintf` : le workflow la construit pour le modèle, la projection
-     * la reconstruit pour l'affichage, et les deux doivent tomber sur le même message — sinon le
-     * fil visible change de texte au premier tour.
+     * One factory and not two `sprintf`: the workflow builds it for the model, the projection
+     * rebuilds it for display, and the two must land on the same message — otherwise the visible
+     * thread changes its text on the first turn.
      */
     public static function compaction(string $digest): self
     {
@@ -105,11 +105,11 @@ final readonly class TranscriptMessage implements \JsonSerializable
     }
 
     /**
-     * Le texte sans son étiquette.
+     * The text without its label.
      *
-     * Le préfixe est là pour l'humain. Le renvoyer au modèle à la compaction suivante lui ferait
-     * résumer un résumé étiqueté — et une reprise se reprend, elle : au deuxième retour,
-     * l'étiquette se retrouverait imbriquée dans son propre texte.
+     * The prefix is there for the human. Handing it back to the model at the next compaction would
+     * make it summarise a labelled summary — and a resume gets resumed in turn: on the second
+     * round, the label would find itself nested inside its own text.
      */
     public function stripped(): self
     {
@@ -131,11 +131,11 @@ final readonly class TranscriptMessage implements \JsonSerializable
     }
 
     /**
-     * Ce qui a du sens à reprendre dans une nouvelle exécution : les tours parlés.
+     * What makes sense to carry over into a new execution: the spoken turns.
      *
-     * Un `role: tool` et un message d'assistant qui ne porte que des `tool_calls` racontent la
-     * mécanique d'un run qui s'achève ; les rejouer dans le suivant remplirait le fil de bulles
-     * vides et le sac de références d'appels qui n'existent plus.
+     * A `role: tool` and an assistant message that carries nothing but `tool_calls` tell the
+     * mechanics of a run that is ending; replaying them in the next one would fill the thread with
+     * empty bubbles and the bag with references to calls that no longer exist.
      */
     public function carriesText(): bool
     {
@@ -144,15 +144,16 @@ final readonly class TranscriptMessage implements \JsonSerializable
     }
 
     /**
-     * La forme du fil, celle que porte déjà la charge d'un appel modèle — pas un format de plus.
+     * The shape of the thread, the one the payload of a model call already carries — not one more
+     * format.
      *
-     * **Le raisonnement n'y va pas.** Cette méthode alimente deux choses qui partent au modèle : la
-     * charge de compaction, et le fil que le relais transmet au run suivant. Y ajouter une clé
-     * changerait une charge sortante — et une charge sortante qui change, c'est un rejeu qui
-     * diverge. Le raisonnement est de l'affichage ; il sort par {@see jsonSerialize()}.
+     * **The reasoning does not go in it.** This method feeds two things that go out to the model:
+     * the compaction payload, and the thread the relay hands to the next run. Adding a key to it
+     * would change an outgoing payload — and an outgoing payload that changes is a replay that
+     * diverges. Reasoning is display; it goes out through {@see jsonSerialize()}.
      *
-     * Conséquence assumée : après un relais, le fil repris n'a plus ses blocs de raisonnement. Ce
-     * qui se reprend, ce sont les tours parlés.
+     * An accepted consequence: after a relay, the resumed thread no longer has its reasoning blocks.
+     * What gets resumed is the spoken turns.
      *
      * @return array{role: string, content: string}
      */

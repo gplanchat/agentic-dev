@@ -9,7 +9,8 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Le tableau plat qui part au fournisseur ne dit pas ses invariants. Ce type les porte.
+ * The flat array that goes out to the provider does not state its invariants. This type carries
+ * them.
  */
 #[CoversClass(Conversation::class)]
 final class ConversationTest extends TestCase
@@ -17,12 +18,12 @@ final class ConversationTest extends TestCase
     public function testTheWireSurvivesTheRoundTrip(): void
     {
         $messages = [
-            ['role' => 'system', 'content' => 'Sois concis.'],
-            ['role' => 'user', 'content' => 'Bonjour'],
+            ['role' => 'system', 'content' => 'Be concise.'],
+            ['role' => 'user', 'content' => 'Hello'],
             ['role' => 'assistant', 'content' => null, 'tool_calls' => [['id' => 'c1']]],
             ['role' => 'tool', 'content' => 'ok', 'tool_call_id' => 'c1'],
-            ['role' => 'assistant', 'content' => 'Voilà'],
-            ['role' => 'user', 'content' => 'Merci'],
+            ['role' => 'assistant', 'content' => 'There you go'],
+            ['role' => 'user', 'content' => 'Thanks'],
         ];
 
         self::assertSame($messages, Conversation::fromWire($messages)->toWire());
@@ -40,7 +41,7 @@ final class ConversationTest extends TestCase
         ]);
 
         self::assertCount(2, $conversation->turns);
-        self::assertSame(4, $conversation->turns[0]->count(), 'Le tour doit tenir l’appel d’outil et son résultat.');
+        self::assertSame(4, $conversation->turns[0]->count(), 'The turn must hold the tool call and its result.');
         self::assertCount(1, $conversation->system);
     }
 
@@ -55,15 +56,15 @@ final class ConversationTest extends TestCase
     }
 
     /**
-     * Un marqueur de compaction posé au fil des tours n'est pas du préambule : le rattacher au
-     * système le ferait remonter en tête à chaque passage, et il finirait par en avoir plusieurs.
+     * A compaction marker set along the turns is not preamble: attaching it to the system would
+     * make it climb back to the front on every pass, and it would end up with several of them.
      */
     public function testOnlyLeadingSystemMessagesArePreamble(): void
     {
         $conversation = Conversation::fromWire([
             ['role' => 'system', 'content' => 'S'],
             ['role' => 'user', 'content' => 'u1'],
-            ['role' => 'system', 'content' => '[messages retirés]'],
+            ['role' => 'system', 'content' => '[messages dropped]'],
             ['role' => 'user', 'content' => 'u2'],
         ]);
 

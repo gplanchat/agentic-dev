@@ -14,13 +14,13 @@ use Symfony\AI\Platform\Result\InMemoryRawResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
 
 /**
- * Répond comme un fournisseur « chat completions », sans réseau ni clé d'API.
+ * Answers like a "chat completions" provider, with no network and no API key.
  *
- * La démo n'a pas besoin d'un vrai modèle pour montrer ce qu'elle montre : le journal, les
- * activités, la garde et la reprise après signal. Un vrai fournisseur se branche en remplaçant ce
- * service par le `ModelClientInterface` d'un bridge `symfony/ai-*-platform`.
+ * The demo does not need a real model to show what it shows: the journal, the activities, the guard
+ * and the resume after a signal. A real provider is plugged in by replacing this service with the
+ * `ModelClientInterface` of a `symfony/ai-*-platform` bridge.
  *
- * La réponse est une fonction pure de la conversation reçue — donc déterministe, donc rejouable.
+ * The reply is a pure function of the conversation received — hence deterministic, hence replayable.
  */
 final class ScriptedChatModelClient implements ModelClientInterface
 {
@@ -49,89 +49,104 @@ final class ScriptedChatModelClient implements ModelClientInterface
             }
         }
 
-        // Un seul tour d'outil par message : au second passage, on répond.
+        // A single tool turn per message: on the second pass, we answer.
         if ($answeredSinceUser > 0) {
             return new InMemoryRawResult($this->text(
                 $this->summarise($messages),
-                'L’outil a répondu ; je rends son relevé tel quel plutôt que de le paraphraser.',
+                'The tool has answered; I hand back its reading as is rather than paraphrasing it.',
             ));
         }
 
-        // Une demande vague : le modèle ne devine pas, il demande. C'est ce que fait un vrai
-        // modèle quand la consigne laisse plusieurs suites également raisonnables.
-        if (str_contains($lastUser, 'import')) {
+        // A vague request: the model does not guess, it asks. That is what a real model does when
+        // the instruction leaves several equally reasonable continuations.
+        if (self::mentions($lastUser, 'import')) {
             return new InMemoryRawResult($this->toolCall($messages, AskUserQuestion::TOOL, [
-                'question' => 'Comment veux-tu lancer cet import ?',
-                'header' => 'Mode d’import',
+                'question' => 'How do you want to run this import?',
+                'header' => 'Import mode',
                 'options' => [
-                    ['label' => 'Par lot', 'description' => 'Tout d’un coup, plus rapide, bloque le catalogue'],
-                    ['label' => 'Au fil de l’eau', 'description' => 'Plus lent, le catalogue reste servi'],
-                    ['label' => 'Simulation', 'description' => 'Rien n’est écrit, on regarde ce qui changerait'],
+                    ['label' => 'Batch', 'description' => 'All at once, faster, locks the catalogue'],
+                    ['label' => 'Streaming', 'description' => 'Slower, the catalogue stays served'],
+                    ['label' => 'Dry run', 'description' => 'Nothing is written, we look at what would change'],
                 ],
             ]));
         }
 
         $subject = self::firstWatchSubject($options);
-        if (null !== $subject && (str_contains($lastUser, 'surveille') || str_contains($lastUser, 'préviens'))) {
+        if (null !== $subject && (self::mentions($lastUser, 'watch', 'notify'))) {
             return new InMemoryRawResult($this->toolCall($messages, WatchTool::TOOL, [
-                // Le sujet est ce qui rend la veille joignable : c'est lui, pas un texte libre,
-                // qu'un événement métier appariera.
-                'sujet' => $subject,
-                'observation' => 'La livraison du fournisseur arrive à l’entrepôt',
-                'intention' => 'Enregistrer une note de réception et prévenir l’équipe',
+                // The subject is what makes the watch reachable: it is the subject, not some free
+                // text, that a business event will match.
+                'subject' => $subject,
+                'observation' => 'The supplier delivery arrives at the warehouse',
+                'intent' => 'Record a goods receipt note and warn the team',
                 'deadlineSeconds' => 900,
             ]));
         }
 
-        // Le levier explicite : un vrai modèle décide seul de demander, un modèle scripté a besoin
-        // qu'on le lui dise. « demande-moi… » sert à voir le questionnaire à volonté, et « choix
-        // multiple » à voir l'autre forme.
-        if (str_contains($lastUser, 'demande') || str_contains($lastUser, 'question')) {
+        // The explicit lever: a real model decides on its own to ask, a scripted model needs to be
+        // told. "ask me…" is there to see the questionnaire at will, and "multiple" to see the other
+        // shape.
+        if (self::mentions($lastUser, 'ask', 'question')) {
             return new InMemoryRawResult($this->toolCall($messages, AskUserQuestion::TOOL, [
-                'question' => 'Sur quoi veux-tu que je tranche ?',
-                'header' => 'À toi de voir',
-                'multiSelect' => str_contains($lastUser, 'multiple'),
+                'question' => 'What do you want me to decide on?',
+                'header' => 'Up to you',
+                'multiSelect' => self::mentions($lastUser, 'multiple'),
                 'options' => [
-                    ['label' => 'La météo', 'description' => 'Je consulte, personne n’a rien à valider'],
-                    ['label' => 'Une note', 'description' => 'J’écris dans le dossier courant'],
-                    ['label' => 'Un courriel', 'description' => 'Effet externe : la garde demandera ton accord'],
+                    ['label' => 'The weather', 'description' => 'I look it up, nobody has anything to approve'],
+                    ['label' => 'A note', 'description' => 'I write into the current folder'],
+                    ['label' => 'An email', 'description' => 'External effect: the guard will ask for your approval'],
                 ],
             ]));
         }
 
-        if (str_contains($lastUser, 'mail') || str_contains($lastUser, 'courriel')) {
+        if (self::mentions($lastUser, 'mail', 'email')) {
             return new InMemoryRawResult($this->toolCall($messages, 'send_email', [
-                'to' => 'equipe@example.test',
-                'body' => 'Compte rendu demandé depuis le chat durable.',
+                'to' => 'team@example.test',
+                'body' => 'Report requested from the durable chat.',
             ]));
         }
 
-        // Le levier de la délégation : un modèle scripté ne décide pas seul de confier une tâche.
-        if (str_contains($lastUser, 'délègue') || str_contains($lastUser, 'delegue') || str_contains($lastUser, 'équipe')) {
+        // The lever of delegation: a scripted model does not decide on its own to hand over a task.
+        if (self::mentions($lastUser, 'delegate', 'team')) {
             return new InMemoryRawResult($this->toolCall($messages, DelegateTool::TOOL, [
-                'mission' => 'Résume en une phrase ce que fait un agent durable.',
-                'modele' => 'ministral-3b-latest',
+                'mission' => 'Sum up in one sentence what a durable agent does.',
+                'model' => 'ministral-3b-latest',
             ]));
         }
 
-        if (str_contains($lastUser, 'note')) {
+        if (self::mentions($lastUser, 'note')) {
             return new InMemoryRawResult($this->toolCall($messages, 'save_note', ['text' => $lastUser]));
         }
 
         foreach (['paris', 'lyon', 'marseille'] as $city) {
-            if (str_contains($lastUser, $city)) {
+            if (self::mentions($lastUser, $city)) {
                 return new InMemoryRawResult($this->toolCall($messages, 'weather', ['city' => ucfirst($city)]));
             }
         }
 
         return new InMemoryRawResult($this->text(
-            'Je sais consulter la météo d’une ville, enregistrer une note, ou envoyer un courriel. Lequel ?'
+            'I know how to look up the weather of a city, save a note, or send an email. Which one?'
         ));
     }
 
     /**
-     * Le premier sujet de veille que l'application publie, lu dans le schéma de l'outil tel qu'il
-     * part au fournisseur. Le vocabulaire appartient à l'application, pas à ce client.
+     * A trigger is a whole word: `ask` must not fire inside "task", nor `import` inside
+     * "important". A demo whose branch depends on a substring is a demo that surprises.
+     */
+    private static function mentions(string $text, string ...$words): bool
+    {
+        foreach ($words as $word) {
+            if (1 === preg_match('/\b'.preg_quote($word, '/').'\b/u', $text)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * The first watch subject the application publishes, read from the schema of the tool as it goes
+     * out to the provider. The vocabulary belongs to the application, not to this client.
      *
      * @param array<string, mixed> $options
      */
@@ -139,7 +154,7 @@ final class ScriptedChatModelClient implements ModelClientInterface
     {
         foreach ($options['tools'] ?? [] as $tool) {
             if (\is_array($tool) && WatchTool::TOOL === ($tool['function']['name'] ?? null)) {
-                $enum = $tool['function']['parameters']['properties']['sujet']['enum'] ?? [];
+                $enum = $tool['function']['parameters']['properties']['subject']['enum'] ?? [];
 
                 return \is_array($enum) && [] !== $enum ? (string) reset($enum) : null;
             }
@@ -149,8 +164,8 @@ final class ScriptedChatModelClient implements ModelClientInterface
     }
 
     /**
-     * La compaction arrive par la même porte que le reste — c'est sa consigne système qui la
-     * distingue, comme elle le ferait chez un vrai fournisseur.
+     * Compaction comes through the same door as the rest — it is its system instruction that tells
+     * it apart, as it would at a real provider.
      *
      * @param list<array<string, mixed>> $messages
      */
@@ -158,7 +173,7 @@ final class ScriptedChatModelClient implements ModelClientInterface
     {
         foreach ($messages as $message) {
             if ('system' === ($message['role'] ?? null)
-                && str_contains((string) $message['content'], 'Résume-la')
+                && str_contains((string) $message['content'], 'Summarise it')
             ) {
                 return true;
             }
@@ -168,8 +183,8 @@ final class ScriptedChatModelClient implements ModelClientInterface
     }
 
     /**
-     * Un résumé pour de faux, mais qui dit vrai : ce qui a été demandé, et où la conversation en
-     * était restée. Fonction pure de la conversation reçue, donc rejouable.
+     * A fake summary, but one that tells the truth: what was asked for, and where the conversation
+     * had got to. A pure function of the conversation received, hence replayable.
      *
      * @param list<array<string, mixed>> $messages
      */
@@ -187,13 +202,13 @@ final class ScriptedChatModelClient implements ModelClientInterface
         }
 
         if ([] === $asked) {
-            return 'La conversation précédente n’a pas dépassé les présentations.';
+            return 'The previous conversation did not get past the introductions.';
         }
 
         return \sprintf(
-            'La personne avait demandé : %s. Dernière réponse donnée : « %s ». Rien n’est resté en attente.',
-            implode(', ', array_map(static fn (string $q): string => '« ' . $q . ' »', $asked)),
-            '' === $lastAnswer ? 'aucune' : $lastAnswer,
+            'The person had asked: %s. Last answer given: "%s". Nothing was left pending.',
+            implode(', ', array_map(static fn (string $q): string => '"' . $q . '"', $asked)),
+            '' === $lastAnswer ? 'none' : $lastAnswer,
         );
     }
 
@@ -209,12 +224,12 @@ final class ScriptedChatModelClient implements ModelClientInterface
             }
         }
 
-        return '' === $last ? 'C’est fait.' : $last;
+        return '' === $last ? 'Done.' : $last;
     }
 
     /**
-     * L'identifiant d'appel dérive du rang du tour : deux constructions de la même conversation
-     * donnent le même identifiant, sinon le rejeu divergerait.
+     * The call identifier derives from the rank of the turn: two builds of the same conversation
+     * give the same identifier, otherwise the replay would diverge.
      *
      * @param list<array<string, mixed>> $messages
      * @param array<string, mixed>       $arguments
@@ -229,8 +244,8 @@ final class ScriptedChatModelClient implements ModelClientInterface
     }
 
     /**
-     * Le texte, avec son raisonnement s'il y en a un. La forme des deux vit dans
-     * {@see ChatCompletion::toWire()} — la même que celle que relit la projection.
+     * The text, with its reasoning if there is one. The shape of both lives in
+     * {@see ChatCompletion::toWire()} — the same one the projection reads back.
      *
      * @return array<string, mixed>
      */

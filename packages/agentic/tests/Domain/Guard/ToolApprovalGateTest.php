@@ -17,20 +17,20 @@ final class ToolApprovalGateTest extends TestCase
     {
         $gate = new ToolApprovalGate();
 
-        $gate->decide('accorde', true);
-        $gate->decide('refuse', false);
-        $gate->timeout('expire');
+        $gate->decide('approved', true);
+        $gate->decide('refused', false);
+        $gate->timeout('expired');
 
-        self::assertSame(ApprovalOutcome::Approved, $gate->outcome('accorde'));
-        self::assertSame(ApprovalOutcome::Refused, $gate->outcome('refuse'));
-        self::assertSame(ApprovalOutcome::Expired, $gate->outcome('expire'));
-        self::assertNull($gate->outcome('jamais-demande'));
+        self::assertSame(ApprovalOutcome::Approved, $gate->outcome('approved'));
+        self::assertSame(ApprovalOutcome::Refused, $gate->outcome('refused'));
+        self::assertSame(ApprovalOutcome::Expired, $gate->outcome('expired'));
+        self::assertNull($gate->outcome('never-asked'));
     }
 
     public function testAskingPutsTheCallInPendingUntilItIsSettled(): void
     {
         $gate = new ToolApprovalGate();
-        $gate->ask(new ToolInvocation('c1', 'send_email', ['to' => 'a@b.test']), 'demande une validation');
+        $gate->ask(new ToolInvocation('c1', 'send_email', ['to' => 'a@b.test']), 'needs an approval');
 
         self::assertFalse($gate->isSettled('c1'));
         self::assertCount(1, $gate->pending());
@@ -43,8 +43,8 @@ final class ToolApprovalGateTest extends TestCase
     }
 
     /**
-     * Un signal arrivé après le tir de l'échéance ne doit pas ressusciter un appel déjà tranché :
-     * au rejeu, l'ordre du journal donnerait le verdict inverse.
+     * A signal arriving after the deadline fired must not resurrect an already settled call: on
+     * replay, the order of the journal would give the opposite verdict.
      */
     public function testTheFirstOutcomeWins(): void
     {

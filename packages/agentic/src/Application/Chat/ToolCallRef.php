@@ -5,8 +5,8 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Application\Chat;
 
 /**
- * L'appel d'outil tel qu'il apparaît dans le fil, dégagé de l'enveloppe « function » du fournisseur
- * et de ses arguments encodés en chaîne JSON.
+ * The tool call as it appears in the thread, freed from the provider's "function" envelope and
+ * from its arguments encoded as a JSON string.
  */
 final readonly class ToolCallRef implements \JsonSerializable
 {

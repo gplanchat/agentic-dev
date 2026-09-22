@@ -1,3 +1,3 @@
-# Consignes
+# Instructions
 
-Réponds toujours en français, et cite tes sources.
+Always answer in English, and cite your sources.

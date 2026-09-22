@@ -25,25 +25,25 @@ final class ProjectInstructionsTest extends TestCase
 
     public function testAMissingOrEmptyFileLeavesThePromptAlone(): void
     {
-        self::assertSame('Consigne.', (new ProjectInstructions($this->file))->appendTo('Consigne.'));
-        self::assertSame('Consigne.', (new ProjectInstructions(null))->appendTo('Consigne.'));
+        self::assertSame('Instruction.', (new ProjectInstructions($this->file))->appendTo('Instruction.'));
+        self::assertSame('Instruction.', (new ProjectInstructions(null))->appendTo('Instruction.'));
 
         file_put_contents($this->file, "  \n");
-        self::assertSame('Consigne.', (new ProjectInstructions($this->file))->appendTo('Consigne.'));
+        self::assertSame('Instruction.', (new ProjectInstructions($this->file))->appendTo('Instruction.'));
     }
 
     /**
-     * Le préambule n'est jamais compacté : un fichier démesuré est tronqué, sans couper un
-     * caractère en deux.
+     * The preamble is never compacted: an outsized file is truncated, without cutting a character
+     * in two.
      */
     public function testAnOversizedFileIsTruncatedOnACharacterBoundary(): void
     {
         file_put_contents($this->file, str_repeat('é', ProjectInstructions::MAX_BYTES));
 
-        $prompt = (new ProjectInstructions($this->file))->appendTo('Consigne.');
+        $prompt = (new ProjectInstructions($this->file))->appendTo('Instruction.');
 
         self::assertLessThan(ProjectInstructions::MAX_BYTES + 200, \strlen($prompt));
-        self::assertStringContainsString('consignes tronquées', $prompt);
+        self::assertStringContainsString('instructions truncated', $prompt);
         self::assertTrue(mb_check_encoding($prompt, 'UTF-8'));
     }
 }

@@ -11,7 +11,7 @@ use Symfony\Component\Tui\Ansi\AnsiUtils;
 final class BananaTest extends TestCase
 {
     /**
-     * Deux images de même taille, sinon l'en-tête sauterait à chaque temps de la danse.
+     * Two frames of the same size, otherwise the header would jump at every beat of the dance.
      */
     public function testBothFramesHaveTheSameSizeAndDiffer(): void
     {
@@ -24,6 +24,6 @@ final class BananaTest extends TestCase
         }
 
         self::assertNotSame(Banana::frame(0), Banana::frame(1));
-        self::assertSame(Banana::frame(0), Banana::frame(2), 'La danse boucle.');
+        self::assertSame(Banana::frame(0), Banana::frame(2), 'The dance loops.');
     }
 }

@@ -9,13 +9,14 @@ use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 
 /**
- * L'outil que la garde protège : un envoi ne se compense pas d'un clic.
+ * The tool the guard protects: sending is not undone by a click. In `standard` mode as in
+ * `edition`, it asks for a human approval — and the workflow stays suspended until then.
  */
 final class SendEmailTool implements AgentTool
 {
     public function definition(): ToolDefinition
     {
-        return new ToolDefinition('send_email', 'Envoie un courriel. Effet externe : rien ne le rattrape.', ToolEffect::External, [
+        return new ToolDefinition('send_email', 'Sends an email. External effect: nothing catches it back.', ToolEffect::External, [
             'type' => 'object',
             'properties' => ['to' => ['type' => 'string'], 'body' => ['type' => 'string']],
             'required' => ['to', 'body'],
@@ -24,6 +25,6 @@ final class SendEmailTool implements AgentTool
 
     public function __invoke(array $arguments): string
     {
-        return \sprintf('Courriel envoyé à %s.', (string) ($arguments['to'] ?? '?'));
+        return \sprintf('Email sent to %s.', (string) ($arguments['to'] ?? '?'));
     }
 }

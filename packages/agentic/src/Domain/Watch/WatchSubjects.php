@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Watch;
 
 /**
- * Le vocabulaire fermé des événements que l'application publie. Il part au modèle dans le schéma
- * de {@see WatchTool}, et un sujet hors liste est **refusé visiblement** ({@see Watch::fromArguments()})
- * au lieu de produire une veille morte.
+ * The closed vocabulary of the events the application publishes. It goes out to the model in the
+ * schema of {@see WatchTool}, and a subject off the list is **visibly refused**
+ * ({@see Watch::fromArguments()}) instead of producing a dead watch.
  *
- * Ajouter un sujet, c'est l'ajouter ici côté application et publier l'événement correspondant.
+ * Adding a subject means adding it here on the application side and publishing the matching event.
  *
  * @implements \IteratorAggregate<int, WatchSubject>
  */
@@ -28,7 +28,7 @@ final readonly class WatchSubjects implements \Countable, \IteratorAggregate
     }
 
     /**
-     * La charge du workflow arrive du journal, donc en tableaux : sujet → description.
+     * The workflow payload arrives from the journal, hence as arrays: subject → description.
      *
      * @param array<string, string> $wire
      */

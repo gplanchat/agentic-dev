@@ -5,24 +5,24 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Tui;
 
 /**
- * La mascotte : la banane de « Peanut Butter Jelly Time », qui danse dans l'en-tête.
+ * The mascot: the banana of "Peanut Butter Jelly Time", dancing in the header.
  *
- * Dessinée en pixels, deux par caractère : `▀` porte la couleur du haut au premier plan et celle du
- * bas au fond. Les grilles restent lisibles et modifiables ; la conversion en ANSI se fait ici.
+ * Drawn in pixels, two per character: `▀` carries the top colour in the foreground and the bottom
+ * one in the background. The grids stay readable and editable; the conversion to ANSI happens here.
  */
 final class Banana
 {
     /** @var array<string, array{int, int, int}> */
     private const PALETTE = [
-        'Y' => [255, 214, 64],   // jaune
-        'y' => [222, 170, 30],   // jaune ombré
-        'B' => [110, 72, 30],    // brun : queue
-        'K' => [25, 25, 25],     // noir : yeux, bouche
-        'W' => [250, 250, 250],  // blanc : reflet des yeux
-        'L' => [214, 128, 44],   // caramel : bras et jambes, visibles sur fond sombre
+        'Y' => [255, 214, 64],   // yellow
+        'y' => [222, 170, 30],   // shaded yellow
+        'B' => [110, 72, 30],    // brown: stalk
+        'K' => [25, 25, 25],     // black: eyes, mouth
+        'W' => [250, 250, 250],  // white: glint of the eyes
+        'L' => [214, 128, 44],   // caramel: arms and legs, visible on a dark background
     ];
 
-    /** Bras en l'air, puis en bas, jambes écartées : les deux temps de la danse. */
+    /** Arms up, then down, legs apart: the two beats of the dance. */
     private const FRAMES = [
         <<<'GRID'
             .........BB...
@@ -58,7 +58,7 @@ final class Banana
     private static ?array $rendered = null;
 
     /**
-     * @return list<string> les lignes ANSI de l'image demandée ; l'animation boucle
+     * @return list<string> the ANSI lines of the requested frame; the animation loops
      */
     public static function frame(int $index): array
     {

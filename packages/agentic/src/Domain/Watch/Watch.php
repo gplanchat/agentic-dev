@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Watch;
 
 /**
- * Une veille posée par l'agent : ce qu'il guette, et **ce qu'il comptait en faire**.
+ * A watch set by the agent: what it is watching for, and **what it meant to do about it**.
  *
- * L'intention est écrite au moment de l'inscription, pas reconstruite au réveil. C'est tout
- * l'intérêt : au réveil — dans une heure, dans trois jours, après un redéploiement — l'agent n'a
- * pas à se souvenir, le journal le lui dit.
+ * The intent is written at the moment of registration, not rebuilt on waking. That is the whole
+ * point: on waking — in an hour, in three days, after a redeployment — the agent does not have to
+ * remember, the journal tells it.
  */
 final readonly class Watch implements \JsonSerializable
 {
@@ -17,37 +17,37 @@ final readonly class Watch implements \JsonSerializable
         public string $callId,
         public WatchSubject $subject,
         public string $observation,
-        public string $intention,
+        public string $intent,
         public ?float $expiresAt = null,
     ) {
     }
 
     /**
-     * Fabrique de frontière : les arguments viennent du modèle, rien ne garantit le schéma.
+     * A boundary factory: the arguments come from the model, nothing guarantees the schema.
      *
      * @param array<string, mixed> $arguments
      */
     public static function fromArguments(string $callId, array $arguments, WatchSubjects $subjects, ?float $expiresAt = null): self
     {
-        $subject = $subjects->find(trim((string) ($arguments['sujet'] ?? '')));
+        $subject = $subjects->find(trim((string) ($arguments['subject'] ?? '')));
         if (null === $subject) {
-            // Refus visible plutôt que veille morte : sans sujet connu, aucun événement ne pourra
-            // jamais lever cette veille, et l'agent dormirait jusqu'à son échéance sans que rien
-            // ne le signale.
-            throw new UnknownWatchSubject(trim((string) ($arguments['sujet'] ?? '')));
+            // A visible refusal rather than a dead watch: with no known subject, no event will ever
+            // be able to lift this watch, and the agent would sleep until its deadline with nothing
+            // to signal it.
+            throw new UnknownWatchSubject(trim((string) ($arguments['subject'] ?? '')));
         }
 
         return new self(
             $callId,
             $subject,
             trim((string) ($arguments['observation'] ?? '')),
-            trim((string) ($arguments['intention'] ?? '')),
+            trim((string) ($arguments['intent'] ?? '')),
             $expiresAt,
         );
     }
 
     /**
-     * @return array{callId: string, subject: string, observation: string, intention: string, expiresAt: float|null}
+     * @return array{callId: string, subject: string, observation: string, intent: string, expiresAt: float|null}
      */
     public function jsonSerialize(): array
     {
@@ -55,7 +55,7 @@ final readonly class Watch implements \JsonSerializable
             'callId' => $this->callId,
             'subject' => $this->subject->value,
             'observation' => $this->observation,
-            'intention' => $this->intention,
+            'intent' => $this->intent,
             'expiresAt' => $this->expiresAt,
         ];
     }

@@ -11,8 +11,8 @@ use Symfony\AI\Platform\ModelCatalog\ModelCatalogInterface;
 use Symfony\AI\Platform\ModelClientInterface;
 
 /**
- * Exécute l'appel modèle hors du workflow. Reçoit et rend des tableaux : le payload a été normalisé
- * côté workflow par `Contract::createRequestPayload()`, la réponse est le JSON du fournisseur.
+ * Runs the model call outside the workflow. Takes and returns arrays: the payload was normalised on
+ * the workflow side by `Contract::createRequestPayload()`, the reply is the provider's JSON.
  */
 #[AsActivityHandler(contract: ModelInvocationActivityInterface::class)]
 final class ModelInvocationActivityHandler implements ModelInvocationActivityInterface
@@ -27,21 +27,21 @@ final class ModelInvocationActivityHandler implements ModelInvocationActivityInt
     {
         $raw = $this->client->request($this->catalog->getModel($model), $payload, $options);
 
-        // L'erreur HTTP appartient à l'activité, pas au code workflow : un 429 ou un 503 doit
-        // rencontrer la politique de retentative de Durable (DUR011), pas être journalisé comme
-        // un succès puis faire s'étrangler le convertisseur au rejeu.
+        // The HTTP error belongs to the activity, not to the workflow code: a 429 or a 503 must
+        // meet Durable's retry policy (DUR011), not be journaled as a success and then make the
+        // converter choke on replay.
         $response = $raw->getObject();
         $data = $raw->getData();
 
-        // Un dépassement de fenêtre n'est pas une panne : c'est une réponse. La rejouer donnerait
-        // le même verdict, donc elle est journalisée comme une donnée et c'est le code workflow
-        // qui compacte puis redemande.
+        // A window overflow is not a failure: it is a reply. Replaying it would give the same
+        // verdict, so it is journaled as data and it is the workflow code that compacts and then
+        // asks again.
         if (ContextOverflow::detected($data)) {
             return $data;
         }
 
         if (method_exists($response, 'getStatusCode') && ($code = $response->getStatusCode()) >= 400) {
-            throw new \RuntimeException(\sprintf('Le fournisseur a répondu %d : %s', $code, $response->getContent(false)));
+            throw new \RuntimeException(\sprintf('The provider replied %d: %s', $code, $response->getContent(false)));
         }
 
         return $data;

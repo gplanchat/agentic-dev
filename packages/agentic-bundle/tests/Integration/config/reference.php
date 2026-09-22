@@ -542,19 +542,31 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * }
  * @psalm-type AgenticConfig = array{
  *     model?: scalar|Param|null, // Default: "mistral-small-latest"
- *     mistral_api_key?: scalar|Param|null, // Vide : un client scripté répond, sans réseau. // Default: ""
- *     system_prompt?: scalar|Param|null, // Default: "Tu es un assistant concis. Utilise les outils quand ils répondent mieux que toi."
- *     human_timeout_seconds?: float|Param, // Échéance de toute attente humaine : validation comme question. // Default: 900.0
- *     idle_timeout_seconds?: float|Param, // Silence au bout duquel la conversation se termine. // Default: 3600.0
+ *     mistral_api_key?: scalar|Param|null, // Empty: a scripted client answers, with no network. // Default: ""
+ *     system_prompt?: scalar|Param|null, // Default: "You are a concise assistant. Use the tools when they answer better than you do."
+ *     human_timeout_seconds?: float|Param, // Deadline of every wait on a human: approval as well as question. // Default: 900.0
+ *     idle_timeout_seconds?: float|Param, // Silence after which the conversation ends. // Default: 3600.0
  *     rollover_after_turns?: int|Param, // Default: 40
  *     context_tokens?: int|Param, // Default: 24000
- *     instructions_file?: scalar|Param|null, // Consignes du projet ajoutées au prompt système au démarrage de chaque conversation. Absent : ignoré ; null : désactivé. // Default: "%kernel.project_dir%/AGENTS.md"
+ *     instructions_file?: scalar|Param|null, // Project instructions appended to the system prompt when each conversation starts. Missing: ignored; null: disabled. // Default: "%kernel.project_dir%/AGENTS.md"
  *     tool_rules?: list<array{ // Default: []
  *         tool?: scalar|Param|null,
  *         decision?: "allow"|"ask"|"deny"|Param,
  *         when?: array<string, scalar|Param|null>,
  *         reason?: scalar|Param|null, // Default: ""
+ *         modes?: list<"auto"|"edition"|"standard"|Param>,
+ *         unless?: array<string, list<scalar|Param|null>>,
  *     }>,
+ *     sandbox?: bool|array{ // The run_command tool, run inside a bubblewrap sandbox: the project writable, no network and nothing else from the disk.
+ *         enabled?: bool|Param, // Default: false
+ *         workspace?: scalar|Param|null, // Default: "%kernel.project_dir%"
+ *         hidden?: list<scalar|Param|null>,
+ *         timeout_seconds?: float|Param, // Default: 120.0
+ *         binary?: scalar|Param|null, // Default: "bwrap"
+ *         worktrees?: bool|Param, // One git worktree per conversation (<workspace>/.worktrees/agentic-<id>, branch agentic/agentic-<id>, cut from HEAD): the agent writes there, not in the project. Off: it writes in the project. // Default: true
+ *         shared?: list<scalar|Param|null>,
+ *         auto_allow?: list<scalar|Param|null>,
+ *     },
  *     watch_subjects?: array<string, scalar|Param|null>,
  * }
  * @psalm-type ConfigType = array{

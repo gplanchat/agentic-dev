@@ -12,7 +12,7 @@ final class WeatherTool implements AgentTool
 {
     public function definition(): ToolDefinition
     {
-        return new ToolDefinition('weather', 'Météo courante d’une ville.', ToolEffect::Read, [
+        return new ToolDefinition('weather', 'Current weather of a city.', ToolEffect::Read, [
             'type' => 'object',
             'properties' => ['city' => ['type' => 'string']],
             'required' => ['city'],
@@ -21,6 +21,6 @@ final class WeatherTool implements AgentTool
 
     public function __invoke(array $arguments): string
     {
-        return \sprintf('%s : 22°C, ensoleillé', (string) ($arguments['city'] ?? '?'));
+        return \sprintf('%s: 22°C, sunny', (string) ($arguments['city'] ?? '?'));
     }
 }

@@ -5,11 +5,11 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Tool;
 
 /**
- * Un appel d'outil demandé par le modèle, dit dans le vocabulaire du domaine.
+ * A tool call requested by the model, stated in the vocabulary of the domain.
  *
- * Le domaine ne parle pas le type du fournisseur (`Symfony\AI\Platform\Result\ToolCall`, 0.x et
- * sans promesse de compatibilité) : l'adaptateur traduit à la frontière, et la garde ne voit que
- * ceci.
+ * The domain does not speak the provider's type (`Symfony\AI\Platform\Result\ToolCall`, 0.x and
+ * with no promise of compatibility): the adapter translates at the boundary, and the guard only
+ * ever sees this.
  */
 final readonly class ToolInvocation
 {
@@ -22,7 +22,7 @@ final readonly class ToolInvocation
         public array $arguments = [],
     ) {
         if ('' === trim($callId)) {
-            throw new \InvalidArgumentException('Un appel d\'outil doit porter un identifiant.');
+            throw new \InvalidArgumentException('A tool call must carry an identifier.');
         }
     }
 }

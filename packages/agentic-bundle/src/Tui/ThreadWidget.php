@@ -11,32 +11,32 @@ use Symfony\Component\Tui\Widget\MarkdownWidget;
 use Symfony\Component\Tui\Widget\VerticallyExpandableInterface;
 
 /**
- * Le fil de la conversation : il prend toute la hauteur que les autres widgets laissent, et en
- * montre la fin — ce qui vient d'être dit reste juste au-dessus de la saisie — ou, une fois qu'on
- * remonte, la fenêtre choisie.
+ * The thread of the conversation: it takes all the height the other widgets leave, and shows its
+ * end — what has just been said stays right above the input — or, once one scrolls up, the chosen
+ * window.
  *
- * Le fil est une suite d'entrées : du texte déjà stylé, ou du Markdown — les réponses du modèle —
- * mis en forme par le rendu Markdown de symfony/tui. Tout est replié à la largeur réelle au moment du
- * rendu : un redimensionnement du terminal est pris en compte sans rien recalculer ailleurs.
+ * The thread is a sequence of entries: text already styled, or Markdown — the model answers —
+ * formatted by the Markdown rendering of symfony/tui. Everything is wrapped to the real width at
+ * render time: a terminal resize is taken into account without recomputing anything elsewhere.
  */
 final class ThreadWidget extends AbstractWidget implements VerticallyExpandableInterface
 {
-    /** @var list<array{string, bool}> texte, et s'il est en Markdown */
+    /** @var list<array{string, bool}> the text, and whether it is Markdown */
     private array $entries = [];
 
-    /** @var array<string, list<string>> rendus Markdown par texte et largeur : le parseur coûte */
+    /** @var array<string, list<string>> Markdown renderings by text and width: the parser costs */
     private array $markdown = [];
 
     private bool $expanded = true;
 
-    /** Lignes cachées sous la fenêtre : 0 = collé au bas du fil. */
+    /** Lines hidden below the window: 0 = stuck to the bottom of the thread. */
     private int $offset = 0;
 
-    /** Le plus loin qu'on puisse remonter, connu au dernier rendu. */
+    /** The furthest one can scroll up, as known at the last render. */
     private int $maxOffset = 0;
 
     /**
-     * @param string $text lignes déjà stylées (ANSI), séparées par des retours à la ligne
+     * @param string $text lines already styled (ANSI), separated by newlines
      */
     public function setText(string $text): static
     {
@@ -44,7 +44,7 @@ final class ThreadWidget extends AbstractWidget implements VerticallyExpandableI
     }
 
     /**
-     * @param list<array{string, bool}> $entries texte, et `true` s'il faut le lire comme du Markdown
+     * @param list<array{string, bool}> $entries the text, and `true` if it must be read as Markdown
      */
     public function setEntries(array $entries): static
     {
@@ -57,7 +57,7 @@ final class ThreadWidget extends AbstractWidget implements VerticallyExpandableI
     }
 
     /**
-     * @param int $lines positif pour remonter dans le fil, négatif pour redescendre
+     * @param int $lines positive to go up the thread, negative to come back down
      */
     public function scroll(int $lines): static
     {
@@ -101,17 +101,17 @@ final class ThreadWidget extends AbstractWidget implements VerticallyExpandableI
         $rows = max(1, $context->getRows());
         $lines = $this->lines($columns);
 
-        // Remonté, la dernière rangée sert à l'indication : pour atteindre la première ligne du fil,
-        // on peut donc remonter d'une ligne de plus que ce qui dépasse.
+        // Scrolled up, the last row carries the hint: to reach the first line of the thread, one
+        // can therefore go up one line more than what overflows.
         $this->maxOffset = \count($lines) > $rows ? \count($lines) - $rows + 1 : 0;
         $this->offset = min($this->offset, $this->maxOffset);
         if (0 === $this->offset) {
             return \array_slice($lines, -$rows);
         }
 
-        // Remonté : la dernière rangée dit qu'il y a plus récent en dessous, et comment y revenir.
+        // Scrolled up: the last row says there is newer below, and how to come back to it.
         $window = \array_slice($lines, \count($lines) - $this->offset - ($rows - 1), $rows - 1);
-        $hint = \sprintf("\e[2m▼ %d ligne%s plus récente%s — molette ou Pg.Suiv pour redescendre\e[0m", $this->offset, $this->offset > 1 ? 's' : '', $this->offset > 1 ? 's' : '');
+        $hint = \sprintf("\e[2m▼ %d newer line%s below — wheel or Pg.Dn to come back down\e[0m", $this->offset, $this->offset > 1 ? 's' : '');
         $window[] = TextWrapper::wrapTextWithAnsi($hint, $columns)[0];
 
         return $window;
@@ -135,7 +135,7 @@ final class ThreadWidget extends AbstractWidget implements VerticallyExpandableI
             $cache[$key] = $this->markdown[$key] ?? (new MarkdownWidget($text))->render(new RenderContext($columns, \PHP_INT_MAX));
             array_push($lines, ...$cache[$key]);
         }
-        // Seuls les rendus encore affichés restent : le cache ne grossit pas avec la conversation.
+        // Only the renderings still shown are kept: the cache does not grow with the conversation.
         $this->markdown = $cache;
 
         return $lines;

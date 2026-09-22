@@ -10,15 +10,15 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * La forme « chat completions » ne vit plus qu'ici — donc c'est ici qu'il faut la tenir.
+ * The "chat completions" shape lives nowhere but here — so this is where it must be held.
  *
- * {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ScriptedChatModelClient} l'écrit, {@see \Gplanchat\Agentic\Infrastructure\Durable\ChatTranscript} et
- * {@see \Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow} la relisent. Le modèle scripté n'étant exercé que
- * par la démo lancée à la main, rien d'autre ne remarquerait qu'une clé a bougé : les deux côtés
- * dériveraient ensemble et le vrai fournisseur, lui, ne dériverait pas.
+ * {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\ScriptedChatModelClient} writes it, {@see \Gplanchat\Agentic\Infrastructure\Durable\ChatTranscript} and
+ * {@see \Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow} read it back. The scripted model being exercised
+ * only by the demo launched by hand, nothing else would notice that a key had moved: both sides
+ * would drift together and the real provider, for its part, would not drift.
  *
- * D'où des littéraux plutôt qu'un aller-retour seul : ce qui est vérifié est la forme exacte, pas
- * sa cohérence avec elle-même.
+ * Hence literals rather than a round trip alone: what is checked is the exact shape, not its
+ * consistency with itself.
  */
 #[CoversClass(ChatCompletion::class)]
 final class ChatCompletionTest extends TestCase
@@ -26,23 +26,23 @@ final class ChatCompletionTest extends TestCase
     public function testPlainTextKeepsTheSimpleStringEveryProviderExpects(): void
     {
         self::assertSame(
-            ['choices' => [['message' => ['content' => 'Bonjour.'], 'finish_reason' => 'stop']]],
-            ChatCompletion::ofText('Bonjour.')->toWire(),
+            ['choices' => [['message' => ['content' => 'Hello.'], 'finish_reason' => 'stop']]],
+            ChatCompletion::ofText('Hello.')->toWire(),
         );
     }
 
     /**
-     * La forme de Mistral : des morceaux `thinking`/`text`, et non un `reasoning_content` à côté —
-     * que Mistral refuse par un 422.
+     * Mistral's shape: `thinking`/`text` chunks, and not a `reasoning_content` on the side — which
+     * Mistral refuses with a 422.
      */
     public function testReasoningIsWrittenAsThinkingChunks(): void
     {
         self::assertSame(
             ['choices' => [['message' => ['content' => [
-                ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'Je pèse.']]],
-                ['type' => 'text', 'text' => 'Bonjour.'],
+                ['type' => 'thinking', 'thinking' => [['type' => 'text', 'text' => 'I weigh it up.']]],
+                ['type' => 'text', 'text' => 'Hello.'],
             ]], 'finish_reason' => 'stop']]],
-            ChatCompletion::ofText('Bonjour.', 'Je pèse.')->toWire(),
+            ChatCompletion::ofText('Hello.', 'I weigh it up.')->toWire(),
         );
     }
 
@@ -60,27 +60,27 @@ final class ChatCompletionTest extends TestCase
 
     public function testWhatIsWrittenIsWhatIsRead(): void
     {
-        $relu = ChatCompletion::fromWire(
+        $readBack = ChatCompletion::fromWire(
             ChatCompletion::ofToolCall(new ToolCallRef('call_3', 'weather', ['city' => 'Paris']))->toWire(),
         );
 
-        self::assertNotNull($relu);
-        self::assertNull($relu->text);
-        self::assertEquals([new ToolCallRef('call_3', 'weather', ['city' => 'Paris'])], $relu->toolCalls);
+        self::assertNotNull($readBack);
+        self::assertNull($readBack->text);
+        self::assertEquals([new ToolCallRef('call_3', 'weather', ['city' => 'Paris'])], $readBack->toolCalls);
 
-        $raisonne = ChatCompletion::fromWire(ChatCompletion::ofText('Bonjour.', 'Je pèse.')->toWire());
-        self::assertSame('Bonjour.', $raisonne?->text);
-        self::assertSame('Je pèse.', $raisonne?->reasoning);
+        $reasoned = ChatCompletion::fromWire(ChatCompletion::ofText('Hello.', 'I weigh it up.')->toWire());
+        self::assertSame('Hello.', $reasoned?->text);
+        self::assertSame('I weigh it up.', $reasoned?->reasoning);
     }
 
     /**
-     * Un journal qui ne porte pas encore de réponse rend `null`, et ce n'est pas un défaut : c'est
-     * ce qui distingue un tour en cours d'un tour fini ({@see \Gplanchat\Agentic\Infrastructure\Durable\ChatTranscript}).
+     * A journal that does not carry a reply yet returns `null`, and that is not a shortcoming: it is
+     * what tells a turn in progress from a finished one ({@see \Gplanchat\Agentic\Infrastructure\Durable\ChatTranscript}).
      */
     public function testAnAbsentAnswerIsNull(): void
     {
         self::assertNull(ChatCompletion::fromWire(null));
-        self::assertNull(ChatCompletion::fromWire('pas un tableau'));
+        self::assertNull(ChatCompletion::fromWire('not an array'));
         self::assertNull(ChatCompletion::fromWire(['choices' => []]));
     }
 }

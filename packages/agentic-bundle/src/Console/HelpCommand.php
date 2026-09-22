@@ -13,11 +13,11 @@ use Symfony\Component\Console\Output\OutputInterface;
 use Symfony\Component\Console\Output\StreamOutput;
 
 /**
- * Adaptateur primaire : `help` sans argument ouvre l'écran d'aide en TUI.
+ * Primary adapter: `help` with no argument opens the help screen in the TUI.
  *
- * `help <commande>` et `<commande> --help` gardent l'aide détaillée de Symfony Console, d'où
- * l'héritage : Application::doRun() n'injecte la commande visée que dans un HelpCommand. `help`,
- * `--help` et `help help` ouvrent tous trois l'écran d'aide : l'argument vaut `help` par défaut.
+ * `help <command>` and `<command> --help` keep the detailed help of Symfony Console, hence the
+ * inheritance: Application::doRun() only injects the targeted command into a HelpCommand. `help`,
+ * `--help` and `help help` all three open the help screen: the argument defaults to `help`.
  */
 final class HelpCommand extends ConsoleHelpCommand
 {
@@ -43,12 +43,12 @@ final class HelpCommand extends ConsoleHelpCommand
             return parent::execute($input, $output);
         }
 
-        // ponytail: le catalogue est construit ici et non injecté, parce qu'il lit l'application
-        // qui contient cette commande — l'injecter ferait un cycle dans le conteneur.
+        // ponytail: the catalogue is built here rather than injected, because it reads the
+        // application that holds this command — injecting it would make a cycle in the container.
         $commands = (new ListCommands(new ConsoleCommandCatalog($this->getApplication())))();
 
         if (!$input->isInteractive() || !$output instanceof StreamOutput || !stream_isatty($output->getStream())) {
-            // Hors terminal (pipe, CI) : la même liste en texte brut.
+            // Outside a terminal (pipe, CI): the same list in plain text.
             foreach ($commands as $command) {
                 $output->writeln(\sprintf('%-20s %s', $command->name, $command->description));
             }

@@ -1,57 +1,85 @@
 # agentic
 
-Monorepo :
+Monorepo:
 
-| Paquet | Rôle | PHP |
+| Package | Role | PHP |
 |---|---|---|
-| `packages/agentic` — `gplanchat/agentic` | `Domain/` : le modèle (garde des outils, questions, veilles, budget de contexte, délégation), sans framework. `Application/` : ports et cas d'usage (`Conversations`, `AgentTool`, `help`). `Infrastructure/` : le workflow durable et ses adaptateurs Symfony AI 0.13 (épinglé). Dépend de `gplanchat/durable`. | ≥ 8.2 |
-| `packages/agentic-bundle` — `gplanchat/agentic-bundle` | Intégration Symfony : l'application TUI `agentic` (`help`, `chat`) et sa version web. Dépend de `gplanchat/durable-bundle` et `symfony/tui`. | ≥ 8.4.1 |
-| racine | Application de dev qui installe les deux par `path`. | ≥ 8.4.1 |
+| `packages/agentic` — `gplanchat/agentic` | `Domain/`: the model (tool guard, questions, watches, context budget, delegation), framework-free. `Application/`: ports and use cases (`Conversations`, `AgentTool`, `help`). `Infrastructure/`: the durable workflow and its Symfony AI 0.13 adapters (pinned). Depends on `gplanchat/durable`. | ≥ 8.2 |
+| `packages/agentic-bundle` — `gplanchat/agentic-bundle` | Symfony integration: the `agentic` TUI application (`help`, `chat`) and its web version. Depends on `gplanchat/durable-bundle` and `symfony/tui`. | ≥ 8.4.1 |
+| root | Dev application installing both by `path`. | ≥ 8.4.1 |
 
 ```bash
 composer install
-bin/agentic                          # l'aide en TUI (q, Échap ou Ctrl+C pour quitter)
-bin/agentic chat                     # discuter avec l'agent (Shift+Tab mode, ↑↓ historique, molette défilement, Ctrl+X clore, Ctrl+C quitter)
-bin/agentic chat <conversation>      # reprendre une conversation (son identifiant s'affiche en quittant)
-php8.4 -S localhost:8000 -t public   # la version web : http://localhost:8000/agentic/
+bin/agentic                          # help in the TUI (q, Esc or Ctrl+C to quit)
+bin/agentic chat                     # talk to the agent (Shift+Tab mode, ↑↓ history, wheel scrolls, Ctrl+X closes, Ctrl+C quits)
+bin/agentic chat <conversation>      # resume a conversation (its id is printed when you quit)
+php8.4 -S localhost:8000 -t public   # the web version: http://localhost:8000/agentic/
 ```
 
-Tests, paquet par paquet (PHPUnit 11 pour `agentic`, qui doit rester installable en PHP 8.2) :
+Tests, package by package (PHPUnit 11 for `agentic`, which must stay installable on PHP 8.2):
 
 ```bash
 (cd packages/agentic && composer install && php8.2 vendor/bin/phpunit)
 (cd packages/agentic-bundle && composer install && php8.4 vendor/bin/phpunit)
 ```
 
-## Le chat
+## The chat
 
-Une conversation est une exécution du workflow `DurableAgentWorkflow` ; chaque message, validation,
-réponse ou alerte est un signal. La TUI fait office de worker : elle vide les transports Messenger
-de Durable à chaque rafraîchissement, sans `messenger:consume` à côté.
+A conversation is an execution of the `DurableAgentWorkflow` workflow; every message, approval,
+answer or alert is a signal. The TUI acts as the worker: it drains Durable's Messenger transports on
+every refresh, with no `messenger:consume` alongside.
 
-- Sans `MISTRAL_API_KEY`, un client scripté répond, sans réseau : « Quel temps fait-il à Paris ? »
-  (outil en lecture), « Envoie un mail » (validation), « Pose-moi une question », « Surveille la
-  livraison » (veille), « Délègue… » (sous-agent).
-- Avec `MISTRAL_API_KEY` (dans `.env.local`, ignoré par git, ou dans l'environnement), c'est Mistral ;
-  ses réponses sont mises en forme (Markdown). L'écran se fige le temps de chaque réponse : l'appel
-  modèle est une activité exécutée dans le processus de la TUI.
-- Un outil qui échoue trois fois de suite est rendu au modèle comme résultat (« Échec de l'outil… ») ;
-  un appel modèle qui échoue clôt la conversation, et l'en-tête dit pourquoi.
-- Commandes du chat, tapées à la place d'un message (Tab complète le nom) :
-  `/help`, `/mode [standard|edition|auto]`, `/model [nom]` (à partir du message suivant),
-  `/tools` (et ce que la garde en fait dans le mode courant), `/clear` (nouvelle conversation),
-  `/rewind [n°]` (revenir avant un de ses messages, remis dans la saisie), `/compact` (repartir d'un
-  résumé), `/resume [identifiant]` (reprendre une conversation passée).
-  `/rewind`, `/compact` et la reprise d'une conversation terminée ouvrent une conversation neuve
-  depuis le fil : le journal de l'ancienne n'est jamais réécrit.
-- La molette et Pg.Préc/Pg.Suiv font défiler le fil dans le chat : le terminal passe en mode souris
-  le temps du chat. Pour sélectionner du texte à la souris, maintenir Maj (la plupart des terminaux).
-- ↑/↓ rappellent les messages et commandes déjà envoyés, comme dans un shell.
-- **Hooks de décision** (`tool_rules` dans `config/packages/agentic.php`) : pour un outil (motif
-  `fnmatch`) et, au besoin, des conditions sur ses arguments, `allow`, `ask` ou `deny`, avant le mode.
-  Le refus l'emporte sur la demande, qui l'emporte sur l'accord ; `/tools` affiche les règles.
-- **`AGENTS.md`** à la racine du projet (chemin réglable par `instructions_file`) : ajouté au prompt
-  système au démarrage de chaque conversation, tronqué au-delà de 32 Kio.
-- **Journal sur SQLite** (`var/agentic.sqlite`) : les conversations survivent à la fermeture de la
-  TUI et se reprennent. Les transports Messenger restent en mémoire, la TUI étant le seul worker :
-  un tour en cours au moment de quitter est perdu.
+- Without `MISTRAL_API_KEY`, a scripted client answers, with no network: "What is the weather in
+  Paris?" (read-only tool), "Send a mail" (approval), "Ask me a question", "Watch the delivery"
+  (watch), "Delegate…" (sub-agent). A trigger is matched as a whole word.
+- With `MISTRAL_API_KEY` (in `.env.local`, ignored by git, or in the environment), Mistral answers;
+  its replies are formatted (Markdown). The model call happens inside the TUI process, but through an
+  Amp HTTP client on the same event loop: the screen stays alive while it waits — the banana dances,
+  the counter runs, the thread can be scrolled.
+- A tool that fails three times in a row is handed back to the model as its result ("Tool … failed");
+  a failing model call ends the conversation, and the header says why.
+- Chat commands, typed instead of a message (Tab completes the name):
+  `/help`, `/mode [standard|edition|auto]`, `/model [name]` (from the next message on),
+  `/tools` (and what the guard makes of each in the current mode), `/clear` (new conversation),
+  `/rewind [n°]` (go back before one of your messages, which returns to the input), `/compact`
+  (restart from a summary), `/resume [id]` (resume a past conversation).
+  `/rewind`, `/compact` and resuming a finished conversation open a fresh conversation from the
+  thread: the journal of the old one is never rewritten.
+- The wheel and PgUp/PgDn scroll the thread inside the chat: the terminal switches to mouse mode for
+  the duration. To select text with the mouse, hold Shift (most terminals).
+- ↑/↓ recall the messages and commands already sent, like a shell.
+- **Decision hooks** (`tool_rules` in `config/packages/agentic.php`): for a tool (an `fnmatch`
+  pattern) and, where needed, conditions on its arguments, `allow`, `ask` or `deny`, before the mode.
+  Deny wins over ask, which wins over allow; `/tools` shows the rules.
+- **`run_command` in a sandbox** (`sandbox` in `config/packages/agentic.php`): bubblewrap mounts the
+  project writable, `/usr` and `/etc` read-only, nothing else of the disk; no network, a cleared
+  environment, `.env.local`, `.env.*.local` and `var/` hidden, `.git` and `.claude` read-only.
+  **Limit:** whatever the agent writes into the project (`composer.json`, `vendor/bin/*`, a test
+  bootstrap…) will run on the host when you launch it — review before you do. The screen freezes for
+  the duration of a command (120 s at most). No shell: the line is split then executed as is (`;`,
+  `|`, `$(…)` stay literal). Outside `auto`, every command asks for approval; in `auto`, only those
+  of `sandbox.auto_allow` pass (`fnmatch` patterns over the whole line). If bwrap is missing or
+  refused, the chat says so when it opens (`sudo apt install bubblewrap`). Rules also accept `modes`
+  and `unless`:
+  `['tool' => 'run_command', 'modes' => ['edition'], 'when' => ['command' => 'vendor/bin/phpunit*'], 'decision' => 'allow']`.
+- **A worktree per conversation.** A conversation that runs a command works in
+  `.worktrees/agentic-<id>`, on branch `agentic/agentic-<id>`, cut from HEAD — the project's
+  uncommitted changes are not in it. The agent cannot commit from inside the sandbox (the project's
+  `.git` is read-only there), so **all of its work sits uncommitted in the worktree** and `git diff`
+  alone hides the files it created. Review with `git -C .worktrees/agentic-<id> status`, then
+  `git -C .worktrees/agentic-<id> add -A && git -C .worktrees/agentic-<id> diff --cached`; take the
+  work by committing in the worktree. Discard it with
+  `git worktree remove .worktrees/agentic-<id> && git branch -D agentic/agentic-<id>`.
+  **Do not run anything on the host inside a worktree** — `bin/console`, `bin/agentic`, `composer`,
+  a test suite, an agent session — before you have reviewed it: ignored files the agent created are
+  invisible to `git status`. The sandbox pre-creates and masks `var/`, `.claude/` and `.env.local` in
+  each worktree, but not every `.env.*.local`.
+  **Nothing is cleaned up automatically**, and that is deliberate — a worktree holds
+  the agent's work until someone reviews it, and `/rewind`, `/compact` and `/resume` open new
+  conversations that keep the same worktree, so tying removal to a conversation ending would destroy
+  live work. A cleanup command may come later.
+- **`AGENTS.md`** at the project root (path configurable through `instructions_file`): appended to
+  the system prompt when a conversation starts, truncated beyond 32 KiB.
+- **Journal on SQLite** (`var/agentic.sqlite`): conversations survive the TUI being closed and can be
+  resumed. The Messenger transports stay in memory, the TUI being the only worker: a turn in flight
+  when you quit is lost.

@@ -13,12 +13,12 @@ use Gplanchat\Agentic\Domain\Tool\Toolset;
 use Symfony\AI\Platform\Tool\Tool;
 
 /**
- * Le toolbox n'est plus qu'un **registre de schémas** : l'exécution appartient à
- * {@see DurableToolExecutor}, donc à des activités.
+ * The toolbox is nothing but a **schema registry** any more: execution belongs to
+ * {@see DurableToolExecutor}, hence to activities.
  *
- * Les schémas sont figés à la construction du workflow et voyagent dans le payload de l'activité.
- * Les relire d'un conteneur DI au rejeu ferait diverger `Runner::exposeTools()`, qui les injecte
- * dans `$options['tools']` à chaque tour.
+ * The schemas are frozen when the workflow is built and travel inside the activity payload.
+ * Reading them back from a DI container on replay would make `Runner::exposeTools()` diverge, since
+ * it injects them into `$options['tools']` on every turn.
  */
 final class SchemaOnlyToolbox implements ToolboxInterface
 {
@@ -45,8 +45,9 @@ final class SchemaOnlyToolbox implements ToolboxInterface
 
     public function execute(ToolCall $toolCall): ToolResult
     {
-        // `Runner` passe par le ToolExecutor, jamais par ici. Si ce chemin s'ouvre un jour, il
-        // exécuterait l'outil en code workflow — hors journal, donc rejoué à chaque reprise.
-        throw new \LogicException(\sprintf('L\'exécution appartient à %s, pas au toolbox.', DurableToolExecutor::class));
+        // `Runner` goes through the ToolExecutor, never through here. Should this path ever open,
+        // it would run the tool in workflow code — outside the journal, hence replayed on every
+        // resume.
+        throw new \LogicException(\sprintf('Execution belongs to %s, not to the toolbox.', DurableToolExecutor::class));
     }
 }

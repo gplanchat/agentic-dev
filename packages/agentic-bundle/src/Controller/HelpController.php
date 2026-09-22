@@ -8,7 +8,7 @@ use Gplanchat\Agentic\Application\Help\ListCommands;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Version web de l'écran d'aide : le même cas d'usage, rendu en HTML.
+ * Web version of the help screen: the same use case, rendered as HTML.
  */
 final readonly class HelpController
 {
@@ -27,14 +27,14 @@ final readonly class HelpController
             );
         }
 
-        // ponytail: HTML en ligne, sans Twig — un seul écran. Twig quand la version web aura des vues.
+        // ponytail: inline HTML, no Twig — a single screen. Twig when the web version has views.
         return new Response(<<<HTML
             <!doctype html>
-            <html lang="fr">
+            <html lang="en">
             <head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Agentic</title></head>
             <body>
             <main>
-            <h1>Agentic — commandes disponibles</h1>
+            <h1>Agentic — available commands</h1>
             <table>{$rows}</table>
             </main>
             </body>

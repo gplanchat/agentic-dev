@@ -10,18 +10,18 @@ use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 
 /**
- * La question du prototype : la boucle d'appel d'outils de Symfony AI survit-elle au rejeu ?
+ * The question of the prototype: does Symfony AI's tool-calling loop survive replay?
  *
- * Le runner in-memory tourne en mode distribué : chaque `await` suspend le fiber et **rejoue le
- * code du workflow depuis le début** à la reprise. `Runner::run()` est donc réexécuté une fois par
- * point de suspension — si la boucle n'était pas rejouable, ce test n'irait pas au bout.
+ * The in-memory runner runs in distributed mode: every `await` suspends the fiber and **replays the
+ * workflow code from the start** on resume. `Runner::run()` is therefore re-executed once per
+ * suspension point — if the loop were not replayable, this test would not go all the way.
  */
 #[CoversClass(DurableAgentWorkflow::class)]
 final class DurableAgentReplayTest extends TestCase
 {
     private const TOOLS = [
         'weather' => [
-            'description' => 'Météo courante d\'une ville.',
+            'description' => 'Current weather of a city.',
             'parameters' => [
                 'type' => 'object',
                 'properties' => ['city' => ['type' => 'string']],
@@ -36,14 +36,14 @@ final class DurableAgentReplayTest extends TestCase
 
         self::assertSame('Paris 22°C, Lyon 25°C.', $result);
 
-        // Sans ça, le reste ne prouve rien : il faut que le code du workflow — donc
-        // `Runner::run()` et la boucle d'appel d'outils — ait bien été réexécuté.
-        self::assertGreaterThan(3, $passes, 'Le workflow n\'a pas été rejoué ; le test ne prouve rien.');
+        // Without this, the rest proves nothing: the workflow code — hence `Runner::run()` and the
+        // tool-calling loop — must really have been re-executed.
+        self::assertGreaterThan(3, $passes, 'The workflow was not replayed; the test proves nothing.');
 
-        // Le journal court-circuite le rejeu : trois tours de modèle, pas un de plus, alors que le
-        // code du workflow a été réexécuté à chaque reprise.
-        self::assertCount(3, $modelCalls, 'Le rejeu a redemandé le modèle.');
-        self::assertCount(2, $toolCalls, 'Le rejeu a ré-exécuté un outil.');
+        // The journal short-circuits the replay: three model turns, not one more, while the workflow
+        // code was re-executed on every resume.
+        self::assertCount(3, $modelCalls, 'The replay asked the model again.');
+        self::assertCount(2, $toolCalls, 'The replay ran a tool again.');
     }
 
     public function testTheOutboundPayloadsAreIdenticalAcrossTwoIndependentRuns(): void
@@ -51,24 +51,24 @@ final class DurableAgentReplayTest extends TestCase
         [, $first] = $this->executeAgent('exec-a');
         [, $second] = $this->executeAgent('exec-b');
 
-        // L'assertion qui compte. Le journal est indexé par position de curseur, pas par contenu :
-        // les comptages ci-dessus passeraient même si le payload avait changé. Un UUID de message
-        // qui fuit dans la charge, un toolbox relu du conteneur, et c'est ici que ça rougit.
+        // The assertion that counts. The journal is indexed by cursor position, not by content: the
+        // counts above would pass even if the payload had changed. A message UUID leaking into the
+        // payload, a toolbox read back from the container, and this is where it goes red.
         self::assertSame(
             json_encode($first, \JSON_PRETTY_PRINT),
             json_encode($second, \JSON_PRETTY_PRINT),
-            'Le code du workflow n\'est pas déterministe : deux exécutions produisent des payloads différents.',
+            'The workflow code is not deterministic: two executions produce different payloads.',
         );
     }
 
     /**
-     * Un tour d'appel d'outil **ne peut pas** porter de raisonnement à travers ce pont, et c'est
-     * une contrainte du fournisseur, pas un oubli : `CompletionsConversionTrait::convertChoice()`
-     * rend un `ToolCallResult` nu dès que `finish_reason` vaut `tool_calls`, sans regarder autre
-     * chose. Le raisonnement d'un tour outillé est donc perdu à la frontière.
+     * A tool-calling turn **cannot** carry reasoning through this bridge, and that is a constraint
+     * of the provider, not an oversight: `CompletionsConversionTrait::convertChoice()` returns a
+     * bare `ToolCallResult` as soon as `finish_reason` is `tool_calls`, without looking at anything
+     * else. The reasoning of a tooled turn is therefore lost at the boundary.
      *
-     * Le test est là pour que ça se voie le jour où le pont changera d'avis : c'est un point de
-     * changement, pas un détail — corriger le convertisseur ferait diverger toute exécution en vol.
+     * The test is there so that it shows the day the bridge changes its mind: it is a change point,
+     * not a detail — fixing the converter would make every in-flight execution diverge.
      */
     public function testAToolCallingTurnCarriesNoReasoningThroughThisBridge(): void
     {
@@ -79,16 +79,16 @@ final class DurableAgentReplayTest extends TestCase
             static fn (array $m): bool => 'assistant' === ($m['role'] ?? null),
         );
 
-        self::assertNotSame([], $assistantTurns, 'Aucun tour d\'assistant n\'est reparti au modèle.');
+        self::assertNotSame([], $assistantTurns, 'No assistant turn went back out to the model.');
         foreach ($assistantTurns as $turn) {
-            self::assertArrayNotHasKey('reasoning_content', $turn, 'Le contrat générique a repris la main : Mistral répond 422 là-dessus.');
+            self::assertArrayNotHasKey('reasoning_content', $turn, 'The generic contract took over: Mistral answers 422 on that.');
         }
     }
 
     /**
-     * Un tour raisonné arrive en `MultiPartResult` — le convertisseur Mistral rend un
-     * `ThinkingResult` **et** un `TextResult`. `getContent()` y donne un tableau : sans
-     * `asText()`, le fil afficherait « Array » à la place de la réponse.
+     * A reasoned turn arrives as a `MultiPartResult` — the Mistral converter returns a
+     * `ThinkingResult` **and** a `TextResult`. `getContent()` gives an array there: without
+     * `asText()`, the thread would display "Array" in place of the reply.
      */
     public function testTheAnswerStaysTheTextEvenWhenTheTurnCarriesReasoning(): void
     {
@@ -109,7 +109,7 @@ final class DurableAgentReplayTest extends TestCase
         $scripted = [
             $this->toolCallResponse('call_1', 'weather', ['city' => 'Paris']),
             $this->toolCallResponse('call_2', 'weather', ['city' => 'Lyon']),
-            $this->textResponse('Paris 22°C, Lyon 25°C.', 'Les deux relevés sont là, je réponds.'),
+            $this->textResponse('Paris 22°C, Lyon 25°C.', 'Both readings are there, I answer.'),
         ];
 
         $environment = WorkflowTestEnvironment::inMemory([
@@ -131,7 +131,7 @@ final class DurableAgentReplayTest extends TestCase
 
                 return (new DurableAgentWorkflow($workflowEnvironment))->run(
                     self::TOOLS,
-                    prompt: 'Météo à Paris et à Lyon ?',
+                    prompt: 'Weather in Paris and in Lyon?',
                     mode: 'auto',
                     maxTurns: 1,
                 );

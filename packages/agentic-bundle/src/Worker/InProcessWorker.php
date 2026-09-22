@@ -10,16 +10,16 @@ use Symfony\Component\Messenger\Stamp\ReceivedStamp;
 use Symfony\Component\Messenger\Transport\Receiver\ReceiverInterface;
 
 /**
- * Le worker, dans le processus de l'interface : une passe sur les transports de Durable, sans
- * jamais attendre. C'est ce qui fait avancer les workflows et les activités quand personne ne lance
- * `messenger:consume` à côté — la TUI l'appelle à chaque rafraîchissement.
+ * The worker, inside the interface process: one pass over the Durable transports, never waiting.
+ * This is what moves the workflows and the activities forward when nobody is running
+ * `messenger:consume` alongside — the TUI calls it on every refresh.
  *
- * Un appel d'activité — l'appel au modèle compris — s'exécute pendant la passe : l'écran se fige le
- * temps d'une réponse de fournisseur.
+ * An activity call — the model call included — runs during the pass: the screen freezes for as long
+ * as a provider takes to answer.
  */
 final class InProcessWorker
 {
-    /** La dernière panne d'un message : l'interface la montre au lieu de mourir avec. */
+    /** The last breakdown of a message: the interface shows it instead of dying with it. */
     public private(set) ?\Throwable $lastFailure = null;
 
     /**
@@ -33,7 +33,7 @@ final class InProcessWorker
     }
 
     /**
-     * @return bool vrai si au moins un message a été traité
+     * @return bool true if at least one message was handled
      */
     public function pump(): bool
     {
@@ -50,8 +50,8 @@ final class InProcessWorker
                     $this->bus->dispatch($envelope->with(new ReceivedStamp($name)));
                     $receiver->ack($envelope);
                 } catch (\Throwable $exception) {
-                    // Le journal a déjà enregistré l'échec (`WorkflowExecutionFailed`) : relever ici
-                    // tuerait l'interface, pas l'exécution.
+                    // The journal has already recorded the failure (`WorkflowExecutionFailed`):
+                    // rethrowing here would kill the interface, not the run.
                     $receiver->reject($envelope);
                     $this->lastFailure = $exception;
                 }
@@ -63,8 +63,8 @@ final class InProcessWorker
     }
 
     /**
-     * Passe après passe jusqu'à ce que plus rien ne bouge — un tour d'agent enchaîne workflow,
-     * activité, workflow.
+     * Pass after pass until nothing moves any more — an agent turn chains workflow, activity,
+     * workflow.
      */
     public function drain(int $maxPasses = 100): void
     {

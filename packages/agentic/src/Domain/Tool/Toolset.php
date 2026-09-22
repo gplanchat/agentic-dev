@@ -7,17 +7,16 @@ namespace Gplanchat\Agentic\Domain\Tool;
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 
 /**
- * Les outils dont un agent dispose.
+ * The tools an agent has at its disposal.
  *
- * Trois choses les voulaient sous trois formes différentes : le toolbox une liste de schémas, la
- * garde une map nom → effet, le journal un objet JSON indexé par nom. D'où deux fabriques statiques
- * sur {@see ToolDefinition} et un `effects()` privé dans la fabrique d'agent, qui reconstruisaient
- * chacun la même chose. La collection les remplace : la liste est ici, les projections sont des
- * méthodes.
+ * Three things wanted them in three different shapes: the toolbox a list of schemas, the guard a
+ * name → effect map, the journal a JSON object indexed by name. Hence two static factories on
+ * {@see ToolDefinition} and a private `effects()` in the agent factory, each rebuilding the same
+ * thing. The collection replaces them: the list is here, the projections are methods.
  *
- * Fabrique de frontière dans les deux sens, comme {@see \Gplanchat\Agentic\Domain\Context\Conversation} : le fil est
- * un objet indexé par nom d'outil — c'est la forme qu'attendent les fournisseurs — et il ne
- * traverse pas le code.
+ * A boundary factory both ways, like {@see \Gplanchat\Agentic\Domain\Context\Conversation}: the wire is an object
+ * indexed by tool name — that is the shape providers expect — and it does not run through the
+ * code.
  */
 final readonly class Toolset implements \Countable, \IteratorAggregate
 {
@@ -30,7 +29,7 @@ final readonly class Toolset implements \Countable, \IteratorAggregate
     }
 
     /**
-     * La charge du workflow arrive du journal, donc en tableaux.
+     * The workflow payload arrives from the journal, hence as arrays.
      *
      * @param array<string, array{description?: string, effect?: string, parameters?: array<string, mixed>|null}> $wire
      */
@@ -63,15 +62,15 @@ final readonly class Toolset implements \Countable, \IteratorAggregate
     }
 
     /**
-     * Ce que fait un outil — la seule question que la garde pose à ce catalogue.
+     * What a tool does — the only question the guard asks this catalogue.
      *
-     * Un outil inconnu est externe : le défaut prudent, celui qui demande une validation dans tous
-     * les modes sauf `auto`.
+     * An unknown tool is external: the cautious default, the one that needs an approval in every
+     * mode but `auto`.
      */
     public function effectOf(string $name): ToolEffect
     {
-        // ponytail: balayage linéaire. Un agent porte une poignée d'outils ; le jour où il en
-        // porte cent, une map construite au constructeur.
+        // ponytail: linear scan. An agent carries a handful of tools; the day it carries a hundred,
+        // a map built in the constructor.
         foreach ($this->definitions as $definition) {
             if ($definition->name === $name) {
                 return $definition->effect;

@@ -32,12 +32,12 @@ use Gplanchat\Durable\Store\EventStoreInterface;
 use Gplanchat\Durable\Store\WorkflowMetadataStore;
 
 /**
- * Le fil de la conversation est une **projection du journal**, pas un état stocké à côté.
+ * The thread of the conversation is a **projection of the journal**, not a state stored on the
+ * side.
  *
- * Chaque `ai_model_invoke` porte en entrée la conversation complète du tour ; le dernier
- * `ActivityScheduled` de ce nom est donc l'instantané le plus riche, et sa complétion porte la
- * réponse. Aucune query workflow n'est nécessaire : DUR037/DUR043, une projection sur les
- * événements.
+ * Every `ai_model_invoke` carries as input the complete conversation of the turn; the last
+ * `ActivityScheduled` under that name is therefore the richest snapshot, and its completion carries
+ * the reply. No workflow query is necessary: DUR037/DUR043, a projection over the events.
  */
 final class ChatTranscript
 {
@@ -48,10 +48,10 @@ final class ChatTranscript
     }
 
     /**
-     * Le payload d'une activité n'a pas la même profondeur selon le backend : en mémoire l'événement
-     * porte les arguments de l'activité, sur Temporal il porte l'enveloppe `ActivityMessage` qui les
-     * contient. On descend jusqu'à la couche qui porte la clé attendue plutôt que de coder une
-     * profondeur — c'est la seule asymétrie que cette projection ait rencontrée entre les deux.
+     * The payload of an activity does not have the same depth depending on the backend: in memory
+     * the event carries the arguments of the activity, on Temporal it carries the `ActivityMessage`
+     * envelope that contains them. We descend to the layer that carries the expected key rather
+     * than hard-coding a depth — it is the only asymmetry this projection has met between the two.
      *
      * @param array<string, mixed> $payload
      *
@@ -67,15 +67,15 @@ final class ChatTranscript
     }
 
     /**
-     * Quand l'échéance tranchera à la place de l'humain.
+     * When the deadline will decide in place of the human.
      *
-     * `TimerScheduled::scheduledAt()` ne dit pas la même chose selon le backend : le cœur y met
-     * l'instant de tir, le pont Temporal l'instant de départ — son convertisseur construit
-     * `new TimerScheduled($id, $timerId, $ts)` avec l'horodatage de l'événement et laisse tomber
-     * `startToFireTimeout`. Tant que l'attente dure, le tir est forcément à venir : c'est ce qui
-     * permet de trancher entre les deux lectures sans deviner le backend.
+     * `TimerScheduled::scheduledAt()` does not say the same thing depending on the backend: the core
+     * puts the firing instant in it, the Temporal bridge the starting instant — its converter builds
+     * `new TimerScheduled($id, $timerId, $ts)` with the timestamp of the event and drops
+     * `startToFireTimeout`. As long as the wait lasts, the firing is necessarily still to come: that
+     * is what makes it possible to decide between the two readings without guessing the backend.
      *
-     * @param array<string, float> $deadlines minuteurs encore en vol
+     * @param array<string, float> $deadlines timers still in flight
      */
     private static function expiryOf(array $deadlines, ?Duration $timeout): ?float
     {
@@ -104,13 +104,14 @@ final class ChatTranscript
         $signalledModel = null;
         $messagesSignalled = 0;
         $deadlines = [];
-        // La charge de démarrage n'est pas au même endroit selon le backend : sur Temporal natif
-        // elle ouvre le journal (ExecutionStarted), sur DBAL un run dispatché n'écrit que ses
-        // événements d'exécution et la charge reste dans le store de métadonnées. On lit les deux.
+        // The start payload is not in the same place depending on the backend: on native Temporal it
+        // opens the journal (ExecutionStarted), on DBAL a dispatched run only writes its execution
+        // events and the payload stays in the metadata store. We read both.
         //
-        // L'événement passe devant, et ce n'est pas un détail de style : après un continue-as-new,
-        // le store de métadonnées porte encore la charge du **premier** run — celle d'avant le
-        // relais, dont le fil est vide. Seul l'événement du run courant dit ce que ce run a repris.
+        // The event goes first, and that is not a matter of style: after a continue-as-new, the
+        // metadata store still carries the payload of the **first** run — the one from before the
+        // relay, whose thread is empty. Only the event of the current run says what this run
+        // resumed.
         $startedFromStore = $this->metadataStore->get($executionId)['payload'] ?? [];
         $started = [];
 
@@ -125,8 +126,8 @@ final class ChatTranscript
                     continue;
                 }
 
-                // La compaction est un appel modèle comme un autre, sous un nom à part : sa charge
-                // est la conversation qu'on remplace, pas celle du tour en cours.
+                // Compaction is a model call like any other, under a name of its own: its payload is
+                // the conversation being replaced, not the one of the turn in progress.
                 if ('ai_model_compact' === $event->activityName()) {
                     $compactionCallId = $event->activityId();
 
@@ -148,9 +149,9 @@ final class ChatTranscript
             }
 
             if ($event instanceof TimerScheduled) {
-                // Pas de filtre sur le résumé : il ne survit pas à l'aller-retour Temporal, où
-                // l'événement revient sans lui. Un agent ne planifie de minuteur qu'ici, donc le
-                // dernier minuteur encore en vol est l'échéance de l'attente en cours.
+                // No filter on the summary: it does not survive the Temporal round trip, where the
+                // event comes back without it. An agent only schedules a timer here, so the last
+                // timer still in flight is the deadline of the wait in progress.
                 $deadlines[$event->timerId()] = $event->scheduledAt();
 
                 continue;
@@ -172,7 +173,7 @@ final class ChatTranscript
                 $signal = $event->signalPayload();
                 if ('user_message' === $event->signalName()) {
                     ++$messagesSignalled;
-                } elseif (\in_array($event->signalName(), ['tool_decision', 'question_answered', 'alerte'], true)) {
+                } elseif (\in_array($event->signalName(), ['tool_decision', 'question_answered', 'alert'], true)) {
                     $settled->settle((string) ($signal['callId'] ?? ''));
                 } elseif ('set_model' === $event->signalName() && '' !== trim((string) ($signal['model'] ?? ''))) {
                     $signalledModel = trim((string) $signal['model']);
@@ -193,7 +194,8 @@ final class ChatTranscript
                 $finished = true;
             }
 
-            // Un échec est une fin : sans ça, l'exécution morte paraîtrait réfléchir pour toujours.
+            // A failure is an ending: without this, the dead execution would look like it is
+            // thinking forever.
             if ($event instanceof WorkflowExecutionFailed) {
                 $finished = true;
                 $failure = $event->failureMessage();
@@ -202,13 +204,13 @@ final class ChatTranscript
 
         $started = [] !== $started ? $started : $startedFromStore;
 
-        // Un run repris — reprise après clôture ou continue-as-new — porte son fil d'origine dans
-        // sa charge de démarrage. Tant qu'aucun appel modèle ne l'a réémis, c'est la seule trace
-        // qu'en ait le journal ; sans ça la conversation paraît s'être vidée.
+        // A resumed run — resumed after closing or continue-as-new — carries its original thread in
+        // its start payload. As long as no model call has re-emitted it, that is the only trace the
+        // journal has of it; without this the conversation looks like it has emptied itself.
         //
-        // Sauf s'il l'a compacté : c'est alors le résumé qui fait foi, dès avant le premier tour.
-        // L'afficher plus tôt n'aurait pas seulement l'air faux — le fil complet compterait des
-        // messages que le modèle ne verra jamais, et fausserait le statut de l'agent.
+        // Unless it compacted it: then it is the summary that counts, from before the first turn.
+        // Displaying it earlier would not only look wrong — the complete thread would count
+        // messages the model will never see, and would skew the status of the agent.
         $digest = null !== $compactionCallId
             ? ChatCompletion::fromWire($results[$compactionCallId] ?? null)?->text
             : null;
@@ -219,15 +221,16 @@ final class ChatTranscript
             $messages = $carried;
         }
 
-        // Le fil repris entre dans le sac dès le premier appel modèle. Sans le compter du côté des
-        // messages reçus, `messagesSignalled` (ce run seul) et `messagesSeenByModel` (le sac entier)
-        // cessent de parler de la même chose, et l'agent paraît au repos pendant qu'il travaille.
+        // The resumed thread enters the bag as soon as the first model call happens. Without
+        // counting it on the received-messages side, `messagesSignalled` (this run alone) and
+        // `messagesSeenByModel` (the whole bag) stop talking about the same thing, and the agent
+        // looks idle while it is working.
         $messagesSignalled += \count(array_filter(
             $carried,
             static fn (array $message): bool => 'user' === ($message['role'] ?? null),
         ));
 
-        // Le dernier `set_mode` l'emporte sur le mode de démarrage : il lui est postérieur.
+        // The last `set_mode` wins over the start-up mode: it comes after it.
         $mode = $signalledMode ?? AgentMode::tryFrom((string) ($started['mode'] ?? '')) ?? AgentMode::Standard;
         $humanTimeout = Duration::fromWireValue($started['humanTimeoutSeconds'] ?? null);
 
@@ -236,8 +239,8 @@ final class ChatTranscript
             $steps[$activityId] = $step->withResult(\is_string($result) ? $result : null);
         }
 
-        // Deux attentes humaines, lues au même endroit : le modèle a demandé un outil, et ni
-        // l'activité ni la réponse ne sont au journal. La garde retient l'un, le guichet l'autre.
+        // Two human waits, read in the same place: the model asked for a tool, and neither the
+        // activity nor the answer is in the journal. The guard holds one back, the desk the other.
         $expiresAt = self::expiryOf($deadlines, $humanTimeout);
         $answer = ChatCompletion::fromWire($results[$lastModelCallId] ?? null);
         $pending = [];
@@ -258,7 +261,8 @@ final class ChatTranscript
                 try {
                     $watches[] = Watch::fromArguments($ref->callId, $ref->arguments, WatchSubjects::fromWire($started['watchSubjects'] ?? []), $expiresAt);
                 } catch (UnknownWatchSubject) {
-                    // Refusée par l'exécuteur, rendue au modèle : ce n'est pas une veille en cours.
+                    // Refused by the executor, handed back to the model: this is not a watch in
+                    // progress.
                 }
 
                 continue;
@@ -268,14 +272,14 @@ final class ChatTranscript
                 $ref->callId,
                 $ref->tool,
                 $ref->arguments,
-                'En attente de ta décision.',
+                'Waiting for your decision.',
                 $expiresAt,
             );
         }
 
-        // Un message signalé que le dernier appel modèle ne contient pas encore : le tour a commencé
-        // mais le journal n'en porte pas encore la trace. Sans ça l'agent paraît inactif entre la
-        // soumission et la planification de l'activité.
+        // A signalled message the last model call does not contain yet: the turn has started but the
+        // journal does not carry its trace yet. Without this the agent looks inactive between the
+        // submission and the scheduling of the activity.
         $messagesSeenByModel = \count(array_filter(
             $messages,
             static fn (array $message): bool => 'user' === ($message['role'] ?? null),
@@ -286,10 +290,10 @@ final class ChatTranscript
             static fn (TranscriptMessage $message): bool => !$message->isSystem(),
         ));
 
-        // Le raisonnement du dernier tour n'est nulle part ailleurs : les tours précédents ont le
-        // leur dans la charge du tour d'après (le normaliseur l'y remet), mais le dernier n'a pas
-        // de tour d'après. Il se lit dans le résultat, mêlé à la réponse — et c'est {@see ChatCompletion}
-        // qui fait le découpage, le même que pour le fil.
+        // The reasoning of the last turn is nowhere else: the previous turns have theirs in the
+        // payload of the next turn (the normaliser puts it back in), but the last one has no next
+        // turn. It is read in the result, mixed with the reply — and it is {@see ChatCompletion}
+        // that does the splitting, the same one as for the thread.
         if (null !== $answer?->text && '' !== $answer->text) {
             $thread[] = TranscriptMessage::assistant($answer->text, $answer->reasoning);
         }
@@ -302,14 +306,14 @@ final class ChatTranscript
             $watches,
             $mode,
             $humanTimeout,
-            // Quatre façons d'avoir un tour en cours : une compaction en vol, un message reçu que
-            // le modèle n'a pas encore vu, un appel modèle planifié sans résultat, ou une réponse
-            // qui demande encore des outils. Aucun appel modèle du tout n'est *pas* un tour en
-            // cours : c'est l'état de départ, où le workflow est suspendu sur son premier signal.
+            // Four ways of having a turn in progress: a compaction in flight, a received message the
+            // model has not seen yet, a model call scheduled without a result, or a reply that still
+            // asks for tools. No model call at all is *not* a turn in progress: that is the starting
+            // state, where the workflow is suspended on its first signal.
             //
-            // Et trois façons de ne PAS travailler tout en n'ayant pas fini : la balle est dans le
-            // camp de l'humain — une validation, une question, une veille armée. Ce n'est pas de
-            // l'attente machine, et l'afficher comme telle ferait mentir le statut.
+            // And three ways of NOT working while not being finished either: the ball is in the
+            // human's court — an approval, a question, an armed watch. That is not machine waiting,
+            // and displaying it as such would make the status lie.
             !$finished && [] === $pending && [] === $questions && [] === $watches && (
                 (null !== $compactionCallId && !\array_key_exists($compactionCallId, $results))
                 || $messagesSignalled > $messagesSeenByModel
@@ -321,6 +325,7 @@ final class ChatTranscript
             $signalledModel ?? (string) ($started['model'] ?? ''),
             Toolset::fromWire(\is_array($started['tools'] ?? null) ? $started['tools'] : []),
             RuleBasedToolGuard::rulesFromWire(\is_array($started['toolRules'] ?? null) ? $started['toolRules'] : []),
+            \is_string($started['workspace'] ?? null) ? $started['workspace'] : null,
         );
     }
 }

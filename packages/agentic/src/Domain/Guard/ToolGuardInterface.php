@@ -7,11 +7,11 @@ namespace Gplanchat\Agentic\Domain\Guard;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 
 /**
- * L'équivalent d'un hook Claude Code, mais évalué **en code workflow**.
+ * The equivalent of a Claude Code hook, but evaluated **in workflow code**.
  *
- * Conséquence à ne pas perdre de vue : une garde est rejouée à chaque reprise, donc elle doit être
- * pure. Une garde qui lit une base ou une horloge ferait diverger le rejeu — si une décision a
- * besoin d'un fait extérieur, ce fait doit passer par une activité, pas par la garde.
+ * A consequence not to lose sight of: a guard is replayed on every resume, so it must be pure. A
+ * guard that reads a database or a clock would make the replay diverge — if a decision needs an
+ * outside fact, that fact must come through an activity, not through the guard.
  */
 interface ToolGuardInterface
 {

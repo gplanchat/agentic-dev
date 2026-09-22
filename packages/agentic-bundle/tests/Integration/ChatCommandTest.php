@@ -16,14 +16,14 @@ final class ChatCommandTest extends KernelTestCase
     }
 
     /**
-     * C'était le défaut rapporté : un identifiant inconnu ouvrait un écran vide qui ne répondait
-     * jamais. Il est refusé, en le nommant.
+     * This was the reported defect: an unknown identifier opened a blank screen that never
+     * answered. It is refused, and named.
      */
     public function testAnUnknownConversationIsRefused(): void
     {
         $tester = new CommandTester(self::getContainer()->get(AgenticApplication::class)->find('chat'));
 
         self::assertSame(1, $tester->execute(['conversation' => '00000000-0000-4000-8000-000000000000']));
-        self::assertStringContainsString('Conversation inconnue : 00000000-0000-4000-8000-000000000000', $tester->getDisplay());
+        self::assertStringContainsString('Unknown conversation: 00000000-0000-4000-8000-000000000000', $tester->getDisplay());
     }
 }

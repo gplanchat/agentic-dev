@@ -8,6 +8,7 @@ use Gplanchat\Agentic\Application\Chat\Conversations;
 use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
+use Revolt\EventLoop;
 use Symfony\Component\Tui\Event\CancelEvent;
 use Symfony\Component\Tui\Event\ChangeEvent;
 use Symfony\Component\Tui\Event\InputEvent;
@@ -25,37 +26,37 @@ use Symfony\Component\Tui\Widget\TextWidget;
 use Symfony\Component\Tui\Widget\Util\StringUtils;
 
 /**
- * L'écran de chat : le fil, puis ce que la conversation attend de l'humain — un message, une
- * validation, une réponse, une alerte.
+ * The chat screen: the thread, then what the conversation expects from the human — a message, an
+ * approval, an answer, an alert.
  *
- * L'écran n'a pas d'état de conversation à lui : il relit la projection du journal à chaque
- * rafraîchissement, après avoir fait avancer le worker. Quitter (Ctrl+C) ne clôt pas la
- * conversation ; Ctrl+X la clôt ; Shift+Tab fait tourner le mode, affiché en bas. La molette et
- * Pg.Préc/Pg.Suiv font défiler le fil ; ↑/↓ rappellent les messages déjà envoyés, comme un shell. Une ligne qui commence par `/` est une commande
- * ({@see SlashCommands}), pas un message.
+ * The screen has no conversation state of its own: it reads the projection of the journal again on
+ * every refresh, after having moved the worker forward. Quitting (Ctrl+C) does not close the
+ * conversation; Ctrl+X closes it; Shift+Tab rotates the mode, shown at the bottom. The wheel and
+ * Pg.Up/Pg.Dn scroll the thread; ↑/↓ recall the messages already sent, like a shell. A line that starts with `/` is a command
+ * ({@see SlashCommands}), not a message.
  */
 final class ChatView
 {
     private const REFRESH_SECONDS = 0.25;
 
-    /** Le tempo de la banane. */
+    /** The tempo of the banana. */
     private const BEAT_SECONDS = 0.4;
 
-    /** Lignes parcourues par cran de molette. */
+    /** Lines covered by one notch of the wheel. */
     private const WHEEL_LINES = 3;
 
     /**
-     * Le terminal envoie la molette à l'application plutôt qu'à son propre défilement : mode 1000
-     * (clics et molette, pas les mouvements), codage SGR 1006. Rétabli à la sortie.
+     * The terminal sends the wheel to the application rather than to its own scrolling: mode 1000
+     * (clicks and wheel, not the moves), SGR 1006 encoding. Restored on the way out.
      */
     private const MOUSE_ON = "\e[?1000h\e[?1006h";
 
     private const MOUSE_OFF = "\e[?1006l\e[?1000l";
 
     /**
-     * L'écran alternatif, celui de vim ou de less : pas d'historique de défilement propre au
-     * terminal, l'écran d'avant rendu tel quel à la sortie. Le curseur est ramené en haut à gauche,
-     * d'où le rendu part.
+     * The alternate screen, the one of vim or less: no scrollback of the terminal's own, the
+     * previous screen handed back as it was on the way out. The cursor is brought back to the top
+     * left, where the rendering starts from.
      */
     private const SCREEN_ON = "\e[?1049h\e[H";
 
@@ -69,61 +70,61 @@ final class ChatView
 
     private readonly ContainerWidget $interaction;
 
-    /** Ce que fait l'agent pendant qu'il travaille — en mots de banane. */
+    /** What the agent is doing while it works — in banana words. */
     private readonly TextWidget $status;
 
-    /** Ce que rend une commande, ou les commandes qui correspondent à ce qui est tapé. */
+    /** What a command hands back, or the commands matching what is typed. */
     private readonly TextWidget $notice;
 
-    /** La barre du bas : le mode, puis les touches. */
+    /** The bottom bar: the mode, then the keys. */
     private readonly TextWidget $footer;
 
-    /** Le champ de message, quand c'est lui qui est à l'écran : la complétion par Tab y écrit. */
+    /** The message field, when it is the one on screen: Tab completion writes into it. */
     private ?InputWidget $input = null;
 
     private readonly Keybindings $keys;
 
-    /** Ce que l'humain a devant lui ; ne change pas tant que la conversation attend la même chose. */
+    /** What the human has in front of them; unchanged as long as the conversation waits for the same thing. */
     private string $interactionKey = '';
 
     private string $lastRendered = '';
 
     private AgentMode $mode = AgentMode::Standard;
 
-    /** Le temps de la danse où en est la banane. */
+    /** The beat of the dance the banana is on. */
     private int $beat = 0;
 
     private ?Transcript $transcript = null;
 
-    /** @var list<string> ce que l'humain a déjà envoyé, messages et commandes, du plus ancien au plus récent */
+    /** @var list<string> what the human has already sent, messages and commands, oldest first */
     private array $history = [];
 
-    /** Où en est le rappel par ↑/↓ ; `null` = on tape une ligne neuve. */
+    /** Where the ↑/↓ recall stands; `null` = a fresh line is being typed. */
     private ?int $recall = null;
 
-    /** La ligne en cours de frappe, mise de côté le temps de parcourir l'historique. */
+    /** The line being typed, set aside while the history is browsed. */
     private string $draft = '';
 
     /**
-     * Les messages envoyés que le journal ne montre pas encore : affichés tout de suite, marqués
-     * « envoyé », pour que l'humain sache qu'ils sont partis.
+     * The sent messages the journal does not show yet: displayed at once, marked "sent", so that
+     * the human knows they have left.
      *
-     * @var list<array{text: string, expected: int}> `expected` : le nombre de messages humains du fil une fois celui-ci arrivé
+     * @var list<array{text: string, expected: int}> `expected`: the number of human messages in the thread once this one has arrived
      */
     private array $outbox = [];
 
     private readonly BananaWords $words;
 
-    /** Depuis quand l'agent travaille ; `null` quand c'est à l'humain. */
+    /** Since when the agent has been working; `null` when it is the human's turn. */
     private ?float $busySince = null;
 
-    /** Un appel d'activité peut suspendre le worker : pas deux vidanges à la fois. */
+    /** An activity call can suspend the worker: no two drains at a time. */
     private bool $draining = false;
 
-    /** @var array{choices: list<array{value: string, label: string, description?: string}>, choose: string}|null ce qu'une commande demande de choisir */
+    /** @var array{choices: list<array{value: string, label: string, description?: string}>, choose: string}|null what a command asks to choose */
     private ?array $choice = null;
 
-    /** Ce qu'il faudra mettre dans la prochaine saisie affichée — le message défait par `/rewind`. */
+    /** What to put into the next input shown — the message undone by `/rewind`. */
     private ?string $prefill = null;
 
     public function __construct(
@@ -132,13 +133,16 @@ final class ChatView
         private readonly SlashCommands $commands,
         public private(set) string $conversation,
         ?TerminalInterface $terminal = null,
+        ?string $startupNotice = null,
     ) {
         $this->tui = new Tui(terminal: $terminal);
         $this->header = new TextWidget();
         $this->thread = new ThreadWidget();
         $this->interaction = new ContainerWidget();
         $this->status = new TextWidget();
-        $this->notice = new TextWidget();
+        // What the screen must say straight away — an unavailable sandbox. Written before the
+        // alternate screen, it would vanish with it.
+        $this->notice = new TextWidget(null === $startupNotice ? '' : self::styled('⚠ '.$startupNotice, "\e[33m")."\n");
         $this->footer = new TextWidget($this->footerText());
         $this->words = new BananaWords();
         $this->tui
@@ -165,7 +169,11 @@ final class ChatView
     public function run(): void
     {
         $this->refresh();
-        $this->tui->scheduleInterval($this->refresh(...), self::REFRESH_SECONDS);
+        // The worker runs on the loop, **not** in the TUI clock: an activity that suspends its
+        // fiber — the model call — would otherwise leave `Tui::tick()` in progress, and the screen
+        // would stop redrawing until the answer. Here the dance and the rendering carry on during
+        // the call.
+        $pump = EventLoop::repeat(self::REFRESH_SECONDS, fn (): null => $this->refresh() ?? null);
         $this->tui->scheduleInterval($this->dance(...), self::BEAT_SECONDS);
 
         $terminal = $this->tui->getTerminal();
@@ -173,18 +181,20 @@ final class ChatView
         try {
             $this->tui->run();
         } finally {
-            // Sans ça, le terminal resterait en mode souris et sur l'écran alternatif après la
-            // sortie : la molette y taperait des séquences, et le shell réapparaîtrait sur un écran
-            // sans historique.
+            EventLoop::cancel($pump);
+            // Without this, the terminal would stay in mouse mode and on the alternate screen
+            // after the exit: the wheel would type sequences there, and the shell would reappear on
+            // a screen with no scrollback.
             $terminal->write(self::MOUSE_OFF.self::SCREEN_OFF);
         }
     }
 
     /**
-     * Fait avancer le worker, relit le fil, et ne retouche l'écran que si quelque chose a changé.
+     * Moves the worker forward, reads the thread again, and only touches the screen if something
+     * has changed.
      *
-     * @param bool $drain faux juste après une action de l'humain : on montre d'abord qu'elle est
-     *                    partie, le worker la traitera au tour d'horloge suivant
+     * @param bool $drain false right after an action of the human: we first show that it has left,
+     *                    the worker will handle it at the next clock tick
      */
     public function refresh(bool $drain = true): void
     {
@@ -199,7 +209,7 @@ final class ChatView
         $transcript = $this->conversations->transcript($this->conversation);
         $this->mode = $transcript->mode;
         if (null === $this->transcript && [] === $this->history) {
-            // Une conversation reprise : ses messages sont l'historique de départ.
+            // A resumed conversation: its messages are the starting history.
             foreach ($transcript->messages as $message) {
                 if ($message->isUser() && '' !== trim((string) $message->content)) {
                     $this->history[] = (string) $message->content;
@@ -208,10 +218,10 @@ final class ChatView
         }
         $this->transcript = $transcript;
 
-        // Un message envoyé quitte la file d'attente dès que le fil le montre.
+        // A sent message leaves the outbox as soon as the thread shows it.
         $said = self::userMessages($transcript);
         $this->outbox = null !== $transcript->failure
-            // Une exécution morte ne verra jamais ces messages : les laisser « en route » mentirait.
+            // A dead run will never see these messages: leaving them "on the way" would lie.
             ? []
             : array_values(array_filter($this->outbox, static fn (array $sent): bool => $sent['expected'] > $said));
         $this->updateBusy($transcript);
@@ -230,7 +240,7 @@ final class ChatView
     }
 
     /**
-     * Un temps de danse : seul l'en-tête change, le fil n'est pas relu.
+     * One beat of the dance: only the header changes, the thread is not read again.
      */
     public function dance(): void
     {
@@ -255,7 +265,7 @@ final class ChatView
         }
 
         if (str_starts_with($data, "\e[<") || str_starts_with($data, "\e[M")) {
-            // Un clic, pas la molette : rien à en faire, mais il ne doit pas finir dans la saisie.
+            // A click, not the wheel: nothing to do with it, but it must not end up in the input.
             $event->stopPropagation();
 
             return;
@@ -292,8 +302,8 @@ final class ChatView
             $event->stopPropagation();
             $this->act(fn () => $this->conversations->close($this->conversation));
         } elseif ($this->keys->matches($data, 'complete') && null !== $this->input && $this->tui->getFocus() === $this->input) {
-            // Tab complète le nom de commande tapé — la première qui correspond, comme un shell
-            // qui n'aurait qu'une réponse à donner.
+            // Tab completes the command name typed — the first one that matches, like a shell
+            // that would have a single answer to give.
             $suggestions = SlashCommands::suggestions($this->input->getValue());
             if ([] !== $suggestions) {
                 $event->stopPropagation();
@@ -304,14 +314,14 @@ final class ChatView
     }
 
     /**
-     * Une intention de l'humain devient un signal ; l'écran se relit aussitôt, sans attendre le
-     * prochain tour d'horloge.
+     * An intent of the human becomes a signal; the screen reads itself again at once, without
+     * waiting for the next clock tick.
      */
     private function act(\Closure $intent): void
     {
         $intent();
-        // D'abord montrer que c'est parti, tout de suite ; le worker — et l'appel au modèle, qui
-        // peut durer — attendra le prochain tour d'horloge.
+        // First show that it has left, right away; the worker — and the model call, which can take
+        // a while — will wait for the next clock tick.
         $this->refresh(drain: false);
         $this->tui->processRender();
     }
@@ -339,15 +349,15 @@ final class ChatView
     }
 
     /**
-     * L'en-tête : la banane qui danse, et à côté ce qu'il faut savoir de la conversation.
+     * The header: the dancing banana, and next to it what there is to know of the conversation.
      */
     private function headerText(Transcript $transcript): string
     {
         $status = match (true) {
-            null !== $transcript->failure => "\e[31méchouée : ".self::clean($transcript->failure)."\e[0m",
-            $transcript->finished => "\e[2mterminée\e[0m",
-            $transcript->working => "\e[33mréfléchit…\e[0m",
-            default => "\e[32mà toi\e[0m",
+            null !== $transcript->failure => "\e[31mfailed: ".self::clean($transcript->failure)."\e[0m",
+            $transcript->finished => "\e[2mfinished\e[0m",
+            $transcript->working => "\e[33mthinking…\e[0m",
+            default => "\e[32myour turn\e[0m",
         };
 
         $info = [
@@ -367,7 +377,7 @@ final class ChatView
     }
 
     /**
-     * Le mode en tête de la barre du bas, coloré selon ce qu'il laisse passer sans demander.
+     * The mode at the head of the bottom bar, coloured after what it lets through without asking.
      */
     private function footerText(): string
     {
@@ -378,15 +388,15 @@ final class ChatView
         };
 
         return \sprintf(
-            "%s● mode %s\e[0m \e[2m· ⇧Tab mode · ↑↓ historique · / cmd · ^X clore · ^C quitter\e[0m",
+            "%s● mode %s\e[0m \e[2m· ⇧Tab mode · ↑↓ history · / cmd · ^X close · ^C quit\e[0m",
             $color,
             $this->mode->value,
         );
     }
 
     /**
-     * Le fil tel qu'il s'affiche : les messages humains et la mécanique en texte stylé, les réponses
-     * du modèle en Markdown, puis ce qui vient d'être envoyé et que le journal ne montre pas encore.
+     * The thread as it shows: the human messages and the machinery as styled text, the model
+     * answers as Markdown, then what has just been sent and that the journal does not show yet.
      *
      * @return list<array{string, bool}>
      */
@@ -396,7 +406,7 @@ final class ChatView
 
         foreach ($transcript->messages as $message) {
             $content = self::clean((string) $message->content);
-            // Le résultat d'un outil est déjà dans les étapes « ⚙ » : l'afficher ici le doublerait.
+            // A tool result is already in the "⚙" steps: showing it here would double it.
             if ('' === $content || 'tool' === $message->role) {
                 continue;
             }
@@ -419,7 +429,7 @@ final class ChatView
 
         foreach ($this->outbox as $sent) {
             $entries[] = ['', false];
-            $entries[] = [self::styled('› '.self::clean($sent['text']), "\e[36m")."  \e[2m✓ envoyé\e[0m", false];
+            $entries[] = [self::styled('› '.self::clean($sent['text']), "\e[36m")."  \e[2m✓ sent\e[0m", false];
         }
 
         return $entries;
@@ -429,7 +439,7 @@ final class ChatView
     {
         [$key, $build] = match (true) {
             null !== $this->choice => ['choice:'.md5(json_encode($this->choice, \JSON_THROW_ON_ERROR)), fn (): array => $this->choiceList()],
-            $transcript->finished => ['finished', fn (): array => [new TextWidget("Conversation terminée. Ctrl+C pour quitter.\n")]],
+            $transcript->finished => ['finished', fn (): array => [new TextWidget("Conversation finished. Ctrl+C to quit.\n")]],
             [] !== $transcript->pending => ['approval:'.$transcript->pending[0]->callId, fn (): array => $this->approval($transcript)],
             [] !== $transcript->questions => ['question:'.$transcript->questions[0]->callId, fn (): array => $this->question($transcript)],
             [] !== $transcript->watches => ['watch:'.$transcript->watches[0]->callId, fn (): array => $this->watch($transcript)],
@@ -485,8 +495,8 @@ final class ChatView
     }
 
     /**
-     * Comme un shell : ↑ remonte vers les lignes plus anciennes, ↓ redescend, et au-delà de la plus
-     * récente on retrouve ce qu'on était en train de taper.
+     * Like a shell: ↑ goes up towards the older lines, ↓ comes back down, and past the most recent
+     * one you find again what you were typing.
      */
     private function recallHistory(int $direction): void
     {
@@ -516,7 +526,7 @@ final class ChatView
 
     private function remember(string $line): void
     {
-        // Deux fois la même ligne d'affilée n'en fait qu'une, comme dans un shell.
+        // The same line twice in a row makes only one, as in a shell.
         if ($line !== ($this->history[\count($this->history) - 1] ?? null)) {
             $this->history[] = $line;
         }
@@ -525,7 +535,7 @@ final class ChatView
     }
 
     /**
-     * Ce que l'humain vient de décider, dit tout de suite : la carte disparaît, la trace reste.
+     * What the human has just decided, said at once: the card goes away, the trace stays.
      */
     private function confirm(string $what, string $detail): void
     {
@@ -557,8 +567,8 @@ final class ChatView
     }
 
     /**
-     * Une autre exécution : tout ce que l'écran croyait savoir de la précédente est caduc. Seul
-     * l'historique de saisie reste — c'est celui de l'humain, pas de la conversation.
+     * Another run: everything the screen thought it knew of the previous one is void. Only the
+     * input history stays — it is the human's, not the conversation's.
      */
     private function switchTo(string $conversation): void
     {
@@ -616,11 +626,11 @@ final class ChatView
     {
         $pending = $transcript->pending[0];
         $list = new SelectListWidget([
-            ['value' => 'yes', 'label' => 'Approuver'],
-            ['value' => 'no', 'label' => 'Refuser'],
+            ['value' => 'yes', 'label' => 'Approve'],
+            ['value' => 'no', 'label' => 'Refuse'],
         ]);
         $list->onSelect(function (SelectEvent $event) use ($pending): void {
-            $this->confirm('yes' === $event->getValue() ? 'Approuvé' : 'Refusé', $pending->tool);
+            $this->confirm('yes' === $event->getValue() ? 'Approved' : 'Refused', $pending->tool);
             $this->act(fn () => $this->conversations->decide($this->conversation, $pending->callId, 'yes' === $event->getValue()));
         });
 
@@ -648,11 +658,11 @@ final class ChatView
 
         $list = new SelectListWidget($items, multiselect: $question->multiSelect);
         $list->onSelect(function (SelectEvent $event) use ($question): void {
-            $this->confirm('Réponse envoyée', $event->getValue());
+            $this->confirm('Answer sent', $event->getValue());
             $this->act(fn () => $this->conversations->answer($this->conversation, $question->callId, [$event->getValue()]));
         });
         $list->onMultiSelect(function (MultiSelectEvent $event) use ($question): void {
-            $this->confirm('Réponse envoyée', [] === $event->getValues() ? 'rien' : implode(', ', $event->getValues()));
+            $this->confirm('Answer sent', [] === $event->getValues() ? 'nothing' : implode(', ', $event->getValues()));
             $this->act(fn () => $this->conversations->answer($this->conversation, $question->callId, $event->getValues()));
         });
 
@@ -661,7 +671,7 @@ final class ChatView
                 "\e[35m? %s\e[0m %s%s",
                 self::clean($question->header),
                 self::clean($question->question),
-                $question->multiSelect ? "\n\e[2mEspace coche, Entrée valide\e[0m" : '',
+                $question->multiSelect ? "\n\e[2mSpace ticks, Enter confirms\e[0m" : '',
             )),
             $list,
         ];
@@ -673,17 +683,17 @@ final class ChatView
     private function watch(Transcript $transcript): array
     {
         $watch = $transcript->watches[0];
-        // En production, l'alerte vient du dehors — un webhook, une supervision. Ici l'humain peut
-        // la lever à la main, comme la page de la maquette.
-        $input = (new InputWidget())->setPrompt('alerte › ');
+        // In production, the alert comes from outside — a webhook, a monitoring system. Here the
+        // human can raise it by hand, as on the mock-up page.
+        $input = (new InputWidget())->setPrompt('alert › ');
         $input->onSubmit(function (SubmitEvent $event) use ($watch): void {
-            $this->confirm('Alerte levée', '' === trim($event->getValue()) ? $watch->observation : $event->getValue());
+            $this->confirm('Alert raised', '' === trim($event->getValue()) ? $watch->observation : $event->getValue());
             $this->act(fn () => $this->conversations->alert($this->conversation, $watch->callId, $event->getValue()));
         });
 
         return [
             new TextWidget(\sprintf(
-                "\e[34m◷ en veille sur %s\e[0m : %s\n\e[2mCe que l'agent fera : %s\e[0m",
+                "\e[34m◷ watching %s\e[0m: %s\n\e[2mWhat the agent will do: %s\e[0m",
                 $watch->subject->value,
                 self::clean($watch->observation),
                 self::clean($watch->intention),
@@ -693,8 +703,8 @@ final class ChatView
     }
 
     /**
-     * Tout ce qui vient du modèle ou du journal est non sûr : pas de séquence de contrôle à
-     * l'écran.
+     * Everything that comes from the model or the journal is untrusted: no control sequence on the
+     * screen.
      */
     private static function clean(string $text): string
     {
@@ -702,7 +712,7 @@ final class ChatView
     }
 
     /**
-     * Le style s'applique ligne par ligne : le repli à la largeur du terminal ne doit pas le perdre.
+     * The style applies line by line: the wrapping to the terminal width must not lose it.
      */
     private static function styled(string $text, string $style): string
     {

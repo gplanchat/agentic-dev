@@ -9,7 +9,7 @@ use Gplanchat\Durable\Transport\FireWorkflowTimersMessage;
 use Gplanchat\Durable\Transport\ResumeWorkflowMessage;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 
-// Un seul processus : la TUI fait office de worker sur des transports en mémoire.
+// A single process: the TUI acts as the worker, over in-memory transports.
 return static function (ContainerConfigurator $container): void {
     $container->extension('framework', [
         'messenger' => [
@@ -21,7 +21,7 @@ return static function (ContainerConfigurator $container): void {
             'routing' => [
                 ResumeWorkflowMessage::class => 'durable_workflows',
                 ActivityMessage::class => 'durable_activities',
-                // Un `DelayStamp` sur `sync://` est ignoré : les échéances ne tireraient jamais.
+                // A `DelayStamp` on `sync://` is ignored: deadlines would never fire.
                 FireWorkflowTimersMessage::class => 'durable_workflows',
                 DeliverWorkflowSignalMessage::class => 'sync',
                 DeliverWorkflowUpdateMessage::class => 'sync',

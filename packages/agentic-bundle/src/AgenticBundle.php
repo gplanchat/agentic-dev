@@ -21,7 +21,10 @@ use Gplanchat\AgenticBundle\Console\ChatCommand;
 use Gplanchat\AgenticBundle\Console\ConsoleCommandCatalog;
 use Gplanchat\AgenticBundle\Console\HelpCommand;
 use Gplanchat\AgenticBundle\Controller\HelpController;
+use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
+use Gplanchat\AgenticBundle\Sandbox\Worktrees;
 use Gplanchat\AgenticBundle\Tool\AgentTools;
+use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use Gplanchat\AgenticBundle\Tui\HelpScreen;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
@@ -41,9 +44,9 @@ use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_iterator;
 
 /**
- * Le bundle fournit deux adaptateurs primaires : l'application TUI `agentic` (sa propre application
- * Console, distincte de `bin/console`) et sa version web. Derrière, un agent durable : une
- * conversation est une exécution de {@see DurableAgentWorkflow}.
+ * The bundle provides two primary adapters: the `agentic` TUI application (its own Console
+ * application, separate from `bin/console`) and its web version. Behind them, a durable agent: a
+ * conversation is a run of {@see DurableAgentWorkflow}.
  */
 final class AgenticBundle extends AbstractBundle
 {
@@ -56,33 +59,70 @@ final class AgenticBundle extends AbstractBundle
         $definition->rootNode()
             ->children()
                 ->scalarNode('model')->defaultValue('mistral-small-latest')->end()
-                ->scalarNode('mistral_api_key')->defaultValue('')->info('Vide : un client scripté répond, sans réseau.')->end()
+                ->scalarNode('mistral_api_key')->defaultValue('')->info('Empty: a scripted client answers, with no network.')->end()
                 ->scalarNode('system_prompt')->defaultValue(DurableAgentWorkflow::SYSTEM_PROMPT)->end()
-                ->floatNode('human_timeout_seconds')->defaultValue(900.0)->info('Échéance de toute attente humaine : validation comme question.')->end()
-                ->floatNode('idle_timeout_seconds')->defaultValue(3600.0)->info('Silence au bout duquel la conversation se termine.')->end()
+                ->floatNode('human_timeout_seconds')->defaultValue(900.0)->info('Deadline of every wait on a human: approval as well as question.')->end()
+                ->floatNode('idle_timeout_seconds')->defaultValue(3600.0)->info('Silence after which the conversation ends.')->end()
                 ->integerNode('rollover_after_turns')->defaultValue(40)->end()
                 ->integerNode('context_tokens')->defaultValue(24_000)->end()
                 ->scalarNode('instructions_file')
                     ->defaultValue('%kernel.project_dir%/AGENTS.md')
-                    ->info('Consignes du projet ajoutées au prompt système au démarrage de chaque conversation. Absent : ignoré ; null : désactivé.')
+                    ->info('Project instructions appended to the system prompt when each conversation starts. Missing: ignored; null: disabled.')
                 ->end()
                 ->arrayNode('tool_rules')
-                    ->info('Les hooks de décision : pour un outil (motif fnmatch) et des arguments, allow, ask ou deny. deny > ask > allow ; sans règle, le mode.')
+                    ->info('The decision hooks: for a tool (fnmatch pattern) and arguments, allow, ask or deny. deny > ask > allow; with no rule, the mode.')
                     ->arrayPrototype()
                         ->children()
                             ->scalarNode('tool')->isRequired()->cannotBeEmpty()->end()
                             ->enumNode('decision')->values(['allow', 'ask', 'deny'])->isRequired()->end()
                             ->arrayNode('when')
-                                ->info('argument → motif que sa valeur doit suivre')
+                                ->info('argument → pattern its value must follow')
                                 ->useAttributeAsKey('argument')
                                 ->scalarPrototype()->end()
                             ->end()
                             ->scalarNode('reason')->defaultValue('')->end()
+                            ->arrayNode('modes')
+                                ->info('the modes where the rule holds; empty: all of them')
+                                ->enumPrototype()->values(['auto', 'edition', 'standard'])->end()
+                            ->end()
+                            ->arrayNode('unless')
+                                ->info('argument → patterns that set the rule aside')
+                                ->useAttributeAsKey('argument')
+                                ->arrayPrototype()->scalarPrototype()->end()->end()
+                            ->end()
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('sandbox')
+                    ->info('The run_command tool, run inside a bubblewrap sandbox: the project writable, no network and nothing else from the disk.')
+                    ->canBeEnabled()
+                    ->children()
+                        ->scalarNode('workspace')->defaultValue('%kernel.project_dir%')->end()
+                        ->arrayNode('hidden')
+                            ->info('Project paths masked inside the sandbox (glob patterns): secrets, the agent journal.')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['.env.local', '.env.*.local', 'var'])
+                        ->end()
+                        ->floatNode('timeout_seconds')->defaultValue(120.0)->end()
+                        ->scalarNode('binary')->defaultValue('bwrap')->end()
+                        ->booleanNode('worktrees')
+                            ->info('One git worktree per conversation (<workspace>/.worktrees/agentic-<id>, branch agentic/agentic-<id>, cut from HEAD): the agent writes there, not in the project. Off: it writes in the project.')
+                            ->defaultTrue()
+                        ->end()
+                        ->arrayNode('shared')
+                            ->info('Ignored directories a worktree borrows read-only from the project (glob patterns): the installed dependencies.')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['vendor'])
+                        ->end()
+                        ->arrayNode('auto_allow')
+                            ->info('The commands that pass without approval in auto mode (fnmatch patterns on the whole line); the others ask. Outside auto, the mode and tool_rules decide.')
+                            ->scalarPrototype()->end()
+                            ->defaultValue(['git status', 'git status *', 'git diff', 'git diff *', 'git log', 'git log *', 'vendor/bin/phpunit', 'vendor/bin/phpunit *'])
                         ->end()
                     ->end()
                 ->end()
                 ->arrayNode('watch_subjects')
-                    ->info('Le vocabulaire des veilles : sujet → ce que le modèle en lit.')
+                    ->info('The vocabulary of the watches: subject → what the model reads of it.')
                     ->useAttributeAsKey('subject')
                     ->scalarPrototype()->end()
                 ->end()
@@ -90,7 +130,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -98,7 +138,35 @@ final class AgenticBundle extends AbstractBundle
 
         $services = $container->services();
 
-        // --- L'agent durable
+        if ($config['sandbox']['enabled']) {
+            $services->set(Bubblewrap::class)
+                ->args([
+                    $config['sandbox']['workspace'],
+                    $config['sandbox']['hidden'],
+                    $config['sandbox']['timeout_seconds'],
+                    $config['sandbox']['binary'],
+                ]);
+            if ($config['sandbox']['worktrees']) {
+                $services->set(Worktrees::class)
+                    ->args([$config['sandbox']['workspace'], $config['sandbox']['shared']]);
+            }
+            $services->set(RunCommandTool::class)
+                ->args([service(Bubblewrap::class), service(Worktrees::class)->nullOnInvalid()])
+                ->tag(self::TOOL_TAG);
+
+            // The auto-mode allowlist is a rule like the others: it goes to the journal with them,
+            // and `/tools` shows it. An ask beats an allow: an `allow` in tool_rules does not widen
+            // it, `auto_allow` is what has to be changed.
+            $config['tool_rules'][] = [
+                'tool' => RunCommandTool::TOOL,
+                'decision' => 'ask',
+                'modes' => ['auto'],
+                'unless' => ['command' => $config['sandbox']['auto_allow']],
+                'reason' => 'Command outside the auto-mode list (agentic.sandbox.auto_allow).',
+            ];
+        }
+
+        // --- The durable agent
         $services->set(DurableAgentWorkflow::class)
             ->abstract()
             ->tag('durable.workflow');
@@ -146,6 +214,7 @@ final class AgenticBundle extends AbstractBundle
                     'watchSubjects' => $config['watch_subjects'],
                     'toolRules' => $config['tool_rules'],
                 ],
+                service(Worktrees::class)->nullOnInvalid(),
             ]);
         $services->alias(Conversations::class, DurableConversations::class)->public();
 
@@ -153,14 +222,14 @@ final class AgenticBundle extends AbstractBundle
             ->args([service('messenger.receiver_locator'), service(MessageBusInterface::class)])
             ->public();
 
-        // --- L'application TUI
+        // --- The TUI application
         $services->set(HelpScreen::class);
         $services->set(ChatScreen::class)
-            ->args([service(Conversations::class), service(InProcessWorker::class)])
+            ->args([service(Conversations::class), service(InProcessWorker::class), service(Bubblewrap::class)->nullOnInvalid()])
             ->public();
 
-        // Pas de tag `console.command` : ces commandes appartiennent à l'application `agentic`, et
-        // un `help` enregistré dans `bin/console` y remplacerait celui de Symfony.
+        // No `console.command` tag: these commands belong to the `agentic` application, and a
+        // `help` registered in `bin/console` would replace Symfony's own there.
         $services->set(HelpCommand::class)
             ->args([service(HelpScreen::class)])
             ->tag(self::COMMAND_TAG);
@@ -172,7 +241,7 @@ final class AgenticBundle extends AbstractBundle
             ->args([tagged_iterator(self::COMMAND_TAG)])
             ->public();
 
-        // --- La version web
+        // --- The web version
         $services->set(ConsoleCommandCatalog::class)
             ->args([service(AgenticApplication::class)]);
 

@@ -5,14 +5,14 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Domain\Context;
 
 /**
- * La conversation telle que la compaction la voit : un préambule système, puis des tours.
+ * The conversation as compaction sees it: a system preamble, then turns.
  *
- * Le tableau plat qui part au fournisseur ne dit pas ses invariants — que le message système
- * ouvre, qu'un résultat d'outil suit toujours son appel. Ici ils sont portés par la structure,
- * et {@see ContextBudget} n'a plus qu'à retirer des tours par le début.
+ * The flat array that goes out to the provider does not state its invariants — that the system
+ * message opens it, that a tool result always follows its call. Here they are carried by the
+ * structure, and {@see ContextBudget} only has to remove turns from the front.
  *
- * Fabrique de frontière dans les deux sens : `fromWire()` à l'entrée, `toWire()` à la sortie. Le
- * fil reste le fil, mais il ne traverse plus le code.
+ * A boundary factory both ways: `fromWire()` on the way in, `toWire()` on the way out. The wire
+ * stays the wire, but it no longer runs through the code.
  */
 final readonly class Conversation
 {
@@ -36,8 +36,8 @@ final readonly class Conversation
         $current = [];
 
         foreach ($messages as $message) {
-            // Seuls les messages système *de tête* sont le préambule : un marqueur de compaction
-            // posé plus loin appartient au tour qu'il précède.
+            // Only the *leading* system messages are the preamble: a compaction marker set further
+            // down belongs to the turn it precedes.
             if ('system' === ($message['role'] ?? null) && [] === $turns && [] === $current) {
                 $system[] = $message;
 
@@ -75,7 +75,7 @@ final readonly class Conversation
     }
 
     /**
-     * Le dernier tour ne part jamais : sans lui il ne resterait rien à quoi répondre.
+     * The last turn never goes: without it there would be nothing left to answer.
      */
     public function withoutOldestTurn(): self
     {

@@ -16,6 +16,6 @@ final class BananaWordsTest extends TestCase
 
         self::assertSame('⠋ '.BananaWords::PHRASES[0].'… (0 s)', AnsiUtils::stripAnsiCodes($words->line(0, 0.4)));
         self::assertSame('⠙ '.BananaWords::PHRASES[0].'… (1 s)', AnsiUtils::stripAnsiCodes($words->line(1, 1.2)));
-        self::assertStringContainsString(BananaWords::PHRASES[1], $words->line(8, 3.2), 'Au bout de huit temps, phrase suivante.');
+        self::assertStringContainsString(BananaWords::PHRASES[1], $words->line(8, 3.2), 'After eight beats, the next phrase.');
     }
 }
