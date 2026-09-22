@@ -27,6 +27,10 @@ Each package splits its suite along the test pyramid (`static`, `unit`, `functio
 `integration`; `--testsuite <layer>`); `tests/TestPyramidTest.php` fails when a test sits in no
 layer or in two. No e2e yet.
 
+The static layers run PHPUnit's static suite then PHPStan (level 8, `phpstan.dist.neon` per
+package, a baseline for the errors the code already had: fixing one means deleting its entry).
+New code meets the level — it does not go to the baseline.
+
 ## The chat
 
 A conversation is an execution of the `DurableAgentWorkflow` workflow; every message, approval,
