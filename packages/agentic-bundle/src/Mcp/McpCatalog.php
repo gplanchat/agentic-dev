@@ -12,8 +12,8 @@ use Mcp\Client\Transport\StdioTransport;
 use Mcp\Schema\Content\TextContent;
 use Mcp\Schema\Tool;
 use Psr\Log\LoggerInterface;
-use Symfony\Component\HttpClient\AmpHttpClient;
-use Symfony\Component\HttpClient\Psr18Client;
+use Nyholm\Psr7\Factory\Psr17Factory;
+use Symfony\Component\HttpClient\CurlHttpClient;
 
 /**
  * The tools of the configured MCP servers, offered to the agent like any other.
@@ -161,11 +161,24 @@ final class McpCatalog implements \IteratorAggregate
             return $client;
         }
 
-        // The PSR-18 client is ours rather than discovered, and it is the Amp one: an MCP call over
-        // HTTP happens in the TUI process, and a blocking client would freeze the screen the way the
-        // model call used to.
-        $http = new Psr18Client(new AmpHttpClient());
-        $client->connect(new HttpTransport((string) $server->url, $server->headers, $http, $http, $http));
+        // The PSR-18 client is ours rather than discovered, for two reasons.
+        //
+        // Streaming: a remote MCP server answers with an event-stream that stays open, which a
+        // buffering client never finishes reading ({@see StreamingHttpClient}).
+        //
+        // Blocking: curl, not Amp, unlike the model call. The SDK's HTTP transport runs its request
+        // inside a `\Fiber` of its own and waits in a loop of its own; an Amp client suspends that
+        // fiber waiting for the Revolt loop, which never runs there — the request never returns.
+        // The price is the screen freezing for the duration of an MCP call over HTTP; a stdio server
+        // does not pay it.
+        $psr17 = new Psr17Factory();
+        $client->connect(new HttpTransport(
+            (string) $server->url,
+            $server->headers,
+            new StreamingHttpClient(new CurlHttpClient()),
+            $psr17,
+            $psr17,
+        ));
 
         return $client;
     }

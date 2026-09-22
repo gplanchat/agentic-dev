@@ -100,9 +100,10 @@ every refresh, with no `messenger:consume` alongside.
   ]]],
   ```
 
-  **Only stdio servers work today.** A server reached over `url` answers the Streamable HTTP way,
-  with a `text/event-stream` that stays open, and the client blocks reading it — GitHub's remote
-  endpoint authenticates fine and then hangs. Until that is handled, declare servers by `command`.
+  A server reached over `url` works too — GitHub's remote endpoint answers the Streamable HTTP way,
+  with a `text/event-stream` that stays open, and the client reads its events as they come. One
+  difference with stdio: **an MCP call over HTTP freezes the screen for its duration**, because the
+  MCP transport waits inside a fiber of its own rather than on the event loop the TUI runs on.
 - **`read_file` and `edit_file`** work in the same sandbox and the same workspace as `run_command`
   (the conversation's worktree). `read_file` (`read`, passes in every mode) prints numbered lines,
   400 by default, with `offset`/`limit`, and says how to read on; on a directory it lists the
