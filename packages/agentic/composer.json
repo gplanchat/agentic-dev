@@ -1,0 +1,30 @@
+{
+    "name": "gplanchat/agentic",
+    "description": "Durable AI agents: tool guard, human questions, watches, context budget and delegation.",
+    "type": "library",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.2",
+        "gplanchat/durable": "0.1.x-dev"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.5"
+    },
+    "autoload": {
+        "psr-4": {
+            "Gplanchat\\Agentic\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Gplanchat\\Agentic\\Tests\\": "tests/"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    }
+}

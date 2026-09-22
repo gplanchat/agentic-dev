@@ -1,0 +1,49 @@
+{
+    "name": "gplanchat/agentic-bundle",
+    "description": "Symfony integration of gplanchat/agentic: the agentic TUI application and its web version.",
+    "type": "symfony-bundle",
+    "license": "MIT",
+    "require": {
+        "php": ">=8.4.1",
+        "gplanchat/agentic": "0.1.x-dev",
+        "gplanchat/durable-bundle": "0.1.x-dev",
+        "symfony/config": "8.2.*",
+        "symfony/console": "8.2.*",
+        "symfony/dependency-injection": "8.2.*",
+        "symfony/http-foundation": "8.2.*",
+        "symfony/http-kernel": "8.2.*",
+        "symfony/routing": "8.2.*",
+        "symfony/tui": "8.2.*"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^12"
+    },
+    "repositories": [
+        {
+            "type": "path",
+            "url": "../agentic"
+        }
+    ],
+    "autoload": {
+        "psr-4": {
+            "Gplanchat\\AgenticBundle\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Gplanchat\\AgenticBundle\\Tests\\": "tests/"
+        }
+    },
+    "config": {
+        "platform": {
+            "php": "8.4.25"
+        }
+    },
+    "minimum-stability": "dev",
+    "prefer-stable": true,
+    "extra": {
+        "branch-alias": {
+            "dev-main": "0.1.x-dev"
+        }
+    }
+}
