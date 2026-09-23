@@ -19,6 +19,8 @@ use Symfony\Component\Tui\Event\SelectEvent;
 use Symfony\Component\Tui\Event\SubmitEvent;
 use Symfony\Component\Tui\Input\Keybindings;
 use Symfony\Component\Tui\Render\RenderContext;
+use Symfony\Component\Tui\Style\Style;
+use Symfony\Component\Tui\Style\StyleSheet;
 use Symfony\Component\Tui\Terminal\TerminalInterface;
 use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\AbstractWidget;
@@ -111,6 +113,7 @@ final class ChatView
     /** Which suggestion the arrows are on; `null` = none picked, so Tab takes the first. */
     private ?int $highlighted = null;
 
+
     /** The line being typed, set aside while the history is browsed. */
     private string $draft = '';
 
@@ -164,6 +167,13 @@ final class ChatView
             ->add($this->notice)
             ->add($this->interaction)
             ->add($this->footer);
+
+        // The same cyan the command suggestions use: one meaning, one colour, wherever a list asks
+        // to be walked. The widget already marks its pick with `→` — the colour joins it rather
+        // than replacing it, since bold alone reads as emphasis, not as position.
+        $this->tui->addStyleSheet(new StyleSheet([
+            SelectListWidget::class.'::selected' => (new Style())->withColor('#00afaf'),
+        ]));
 
         $this->keys = new Keybindings([
             'quit' => ['ctrl+c'],
@@ -355,8 +365,8 @@ final class ChatView
             $suggestions = SlashCommands::suggestions($this->input->getValue());
             if ([] !== $suggestions) {
                 $event->stopPropagation();
-                $names = array_keys($suggestions);
-                $this->input->setValue(($names[$this->highlighted ?? 0] ?? $names[0]).' ');
+                $this->input->setValue(($this->pickedSuggestion() ?? array_key_first($suggestions)).' ');
+                $this->highlighted = null;
                 $this->showSuggestions($this->input->getValue());
             }
         }
@@ -564,6 +574,7 @@ final class ChatView
         if ($key === $this->interactionKey) {
             return;
         }
+
         $this->interactionKey = $key;
 
         $this->interaction->clear();
@@ -595,6 +606,16 @@ final class ChatView
             if ($event->isBlank()) {
                 return;
             }
+            // A picked suggestion takes the Enter, as it takes the Tab: accepting a completion is
+            // not running it. Otherwise arrowing onto `/clear` and pressing Enter out of habit
+            // would wipe the conversation nobody meant to leave.
+            if (null !== $this->highlighted && null !== $picked = $this->pickedSuggestion()) {
+                $input->setValue($picked.' ');
+                $this->highlighted = null;
+                $this->showSuggestions($input->getValue());
+
+                return;
+            }
             $input->setValue('');
             $this->remember($event->getValue());
             $this->thread->scrollToBottom();
@@ -618,6 +639,16 @@ final class ChatView
      * Like a shell: ↑ goes up towards the older lines, ↓ comes back down, and past the most recent
      * one you find again what you were typing.
      */
+    /**
+     * The command the arrows are on, or `null` when none is picked or the list has closed.
+     */
+    private function pickedSuggestion(): ?string
+    {
+        $names = array_keys(SlashCommands::suggestions($this->input?->getValue() ?? ''));
+
+        return $names[$this->highlighted ?? -1] ?? null;
+    }
+
     /**
      * Walks the open suggestions, wrapping at both ends: from nothing, ↓ takes the first and ↑ the
      * last, the way a menu opens on the side you came from.

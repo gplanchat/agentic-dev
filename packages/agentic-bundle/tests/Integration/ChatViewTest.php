@@ -150,6 +150,26 @@ final class ChatViewTest extends KernelTestCase
         self::assertStringNotContainsString("\e[36m›", $narrowed, 'One more letter starts the choice again.');
     }
 
+    /**
+     * Enter takes the pick as Tab does. Accepting a completion is not running it: arrowing onto
+     * `/clear` and pressing Enter out of habit must not wipe the conversation.
+     */
+    public function testEnterAcceptsThePickWithoutRunningIt(): void
+    {
+        $view = $this->open();
+        $conversations = self::getContainer()->get(Conversations::class);
+        self::assertInstanceOf(Conversations::class, $conversations);
+        $before = $view->conversation;
+
+        $this->type($view, '/cl');
+        $this->key($view, "\e[B");
+        $this->type($view, "\r");
+
+        self::assertStringContainsString('› /clear ', $this->terminal->getOutput(), 'Enter wrote the pick into the line.');
+        self::assertSame($before, $view->conversation, 'And did not run it: /clear would have opened another conversation.');
+        self::assertSame([], $conversations->transcript($before)->messages, 'Nor sent it as a message.');
+    }
+
     public function testClearSwitchesTheScreenToANewConversation(): void
     {
         $view = $this->open();
