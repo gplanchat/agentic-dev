@@ -11,6 +11,7 @@ use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Domain\Guard\ToolRule;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
+use Gplanchat\Agentic\Domain\Identity\Principal;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\HumanQuestionDesk;
 use Gplanchat\Agentic\Domain\Team\AgentProfiles;
@@ -64,6 +65,7 @@ final class DurableAgentFactory
         AgentProfiles $profiles = new AgentProfiles(),
         array $toolsWire = [],
         array $rulesWire = [],
+        ?Principal $principal = null,
     ): Agent {
         // Always offered: an agent that cannot ask makes things up, and an agent that cannot wait
         // botches the job.
@@ -90,7 +92,7 @@ final class DurableAgentFactory
             toolExecutor: new DurableToolExecutor(
                 $environment,
                 // The decision hooks first; with no rule applying, the mode.
-                $guard ?? new RuleBasedToolGuard($rules, new ModeToolGuard($tools)),
+                $guard ?? new RuleBasedToolGuard($rules, new ModeToolGuard($tools), $principal),
                 $gate ?? new ToolApprovalGate(),
                 $desk ?? new HumanQuestionDesk(),
                 $watches ?? new WatchDesk(),
@@ -102,6 +104,7 @@ final class DurableAgentFactory
                 toolsWire: $toolsWire,
                 rulesWire: $rulesWire,
                 workspace: $workspace,
+                principal: $principal,
             ),
             maxToolCalls: $maxToolCalls,
         );

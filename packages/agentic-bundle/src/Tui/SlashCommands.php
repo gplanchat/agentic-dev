@@ -157,12 +157,14 @@ final readonly class SlashCommands
         }
 
         $rules = array_map(static fn (ToolRule $rule): string => \sprintf(
-            '  %-5s %s%s%s%s%s',
+            '  %-5s %s%s%s%s%s%s',
             $rule->toWire()['decision'],
             $rule->tool,
             [] === $rule->modes ? '' : ' in '.implode('|', array_map(static fn (AgentMode $mode): string => $mode->value, $rule->modes)),
             implode('', array_map(static fn (string $argument, string $pattern): string => \sprintf(' %s=%s', $argument, $pattern), array_keys($rule->when), $rule->when)),
             implode('', array_map(static fn (string $argument, array $patterns): string => \sprintf(' unless %s=%s', $argument, implode(' | ', $patterns)), array_keys($rule->unless), $rule->unless)),
+            // An exemption nobody can see is a guard nobody can audit.
+            [] === $rule->unlessRoles ? '' : ' unless role '.implode(' | ', $rule->unlessRoles),
             '' === $rule->reason ? '' : ' — '.$rule->reason,
         ), $transcript->rules);
 

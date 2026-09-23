@@ -10,6 +10,7 @@ use Gplanchat\Agentic\Domain\Context\ContextBudget;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableAgentFactory;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
+use Gplanchat\Agentic\Domain\Identity\Principal;
 use Gplanchat\Agentic\Domain\Team\AgentProfiles;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
@@ -294,6 +295,7 @@ final class DurableAgentWorkflow
      * @param list<array<string, mixed>>                                                                          $toolRules          the project's decision hooks ({@see \Gplanchat\Agentic\Domain\Guard\ToolRule})
      * @param array<string, array<string, mixed>>                                                                 $agents             the sub-agents the application declares ({@see \Gplanchat\Agentic\Domain\Team\AgentProfile})
      * @param string|null                                                                                         $workspace          the conversation's working directory, handed to the tools; `null` = the project
+     * @param array<string, mixed>                                                                                $owner              on whose behalf this runs ({@see Principal}); `[]` = nobody, which claims nothing
      *
      * @return string the agent's last reply
      */
@@ -319,6 +321,10 @@ final class DurableAgentWorkflow
         array $toolRules = [],
         array $agents = [],
         ?string $workspace = null,
+        // ⚠ Last, and it must stay last: `delegate()` builds the child's call **positionally**
+        // ({@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableToolExecutor::delegate()}), so a
+        // parameter slipped into the middle silently shifts every one after it.
+        array $owner = [],
     ): string {
         // The ceiling first: the requested mode bends to it, it does not go around it.
         $this->ceiling = AgentMode::tryFrom($modeCeiling) ?? AgentMode::Auto;
@@ -355,6 +361,7 @@ final class DurableAgentWorkflow
             toolsWire: $tools,
             rulesWire: $toolRules,
             workspace: $workspace,
+            principal: Principal::fromWire($owner),
         );
         $agent = $build();
         $agentModel = $this->model;
@@ -449,6 +456,9 @@ final class DurableAgentWorkflow
                     'toolRules' => $toolRules,
                     'agents' => $agents,
                     'workspace' => $workspace,
+                    // The owner follows the relay, like the ceiling: otherwise a long conversation
+                    // would come back from its rollover belonging to nobody.
+                    'owner' => $owner,
                 ]);
             }
         }

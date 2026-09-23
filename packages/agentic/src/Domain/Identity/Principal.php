@@ -43,6 +43,26 @@ final readonly class Principal
     }
 
     /**
+     * The same person, holding less — **authority does not grow by delegation**.
+     *
+     * An intersection, never a replacement: a profile that names a role its caller does not hold
+     * grants nothing, exactly as {@see \Gplanchat\Agentic\Domain\Guard\AgentMode::strictest()}
+     * refuses to loosen a ceiling. Without that, declaring a sub-agent would be the way to hand it
+     * what one may not do oneself, and the guard would be decoration on the identity axis just as
+     * it would on the mode one.
+     *
+     * The `id` does not move: a sub-agent acts *for* the same person, and the journal must keep
+     * saying whose work it was. Only what they may claim narrows.
+     *
+     * @param list<string> $roles what the profile allows; the result keeps only those this
+     *                            principal already had
+     */
+    public function restrictedTo(array $roles): self
+    {
+        return new self($this->id, array_values(array_intersect($this->roles, $roles)));
+    }
+
+    /**
      * `null` when the journal carries no owner: a conversation opened before this existed. The
      * caller decides what to make of it — {@see \Gplanchat\Agentic\Application\Chat\Conversations}
      * treats an unowned conversation as nobody's, hence everybody's to refuse.

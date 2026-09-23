@@ -560,6 +560,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         reason?: scalar|Param|null, // Default: ""
  *         modes?: list<"auto"|"edition"|"standard"|Param>,
  *         unless?: array<string, list<scalar|Param|null>>,
+ *         unless_roles?: list<scalar|Param|null>,
  *     }>,
  *     sandbox?: bool|array{ // The run_command, read_file and edit_file tools, run inside a bubblewrap sandbox: the workspace writable, no network and nothing else from the disk.
  *         enabled?: bool|Param, // Default: false
@@ -587,6 +588,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         ceiling?: "standard"|"edition"|"auto"|Param, // The most it may ever do; the strictest of this and the parent wins. // Default: "standard"
  *         tools?: list<scalar|Param|null>,
  *         max_turns?: int|Param, // Default: 1
+ *         roles?: list<scalar|Param|null>,
  *     }>,
  *     mcp?: array{ // MCP servers whose tools are offered to the agent, discovered when a conversation starts and frozen in its payload.
  *         servers?: array<string, array{ // Default: []

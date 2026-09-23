@@ -99,6 +99,10 @@ final class AgenticBundle extends AbstractBundle
                                 ->useAttributeAsKey('argument')
                                 ->arrayPrototype()->scalarPrototype()->end()->end()
                             ->end()
+                            ->arrayNode('unless_roles')
+                                ->info('roles that set the rule aside — "refused, except to finance". Negative and not positive because deny wins: "refuse to everyone but X" cannot be written as two rules.')
+                                ->scalarPrototype()->end()
+                            ->end()
                         ->end()
                     ->end()
                 ->end()
@@ -164,6 +168,10 @@ final class AgenticBundle extends AbstractBundle
                             ->enumNode('ceiling')->values(['standard', 'edition', 'auto'])->defaultValue('standard')->info('The most it may ever do; the strictest of this and the parent wins.')->end()
                             ->arrayNode('tools')->info('Patterns (fnmatch) of the tools it may use; empty = none.')->scalarPrototype()->end()->end()
                             ->integerNode('max_turns')->defaultValue(1)->end()
+                            ->arrayNode('roles')
+                                ->info('What it may still claim of its caller\'s identity. An intersection, never a grant: a role the caller does not hold stays out. Empty = it claims nothing.')
+                                ->scalarPrototype()->end()
+                            ->end()
                         ->end()
                     ->end()
                 ->end()
@@ -205,7 +213,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int, roles: list<string>}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {

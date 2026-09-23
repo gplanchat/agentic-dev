@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Gplanchat\Agentic\Domain\Guard;
 
+use Gplanchat\Agentic\Domain\Identity\Principal;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 
 /**
@@ -17,16 +18,23 @@ final readonly class RuleBasedToolGuard implements ToolGuardInterface
 {
     /**
      * @param list<ToolRule> $rules
+     * @param Principal|null $principal on whose behalf the conversation runs; constructor data and
+     *                                  not a parameter of {@see decide()}, because it does not
+     *                                  change from one call to the next — and because it must reach
+     *                                  the guard as journaled data, never as a lookup the replay
+     *                                  would redo against the database of the day
      */
     public function __construct(
         private array $rules,
         private ToolGuardInterface $fallback,
+        private ?Principal $principal = null,
     ) {
     }
 
     public function decide(ToolInvocation $toolCall, AgentMode $mode): ToolDecision
     {
-        $matched = array_filter($this->rules, static fn (ToolRule $rule): bool => $rule->matches($toolCall, $mode));
+        $principal = $this->principal;
+        $matched = array_filter($this->rules, static fn (ToolRule $rule): bool => $rule->matches($toolCall, $mode, $principal));
 
         foreach ([ToolVerdict::Deny, ToolVerdict::Ask, ToolVerdict::Allow] as $verdict) {
             foreach ($matched as $rule) {

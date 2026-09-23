@@ -9,6 +9,7 @@ use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\ApprovalOutcome;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
+use Gplanchat\Agentic\Domain\Identity\Principal;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\HumanQuestionDesk;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
@@ -70,6 +71,8 @@ final class DurableToolExecutor implements ToolExecutorInterface
         private readonly array $rulesWire = [],
         ?ActivityOptions $options = null,
         private readonly ?string $workspace = null,
+        /** On whose behalf this agent runs; what a delegate inherits, narrowed, never widened. */
+        private readonly ?Principal $principal = null,
     ) {
         $this->stub = $environment->activityStub(AgentToolActivityInterface::class, $options);
     }
@@ -206,6 +209,11 @@ final class DurableToolExecutor implements ToolExecutorInterface
         // The ceiling is the subject here: the delegate takes the strictest of its profile and of
         // its parent's effective mode. Naming a sub-agent grants nothing.
         $ceiling = AgentMode::strictest(($this->mode)(), $profile?->ceiling ?? AgentMode::Standard);
+
+        // The same property on the identity axis: the delegate keeps its caller's identity, holding
+        // only what the profile still allows of it — an intersection, so a profile naming a role
+        // its caller lacks grants nothing. Unnamed, it claims nothing at all.
+        $principal = $this->principal?->restrictedTo(null === $profile ? [] : $profile->roles);
         $model = $profile?->model ?? (trim((string) ($arguments['model'] ?? '')) ?: $this->model);
 
         // Only the tools the profile allows travel to the child, and their schemas travel with them:
@@ -249,6 +257,9 @@ final class DurableToolExecutor implements ToolExecutorInterface
                 // The conversation's workspace, or the child would act in the project itself — which
                 // is precisely what the per-conversation worktree exists to prevent.
                 $this->workspace,                     // workspace
+                // The narrowed identity. Last, matching the signature of `run()` — and what proves
+                // the slot did not shift is `DelegateNarrowsIdentityTest`, not the counting.
+                $principal?->toWire() ?? [],          // owner
             ),
         );
 
