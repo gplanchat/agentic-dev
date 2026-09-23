@@ -1,0 +1,14 @@
+{
+    "name": "gplanchat/agentic-tools-infection",
+    "description": "Infection, kept out of the packages: it needs PHP >= 8.3, and gplanchat/agentic must stay installable on 8.2. Run with php8.4 from a package directory.",
+    "type": "project",
+    "license": "MIT",
+    "require": {
+        "infection/infection": "^0.35"
+    },
+    "config": {
+        "allow-plugins": {"infection/extension-installer": false},
+        "platform": {"php": "8.4.25"},
+        "sort-packages": true
+    }
+}

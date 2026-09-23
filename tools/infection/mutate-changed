@@ -1,0 +1,41 @@
+#!/bin/sh
+# Mutation testing of what changed since HEAD, new files included — the review step of a TDD cycle.
+# Run from a package directory: its infection.json5.dist says what to mutate and prints the JSON log.
+#
+# Infection's --git-diff-lines reads `git diff HEAD`, which leaves untracked files out: a brand-new
+# class would never be mutated. A throwaway index marks them intent-to-add, so the diff sees them;
+# the repository's own index and objects are not touched (in the sandbox, .git is read-only).
+set -e
+tools=$(cd "$(dirname "$0")" && pwd)
+
+scratch="${TMPDIR:-/tmp}/agentic-mutate-changed"
+rm -rf "$scratch" && mkdir -p "$scratch/objects"
+
+# The throwaway index, and a scratch object directory for what intent-to-add writes; the repository's
+# objects are read where they are. Handed to bin/git under names of our own: exported as GIT_*, they
+# would reach the tests Infection runs, and every git those tests start — a worktree cut, a test
+# repository — would write into the scratch index.
+AGENTIC_MUTATE_INDEX="$scratch/index"
+AGENTIC_MUTATE_OBJECTS="$scratch/objects"
+AGENTIC_MUTATE_ALTERNATES="$(cd "$(git rev-parse --git-common-dir)" && pwd)/objects"
+export AGENTIC_MUTATE_INDEX AGENTIC_MUTATE_OBJECTS AGENTIC_MUTATE_ALTERNATES
+
+scratchgit() {
+    GIT_INDEX_FILE=$AGENTIC_MUTATE_INDEX GIT_OBJECT_DIRECTORY=$AGENTIC_MUTATE_OBJECTS \
+        GIT_ALTERNATE_OBJECT_DIRECTORIES=$AGENTIC_MUTATE_ALTERNATES git "$@"
+}
+
+scratchgit read-tree HEAD
+scratchgit add --intent-to-add --all -- src
+
+if scratchgit diff --quiet HEAD -- src; then
+    # Nothing to mutate: say so in the report's own shape, where Infection would stop on an error.
+    echo '{"stats":{"totalMutantsCount":0,"killedCount":0,"escapedCount":0,"notCoveredCount":0,"timeOutCount":0,"msi":0},"escaped":[],"uncovered":[]}'
+    exit 0
+fi
+
+# First on PATH: the PHP this tool needs — the tests Infection starts run `php` —, and bin/git, which
+# applies the throwaway index to Infection's `git diff` alone.
+PATH="$tools/bin:$PATH"
+export PATH
+exec php "$tools/vendor/bin/infection" --git-diff-lines --git-diff-base=HEAD --ignore-msi-with-no-mutations -q "$@"

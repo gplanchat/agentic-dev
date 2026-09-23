@@ -1,0 +1,9 @@
+// Mutation testing, run through tools/infection/mutate-changed: only the lines changed since HEAD.
+// The JSON log goes to standard output — the shape run_checks reads.
+{
+    "$schema": "../../tools/infection/vendor/infection/infection/resources/schema.json",
+    "source": {"directories": ["src"]},
+    "testFrameworkOptions": "--testsuite=unit,functional",
+    "tmpDir": "/tmp/infection",
+    "logs": {"json": "php://stdout"}
+}

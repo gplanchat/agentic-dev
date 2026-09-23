@@ -1,0 +1,16 @@
+#!/bin/sh
+# Only Infection's `git diff` sees the throwaway index of mutate-changed. Every other git — the one
+# the tests run, the one that cuts a worktree — gets the environment it would have had without it.
+# The system git, looked up by hand: this script is the first `git` on PATH.
+for dir in /usr/local/bin /usr/bin /bin; do
+    [ -x "$dir/git" ] && real="$dir/git" && break
+done
+case " $* " in
+    *" diff "*)
+        if [ -n "$AGENTIC_MUTATE_INDEX" ]; then
+            GIT_INDEX_FILE=$AGENTIC_MUTATE_INDEX GIT_OBJECT_DIRECTORY=$AGENTIC_MUTATE_OBJECTS \
+                GIT_ALTERNATE_OBJECT_DIRECTORIES=$AGENTIC_MUTATE_ALTERNATES exec "$real" "$@"
+        fi
+        ;;
+esac
+exec "$real" "$@"

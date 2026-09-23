@@ -101,6 +101,19 @@ final class RunChecksToolTest extends TestCase
         );
     }
 
+    /**
+     * A mutation layer: Infection's JSON log, read for its survivors — and the advice is about the
+     * tests, not the code the generic RED step would have the model change.
+     */
+    public function testAMutationLogAsksForASharperTest(): void
+    {
+        file_put_contents($this->workspace.'/mutate.php', '<?php echo \'{"stats":{"totalMutantsCount":2,"killedCount":1,"escapedCount":1,"notCoveredCount":0,"msi":50},"escaped":[{"mutator":{"mutatorName":"GreaterThan","originalFilePath":"\'.getcwd().\'/src/Cart.php","originalStartLine":9},"diff":"-a > b\\n+a >= b"}],"uncovered":[]}\';');
+        $result = $this->tool(['mutation' => ['command' => 'php mutate.php']])(['layer' => 'mutation']);
+
+        self::assertStringStartsWith("RED — mutation\n2 mutants, 1 killed, 1 escaped, 0 not covered, MSI 50 %.\n\n✗ src/Cart.php:9 — GreaterThan (escaped)\n  -a > b\n  +a >= b\n\nMutation: ", $result);
+        self::assertStringNotContainsString('fix the code, not the check', $result);
+    }
+
     public function testTheArgumentsAreClosed(): void
     {
         $tool = $this->tool([

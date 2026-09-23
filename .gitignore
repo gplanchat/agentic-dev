@@ -2,6 +2,8 @@
 /var/
 /packages/*/vendor/
 /packages/*/composer.lock
+# Tool projects under tools/ pin their own lock — that one IS committed, only the install is not.
+/tools/*/vendor/
 .phpunit.cache/
 .phpunit.result.cache
 /.idea/

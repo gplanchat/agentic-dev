@@ -6,6 +6,7 @@ namespace Gplanchat\AgenticBundle\Tool;
 
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
+use Gplanchat\AgenticBundle\Check\InfectionReport;
 use Gplanchat\AgenticBundle\Check\JUnitReport;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
@@ -172,7 +173,16 @@ final readonly class RunChecksTool implements WorkspaceTool
     private function verdict(array $result, string $root): array
     {
         $status = (int) ($result['exit'] ?? 1);
-        $summary = JUnitReport::summarize((string) ($result['report'] ?? ''), $root);
+        $report = (string) ($result['report'] ?? '');
+
+        // Infection's JSON log: a surviving mutant asks for a sharper test, not for other code.
+        if (str_starts_with(ltrim($report), '{') && null !== $mutation = InfectionReport::summarize($report, $root)) {
+            [$green, $text] = $mutation;
+
+            return [$green ? 'GREEN' : 'RED', "\n", $green ? $text : $text."\n\n".InfectionReport::ADVICE, $green];
+        }
+
+        $summary = JUnitReport::summarize($report, $root);
         if (null === $summary) {
             return ['ERROR', ': ', \sprintf("no JUnit report (exit code %d). The end of the output:\n%s", $status, $this->tail((string) ($result['output'] ?? ''), $root)), false];
         }
@@ -252,7 +262,7 @@ final readonly class RunChecksTool implements WorkspaceTool
             'Work in cycles, one behaviour at a time:',
             '1. RED — write the test first. Run its layer with a filter on it: it must fail on its assertion (a missing class or method: add the empty shell, run again).',
             '2. GREEN — write the least code that makes it pass. Run the same filter until it is green.',
-            '3. REVIEW — run the whole layer, then the layers its review names (each layer above lists them; the green verdict repeats them). Refactor with the tests green. Never weaken or delete a test to make it pass: fix the code, or say why the test is wrong.',
+            '3. REVIEW — run the whole layer, then the layers its review names (each layer above lists them; the green verdict repeats them). Refactor with the tests green. Never weaken or delete a test to make it pass: fix the code, or say why the test is wrong. A mutation layer, if the review names one, checks the tests themselves: a mutant that survives on the lines you changed asks for a sharper assertion, not for other code.',
             'Do not write production code that no failing test asked for.',
         ]);
     }
