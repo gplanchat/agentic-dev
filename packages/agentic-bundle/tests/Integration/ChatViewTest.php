@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Tests\Integration;
 
 use Gplanchat\Agentic\Application\Chat\Conversations;
+use Gplanchat\Agentic\Application\Chat\ToolStep;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Tui\BananaWords;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
@@ -172,6 +173,46 @@ final class ChatViewTest extends KernelTestCase
         self::assertSame([], self::getContainer()->get(Conversations::class)->transcript($view->conversation)->messages);
     }
 
+    /**
+     * An edit shows what it changed, folded; a click on the diff unfolds it, a second folds it back.
+     * A refused edit changed nothing, and shows no diff.
+     */
+    public function testAClickUnfoldsTheDiffOfAnEdit(): void
+    {
+        $view = $this->openOn(new EditedConversations([
+            new ToolStep('call-weather', 'weather', ['city' => 'Paris'], 'Paris: 22°C, sunny'),
+            new ToolStep('call-created', 'edit_file', ['path' => 'src/New.php', 'old_string' => '', 'new_string' => implode("\n", array_map(static fn (int $i): string => "created $i", range(1, 10)))], "Created src/New.php (10 lines).\n"),
+            new ToolStep('call-refused', 'edit_file', ['path' => 'src/Old.php', 'old_string' => 'absent', 'new_string' => 'never written'], 'old_string not found in src/Old.php.'),
+        ]));
+        $screen = self::screen($this->terminal->consumeOutput());
+        self::assertStringContainsString('⚙ weather {"city":"Paris"} → Paris: 22°C, sunny', implode("\n", $screen), 'Another tool: its arguments, as before.');
+        self::assertStringContainsString('⚙ edit_file "src/New.php" → Created src/New.php (10 lines).', implode("\n", $screen), 'The path, not the strings: they are the diff.');
+        self::assertStringContainsString('+created 1', $screen[self::rowOf($screen, '⚙ edit_file') + 1], 'Right under its call.');
+        self::assertStringNotContainsString('never written', implode("\n", $screen));
+        self::assertStringNotContainsString('created 7', implode("\n", $screen));
+
+        // Its first row: right under the "⚙" line, which is not part of it.
+        $this->key($view, \sprintf("\e[<0;10;%dM", self::rowOf($screen, '+created 1') + 1));
+        self::assertStringContainsString('+created 10', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
+
+        // Unfolded, the diff is taller, and the thread keeps its bottom: its last row, "▴ fold", is
+        // where "click to unfold" was. Only the rows that changed are redrawn — not a whole frame.
+        $this->key($view, \sprintf("\e[<0;10;%dM", self::rowOf($screen, 'click to unfold') + 1));
+        self::assertStringContainsString('click to unfold', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
+    }
+
+    public function testAClickElsewhereFoldsNothing(): void
+    {
+        $view = $this->openOn(new EditedConversations([
+            new ToolStep('call-created', 'edit_file', ['path' => 'src/New.php', 'old_string' => '', 'new_string' => implode("\n", range(1, 10))], 'Created src/New.php (10 lines).'),
+        ]));
+        $screen = self::screen($this->terminal->consumeOutput());
+
+        $this->key($view, \sprintf("\e[<0;10;%dM", self::rowOf($screen, '⚙ edit_file') + 1));
+
+        self::assertStringNotContainsString('▴ fold', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
+    }
+
     public function testPageUpScrollsToo(): void
     {
         $view = $this->open();
@@ -306,6 +347,45 @@ final class ChatViewTest extends KernelTestCase
         $view->tui->tick();
 
         return $view;
+    }
+
+    private function openOn(Conversations $conversations): ChatView
+    {
+        $this->terminal = new VirtualTerminal(100, 30);
+        $worker = self::getContainer()->get(InProcessWorker::class);
+        self::assertInstanceOf(InProcessWorker::class, $worker);
+        $view = (new ChatScreen($conversations, $worker))->open($conversations->start(), $this->terminal);
+        $view->tui->start();
+        $view->refresh();
+        $view->tui->tick();
+
+        return $view;
+    }
+
+    /**
+     * The rows of the first frame, drawn whole from the top of an empty screen, one per line.
+     *
+     * @return list<string>
+     */
+    private static function screen(string $output): array
+    {
+        $rows = explode("\n", str_replace("\r", '', AnsiUtils::stripAnsiCodes($output)));
+
+        return \array_slice($rows, -30);
+    }
+
+    /**
+     * @param list<string> $screen
+     */
+    private static function rowOf(array $screen, string $text): int
+    {
+        foreach ($screen as $row => $line) {
+            if (str_contains($line, $text)) {
+                return $row;
+            }
+        }
+
+        self::fail(\sprintf('"%s" is not on the screen.', $text));
     }
 
     /**

@@ -57,6 +57,35 @@ final class ThreadWidgetTest extends TestCase
         self::assertSame('line 50', $lines[8]);
     }
 
+    /**
+     * A row names the entry it shows — at the bottom, and scrolled up, where the hint row names none.
+     */
+    public function testARowNamesTheEntryItShows(): void
+    {
+        $thread = (new ThreadWidget())->setEntries([
+            [implode("\n", array_map(static fn (int $i): string => "line $i", range(1, 20))), false],
+            ["diff 1\ndiff 2", false, 'call-1'],
+            ['after', false],
+        ]);
+        $this->render($thread);
+
+        // Eight rows: line 16 to line 20, the diff, "after".
+        self::assertNull($thread->keyAt(4));
+        self::assertSame('call-1', $thread->keyAt(5));
+        self::assertSame('call-1', $thread->keyAt(6));
+        self::assertNull($thread->keyAt(7));
+        self::assertNull($thread->keyAt(8), 'Below the thread.');
+
+        $this->render($thread->scroll(3));
+        // Seven rows of thread, line 13 to line 19, then the hint.
+        self::assertNull($thread->keyAt(6));
+        $this->render($thread->scroll(-1));
+        // line 15 to line 20, the first diff row, then the hint — over the second diff row.
+        self::assertNull($thread->keyAt(5));
+        self::assertSame('call-1', $thread->keyAt(6));
+        self::assertNull($thread->keyAt(7), 'The hint row.');
+    }
+
     public function testTheModelAnswerIsRenderedAsMarkdown(): void
     {
         $thread = (new ThreadWidget())->setEntries([

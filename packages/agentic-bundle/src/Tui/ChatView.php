@@ -7,6 +7,7 @@ namespace Gplanchat\AgenticBundle\Tui;
 use Gplanchat\Agentic\Application\Chat\Conversations;
 use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
+use Gplanchat\AgenticBundle\Tool\EditFileTool;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Revolt\EventLoop;
 use Symfony\Component\Tui\Event\CancelEvent;
@@ -16,6 +17,7 @@ use Symfony\Component\Tui\Event\MultiSelectEvent;
 use Symfony\Component\Tui\Event\SelectEvent;
 use Symfony\Component\Tui\Event\SubmitEvent;
 use Symfony\Component\Tui\Input\Keybindings;
+use Symfony\Component\Tui\Render\RenderContext;
 use Symfony\Component\Tui\Terminal\TerminalInterface;
 use Symfony\Component\Tui\Tui;
 use Symfony\Component\Tui\Widget\AbstractWidget;
@@ -33,7 +35,7 @@ use Symfony\Component\Tui\Widget\Util\StringUtils;
  * every refresh, after having moved the worker forward. Quitting (Ctrl+C) does not close the
  * conversation; Ctrl+X closes it; Shift+Tab rotates the mode, shown at the bottom. The wheel and
  * Pg.Up/Pg.Dn scroll the thread; ↑/↓ recall the messages already sent, like a shell. A line that starts with `/` is a command
- * ({@see SlashCommands}), not a message.
+ * ({@see SlashCommands}), not a message. A file edit shows its diff, folded; a click unfolds it.
  */
 final class ChatView
 {
@@ -129,6 +131,9 @@ final class ChatView
 
     /** What to put into the next input shown — the message undone by `/rewind`. */
     private ?string $prefill = null;
+
+    /** @var array<string, true> the tool calls whose diff the human unfolded, by call id */
+    private array $unfolded = [];
 
     public function __construct(
         private readonly Conversations $conversations,
@@ -283,8 +288,15 @@ final class ChatView
             return;
         }
 
+        if (1 === preg_match('/^\e\[<0;\d+;(\d+)M$/', $data, $click)) {
+            $event->stopPropagation();
+            $this->toggleDiffAt((int) $click[1] - 1);
+
+            return;
+        }
+
         if (str_starts_with($data, "\e[<") || str_starts_with($data, "\e[M")) {
-            // A click, not the wheel: nothing to do with it, but it must not end up in the input.
+            // Another button, a release: nothing to do with it, but it must not end up in the input.
             $event->stopPropagation();
 
             return;
@@ -331,6 +343,30 @@ final class ChatView
                 $this->showSuggestions($this->input->getValue());
             }
         }
+    }
+
+    /**
+     * A click on a diff folds or unfolds it. The thread sits right under the header: its first row
+     * is the header's height.
+     *
+     * @param int $row the row clicked, 0 at the top of the screen
+     */
+    private function toggleDiffAt(int $row): void
+    {
+        $terminal = $this->tui->getTerminal();
+        $top = \count($this->header->render(new RenderContext($terminal->getColumns(), $terminal->getRows())));
+        $call = $this->thread->keyAt($row - $top);
+        if (null === $call || null === $this->transcript) {
+            return;
+        }
+
+        if (isset($this->unfolded[$call])) {
+            unset($this->unfolded[$call]);
+        } else {
+            $this->unfolded[$call] = true;
+        }
+        $this->thread->setEntries($this->threadEntries($this->transcript));
+        $this->tui->requestRender();
     }
 
     /**
@@ -440,7 +476,7 @@ final class ChatView
      * The thread as it shows: the human messages and the machinery as styled text, the model
      * answers as Markdown, then what has just been sent and that the journal does not show yet.
      *
-     * @return list<array{string, bool}>
+     * @return list<array{0: string, 1: bool, 2?: string|null}>
      */
     private function threadEntries(Transcript $transcript): array
     {
@@ -465,8 +501,21 @@ final class ChatView
         }
 
         foreach ($transcript->steps as $step) {
-            $result = null === $step->result ? '…' : self::clean($step->result);
-            $entries[] = [self::styled(\sprintf('⚙ %s %s → %s', $step->tool, self::clean(json_encode($step->arguments, \JSON_UNESCAPED_UNICODE) ?: ''), $result), "\e[2m"), false];
+            // A result that ends its line — the sandbox's do — would leave an empty one under it.
+            $result = null === $step->result ? '…' : self::clean(rtrim($step->result, "\n"));
+            if (EditFileTool::TOOL !== $step->tool) {
+                $entries[] = [self::styled(\sprintf('⚙ %s %s → %s', $step->tool, self::clean(json_encode($step->arguments, \JSON_UNESCAPED_UNICODE) ?: ''), $result), "\e[2m"), false];
+
+                continue;
+            }
+
+            // The strings replaced are the diff below: in the arguments, they would say it twice.
+            $entries[] = [self::styled(\sprintf('⚙ %s %s → %s', $step->tool, self::clean((string) json_encode($step->arguments['path'] ?? '', \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES)), $result), "\e[2m"), false];
+            // A refused edit changed nothing: no diff. The words are the sandbox's, Workspaces::file().
+            if (null !== $step->result && (str_starts_with($step->result, 'Edited ') || str_starts_with($step->result, 'Created '))) {
+                [$diff, $foldable] = EditDiff::render($step->arguments, isset($this->unfolded[$step->callId]));
+                $entries[] = [$diff, false, $foldable ? $step->callId : null];
+            }
         }
 
         foreach ($this->outbox as $sent) {

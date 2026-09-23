@@ -22,6 +22,10 @@ Each step: `send` (typed, then Enter; `""` = Enter alone, which picks the first 
 the agent chains several tools after the one you waited for). Exit code 1 if a step timed out. The
 conversation id is printed at the end.
 
+`{"click": "regex", "until": ...}` clicks the lowest row of the screen matching the regex — an
+edit's diff unfolds on `"click": "click to unfold"`, folds back on `"click": "▴ fold"` — then prints
+the whole screen as it stands, rebuilt from the renderer's cursor moves.
+
 ## Launch directory and approval
 
 The agent works on the project it is launched from. `--cwd DIR` launches it there (default: this

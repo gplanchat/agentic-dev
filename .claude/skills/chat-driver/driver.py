@@ -5,6 +5,8 @@ Usage: driver.py [--real-model] [--cwd DIR] [--before ANSWER] STEPS_JSON
 
 STEPS_JSON is a list of steps: {"send": "text", "until": "regex", "timeout": 60, "settle": 2}.
 `send` is typed then Enter; "" sends Enter alone (picks the first choice of a list).
+{"click": "regex", "until": ...} clicks (left button) the lowest screen row matching the regex,
+then prints the screen as it stands.
 Without --real-model, MISTRAL_API_KEY is forced empty: the scripted client answers, no network.
 --cwd DIR launches the chat from DIR: the project the agent works on (default: this repository).
 --before ANSWER answers the question asked before the chat opens — the approval of a project's
@@ -74,6 +76,40 @@ def wait_for(pattern, timeout):
     return False
 
 
+SEQUENCE = re.compile(r'\x1b\[([0-9;?]*)([ -/]*[@-~])|\x1b\][^\x07]*\x07|\x1b[()][A-Z0-9]|\x1b[=>78]|[\r\n]|[^\x1b\r\n]+')
+
+
+def screen():
+    """The rows on screen now, replayed from the moves the renderer uses: home, clear, up, down,
+    column, erase line. Wide characters count as one column: good enough to find a row."""
+    rows, row, col = {}, 0, 0
+    for m in SEQUENCE.finditer(raw.decode('utf-8', 'replace')):
+        token, params, final = m.group(0), m.group(1), m.group(2)
+        if final:
+            n = int(params) if params.isdigit() else 1
+            if final == 'H':
+                row, col = 0, 0
+            elif final == 'J' and params in ('2', '3'):
+                rows = {}
+            elif final == 'A':
+                row = max(0, row - n)
+            elif final == 'B':
+                row += n
+            elif final == 'G':
+                col = n - 1
+            elif final == 'K':
+                rows[row] = rows.get(row, '')[:col] if params == '' else ''
+        elif token == '\r':
+            col = 0
+        elif token == '\n':
+            row += 1
+        elif not token.startswith('\x1b'):
+            line = rows.get(row, '').ljust(col)
+            rows[row] = line[:col] + token + line[col + len(token):]
+            col += len(token)
+    return [rows.get(r, '') for r in range(max(rows, default=-1) + 1)]
+
+
 def readable(chunk):
     """The lines of a chunk, deduplicated, without the keystroke-by-keystroke echo of the input."""
     lines = []
@@ -102,15 +138,28 @@ if not wait_for(r'your turn', 20):
 failed = False
 for step in steps:
     start = len(text())
-    for ch in step['send']:
-        os.write(fd, ch.encode())
-        time.sleep(0.01)
-    os.write(fd, b'\r')
+    if 'click' in step:
+        rows = [r for r, line in enumerate(screen()) if re.search(step['click'], line)]
+        if not rows:
+            failed = True
+            print('=== CLICK: %r is not on screen' % step['click'])
+            continue
+        # SGR 1006, 1-based: press then release of the left button.
+        os.write(fd, ('\x1b[<0;10;%dM\x1b[<0;10;%dm' % (rows[-1] + 1, rows[-1] + 1)).encode())
+    else:
+        for ch in step['send']:
+            os.write(fd, ch.encode())
+            time.sleep(0.01)
+        os.write(fd, b'\r')
     ok = wait_for(step['until'], step.get('timeout', 60))
     pump(step.get('settle', 2))
     failed = failed or not ok
-    print('=== SENT: %r %s' % (step['send'], 'matched' if ok else 'TIMEOUT waiting for ' + step['until']))
-    print('\n'.join(readable(text()[start:])[-80:]))
+    what = 'CLICKED %r (row %d)' % (step['click'], rows[-1]) if 'click' in step else 'SENT: %r' % step['send']
+    print('=== %s %s' % (what, 'matched' if ok else 'TIMEOUT waiting for ' + step['until']))
+    if 'click' in step:
+        print('\n'.join(line.rstrip() for line in screen()))
+    else:
+        print('\n'.join(readable(text()[start:])[-80:]))
 
 os.write(fd, b'\x03')
 pump(3)
