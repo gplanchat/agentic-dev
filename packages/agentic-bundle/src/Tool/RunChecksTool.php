@@ -9,6 +9,8 @@ use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\AgenticBundle\Check\InfectionReport;
 use Gplanchat\AgenticBundle\Check\JUnitReport;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
+use Gplanchat\Agentic\Application\Tool\ContextualTool;
+use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 use Symfony\Component\Console\Input\StringInput;
 
@@ -24,7 +26,7 @@ use Symfony\Component\Console\Input\StringInput;
  * Classed `write`: tests run code, and code can write — in the workspace, inside the sandbox. It
  * asks in `standard`, passes in `edition` and `auto`.
  */
-final readonly class RunChecksTool implements WorkspaceTool
+final readonly class RunChecksTool implements ContextualTool
 {
     public const TOOL = 'run_checks';
 
@@ -78,10 +80,18 @@ final readonly class RunChecksTool implements WorkspaceTool
 
     public function __invoke(array $arguments): string
     {
-        return $this->inWorkspace($arguments, null);
+        return $this->act($arguments, null);
     }
 
-    public function inWorkspace(array $arguments, ?string $workspace): string
+    public function inContext(array $arguments, ToolContext $context): string
+    {
+        return $this->act($arguments, $context->workspace);
+    }
+
+    /**
+     * @param array<string, mixed> $arguments
+     */
+    private function act(array $arguments, ?string $workspace): string
     {
         $name = (string) ($arguments['layer'] ?? '');
         $layer = $this->layers[$name] ?? null;

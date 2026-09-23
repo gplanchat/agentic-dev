@@ -6,6 +6,8 @@ namespace Gplanchat\AgenticBundle\Tool;
 
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
+use Gplanchat\Agentic\Application\Tool\ContextualTool;
+use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 
 /**
@@ -14,7 +16,7 @@ use Gplanchat\AgenticBundle\Sandbox\Workspaces;
  * Classed `read`: it passes in every mode. It reads inside the sandbox, so it sees what
  * `run_command` sees and nothing more — no secret, nothing outside the workspace.
  */
-final readonly class ReadFileTool implements WorkspaceTool
+final readonly class ReadFileTool implements ContextualTool
 {
     public const TOOL = 'read_file';
 
@@ -44,10 +46,18 @@ final readonly class ReadFileTool implements WorkspaceTool
 
     public function __invoke(array $arguments): string
     {
-        return $this->inWorkspace($arguments, null);
+        return $this->act($arguments, null);
     }
 
-    public function inWorkspace(array $arguments, ?string $workspace): string
+    public function inContext(array $arguments, ToolContext $context): string
+    {
+        return $this->act($arguments, $context->workspace);
+    }
+
+    /**
+     * @param array<string, mixed> $arguments
+     */
+    private function act(array $arguments, ?string $workspace): string
     {
         return $this->workspaces->file([
             'op' => 'read',

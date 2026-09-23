@@ -7,6 +7,7 @@ namespace Gplanchat\AgenticBundle\Tests\Sandbox;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 use Gplanchat\AgenticBundle\Sandbox\Worktrees;
+use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\AgenticBundle\Tool\EditFileTool;
 use Gplanchat\AgenticBundle\Tool\ReadFileTool;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -157,7 +158,7 @@ final class FileToolsTest extends TestCase
      */
     private function readFile(array $arguments): string
     {
-        return $this->read->inWorkspace($arguments, $this->worktree);
+        return $this->read->inContext($arguments, new ToolContext('test-call', $this->worktree));
     }
 
     /**
@@ -165,7 +166,7 @@ final class FileToolsTest extends TestCase
      */
     private function editFile(array $arguments): string
     {
-        return $this->edit->inWorkspace($arguments, $this->worktree);
+        return $this->edit->inContext($arguments, new ToolContext('test-call', $this->worktree));
     }
 
     private function git(string ...$arguments): void

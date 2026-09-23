@@ -147,7 +147,7 @@ final class DurableToolExecutor implements ToolExecutorInterface
             yield new Progress('tool_call', \sprintf('Running tool "%s".', $toolCall->getName()), $toolCall);
 
             try {
-                $result = $this->environment->await($this->stub->callTool($toolCall->getId(), $toolCall->getName(), $toolCall->getArguments(), $this->workspace));
+                $result = $this->environment->await($this->stub->callTool($toolCall->getId(), $toolCall->getName(), $toolCall->getArguments(), $this->workspace, $this->principal?->toWire() ?? []));
             } catch (DurableActivityFailedException $failure) {
                 // A broken tool, retries exhausted, is not a breakdown of the conversation: the
                 // model reads it as a result and adapts. The failure is in the journal

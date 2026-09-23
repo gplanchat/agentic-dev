@@ -7,6 +7,8 @@ namespace Gplanchat\AgenticBundle\Tool;
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
+use Gplanchat\Agentic\Application\Tool\ContextualTool;
+use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 
 /**
@@ -19,7 +21,7 @@ use Gplanchat\AgenticBundle\Sandbox\Workspaces;
  * With worktrees on, the command runs in the conversation's worktree — its path comes from the
  * start payload, never from the model —, created on the first call. Without, in the project.
  */
-final readonly class RunCommandTool implements WorkspaceTool
+final readonly class RunCommandTool implements ContextualTool
 {
     public const TOOL = 'run_command';
 
@@ -48,10 +50,18 @@ final readonly class RunCommandTool implements WorkspaceTool
 
     public function __invoke(array $arguments): string
     {
-        return $this->inWorkspace($arguments, null);
+        return $this->act($arguments, null);
     }
 
-    public function inWorkspace(array $arguments, ?string $workspace): string
+    public function inContext(array $arguments, ToolContext $context): string
+    {
+        return $this->act($arguments, $context->workspace);
+    }
+
+    /**
+     * @param array<string, mixed> $arguments
+     */
+    private function act(array $arguments, ?string $workspace): string
     {
         // Thrown if git cannot create the worktree: an infrastructure failure, retried like one.
         [$root, $readOnly] = $this->workspaces->open($workspace);

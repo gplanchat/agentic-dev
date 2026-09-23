@@ -6,6 +6,8 @@ namespace Gplanchat\AgenticBundle\Tool;
 
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
+use Gplanchat\Agentic\Application\Tool\ContextualTool;
+use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 
 /**
@@ -20,7 +22,7 @@ use Gplanchat\AgenticBundle\Sandbox\Workspaces;
  * ponytail: a tool call is delivered at least once. An edit that landed but whose result was lost is
  * retried, and then reports that old_string is no longer there — the model reads the file again.
  */
-final readonly class EditFileTool implements WorkspaceTool
+final readonly class EditFileTool implements ContextualTool
 {
     public const TOOL = 'edit_file';
 
@@ -52,10 +54,18 @@ final readonly class EditFileTool implements WorkspaceTool
 
     public function __invoke(array $arguments): string
     {
-        return $this->inWorkspace($arguments, null);
+        return $this->act($arguments, null);
     }
 
-    public function inWorkspace(array $arguments, ?string $workspace): string
+    public function inContext(array $arguments, ToolContext $context): string
+    {
+        return $this->act($arguments, $context->workspace);
+    }
+
+    /**
+     * @param array<string, mixed> $arguments
+     */
+    private function act(array $arguments, ?string $workspace): string
     {
         return $this->workspaces->file([
             'op' => 'edit',

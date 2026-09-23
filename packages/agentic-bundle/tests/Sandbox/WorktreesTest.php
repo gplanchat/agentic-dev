@@ -7,6 +7,7 @@ namespace Gplanchat\AgenticBundle\Tests\Sandbox;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 use Gplanchat\AgenticBundle\Sandbox\Worktrees;
+use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
@@ -86,20 +87,20 @@ final class WorktreesTest extends TestCase
         $tool = new RunCommandTool(new Workspaces($sandbox, $worktrees));
         $path = $worktrees->pathFor('3f2a9c1e');
 
-        self::assertSame("Exit code: 0\n{$path}\n", $tool->inWorkspace(['command' => 'php vendor/autoload.php'], $path));
-        self::assertStringStartsWith('Exit code: 0', $tool->inWorkspace(['command' => 'git status --short'], $path));
+        self::assertSame("Exit code: 0\n{$path}\n", $tool->inContext(['command' => 'php vendor/autoload.php'], new ToolContext('test-call', $path)));
+        self::assertStringStartsWith('Exit code: 0', $tool->inContext(['command' => 'git status --short'], new ToolContext('test-call', $path)));
 
-        $tool->inWorkspace(['command' => 'touch src/Written.php'], $path);
+        $tool->inContext(['command' => 'touch src/Written.php'], new ToolContext('test-call', $path));
         self::assertFileExists($path.'/src/Written.php');
         self::assertFileDoesNotExist($this->project.'/src/Written.php', 'The project is not the workspace.');
 
-        self::assertStringStartsNotWith('Exit code: 0', $tool->inWorkspace(['command' => 'touch vendor/planted.php'], $path), 'Borrowed read-only.');
-        self::assertStringStartsNotWith('Exit code: 0', $tool->inWorkspace(['command' => 'ls '.$this->project.'/src'], $path), 'The project itself is not mounted.');
+        self::assertStringStartsNotWith('Exit code: 0', $tool->inContext(['command' => 'touch vendor/planted.php'], new ToolContext('test-call', $path)), 'Borrowed read-only.');
+        self::assertStringStartsNotWith('Exit code: 0', $tool->inContext(['command' => 'ls '.$this->project.'/src'], new ToolContext('test-call', $path)), 'The project itself is not mounted.');
 
         // Ignored by git, run by the host: in a fresh worktree too, the agent cannot plant them.
-        $tool->inWorkspace(['command' => 'touch .claude/settings.json'], $path);
-        $tool->inWorkspace(['command' => 'mkdir -p var/cache/dev'], $path);
-        $tool->inWorkspace(['command' => 'cp src/Written.php .env.local'], $path);
+        $tool->inContext(['command' => 'touch .claude/settings.json'], new ToolContext('test-call', $path));
+        $tool->inContext(['command' => 'mkdir -p var/cache/dev'], new ToolContext('test-call', $path));
+        $tool->inContext(['command' => 'cp src/Written.php .env.local'], new ToolContext('test-call', $path));
         self::assertFileDoesNotExist($path.'/.claude/settings.json');
         self::assertDirectoryDoesNotExist($path.'/var/cache');
         self::assertSame('', file_get_contents($path.'/.env.local'));

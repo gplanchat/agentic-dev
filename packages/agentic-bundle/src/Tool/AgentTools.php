@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Tool;
 
 use Gplanchat\Agentic\Application\Tool\AgentTool;
+use Gplanchat\Agentic\Application\Tool\ContextualTool;
+use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
 
 /**
@@ -32,9 +34,10 @@ final class AgentTools
 
     /**
      * @param array<string, mixed> $arguments
-     * @param string|null          $workspace the conversation's working directory, from its start payload
+     * @param ToolContext|null     $context what the conversation says about this call — where to act,
+     *                                      for whom, which call; `null` for a plain invocation
      */
-    public function call(string $name, array $arguments, ?string $workspace = null): string
+    public function call(string $name, array $arguments, ?ToolContext $context = null): string
     {
         $tool = $this->byName()[$name] ?? null;
         if (null === $tool) {
@@ -44,7 +47,7 @@ final class AgentTools
             return \sprintf('Unknown tool "%s": it is no longer offered.', $name);
         }
 
-        return $tool instanceof WorkspaceTool ? $tool->inWorkspace($arguments, $workspace) : $tool($arguments);
+        return $tool instanceof ContextualTool && null !== $context ? $tool->inContext($arguments, $context) : $tool($arguments);
     }
 
     /**
