@@ -68,10 +68,18 @@ final class DurableAgentFactory
         array $rulesWire = [],
         ?Principal $principal = null,
         ?TokenLedger $ledger = null,
+        int $depth = 0,
+        int $maxDepth = 2,
     ): Agent {
         // Always offered: an agent that cannot ask makes things up, and an agent that cannot wait
         // botches the job.
-        $tools = $tools->with(AskUserQuestion::definition(), WatchTool::definition($subjects), DelegateTool::definition($profiles));
+        // At the deepest level allowed, `delegate` is not offered at all rather than offered and
+        // refused: a tool the model cannot see is a tool it does not spend a turn reaching for.
+        // Without a bound here, an anonymous delegation could delegate again for ever — the child
+        // loses its caller's named profiles but never lost the tool itself.
+        $tools = $depth < $maxDepth
+            ? $tools->with(AskUserQuestion::definition(), WatchTool::definition($subjects), DelegateTool::definition($profiles))
+            : $tools->with(AskUserQuestion::definition(), WatchTool::definition($subjects));
 
         // The Mistral bridge provides everything that is **pure** — the normalisation of the
         // conversation, the catalogue, the conversion of the JSON into a result — and that is what
@@ -107,6 +115,9 @@ final class DurableAgentFactory
                 rulesWire: $rulesWire,
                 workspace: $workspace,
                 principal: $principal,
+                ledger: $ledger,
+                depth: $depth,
+                maxDepth: $maxDepth,
             ),
             maxToolCalls: $maxToolCalls,
         );

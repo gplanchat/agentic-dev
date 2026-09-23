@@ -22,7 +22,9 @@ use Gplanchat\Agentic\Domain\Watch\Watch;
 use Gplanchat\Agentic\Domain\Watch\WatchSubjects;
 use Gplanchat\Agentic\Domain\Watch\WatchTool;
 use Gplanchat\Durable\Duration;
+use Gplanchat\Agentic\Application\Chat\AgentOutcome;
 use Gplanchat\Durable\Event\ActivityCompleted;
+use Gplanchat\Durable\Event\ChildWorkflowCompleted;
 use Gplanchat\Durable\Event\ActivityScheduled;
 use Gplanchat\Durable\Event\ExecutionCompleted;
 use Gplanchat\Durable\Event\ExecutionStarted;
@@ -174,6 +176,15 @@ final class ChatTranscript
                 if (\is_array($event->result())) {
                     $ledger->record($event->result());
                 }
+
+                continue;
+            }
+
+            // A delegation's cost comes back as the child's result, and it already carries that
+            // child's own delegations: the same number the run's ledger added, so the display and
+            // the ceiling cannot drift apart.
+            if ($event instanceof ChildWorkflowCompleted) {
+                $ledger->add(AgentOutcome::fromWire($event->result())->tokensSpent);
 
                 continue;
             }

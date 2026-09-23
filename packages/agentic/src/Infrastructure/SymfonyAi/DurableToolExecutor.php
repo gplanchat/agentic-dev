@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Infrastructure\SymfonyAi;
 
 use Gplanchat\Agentic\Infrastructure\Durable\Activity\AgentToolActivityInterface;
+use Gplanchat\Agentic\Application\Chat\AgentOutcome;
+use Gplanchat\Agentic\Domain\Context\TokenLedger;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\ApprovalOutcome;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
@@ -73,6 +75,10 @@ final class DurableToolExecutor implements ToolExecutorInterface
         private readonly ?string $workspace = null,
         /** On whose behalf this agent runs; what a delegate inherits, narrowed, never widened. */
         private readonly ?Principal $principal = null,
+        /** The run's ledger: a delegation's cost is added to it when the child reports back. */
+        private readonly ?TokenLedger $ledger = null,
+        private readonly int $depth = 0,
+        private readonly int $maxDepth = 2,
     ) {
         $this->stub = $environment->activityStub(AgentToolActivityInterface::class, $options);
     }
@@ -233,7 +239,7 @@ final class DurableToolExecutor implements ToolExecutorInterface
         // default value. With no exception, with no trace — the sub-agent starts with an empty
         // prompt and waits for a message that will never come. It is a flaw of the core, not of
         // here; in the meantime, the order of the signature is what counts.
-        $reply = (string) $this->environment->await(
+        $reply = $this->environment->await(
             $this->environment->childWorkflowStub(DurableAgentWorkflow::class)->run(
                 $tools,                               // tools
                 $model,                               // model
@@ -264,11 +270,23 @@ final class DurableToolExecutor implements ToolExecutorInterface
                 // its caller's either: a delegate is a child workflow with its own journal, and
                 // nothing carries the total back. A run has a budget; a conversation with
                 // sub-agents does not yet.
-                0,                                    // tokenBudget
+                // What is left of the caller's purse, so a delegate cannot outspend the conversation
+                // on its own. 0 stays 0: no budget means no ceiling, and `max(1, …)` would turn a
+                // spent purse into an unlimited one.
+                null === $this->ledger || 0 === $this->ledger->maxTokens()
+                    ? 0
+                    : max(1, $this->ledger->maxTokens() - $this->ledger->spent()),  // tokenBudget
+                $this->depth + 1,                     // depth
+                $this->maxDepth,                      // maxDepth
             ),
         );
 
-        return \sprintf('The sub-agent %s (%s) replies: %s', $profile?->name ?? '(unnamed)', $model, $reply);
+        // What the child reports is its own spend **plus** everything its own delegates reported to
+        // it: the tree is summed one level at a time, so this single addition covers all of it.
+        $outcome = AgentOutcome::fromWire($reply);
+        $this->ledger?->add($outcome->tokensSpent);
+
+        return \sprintf('The sub-agent %s (%s) replies: %s', $profile?->name ?? '(unnamed)', $model, $outcome->answer);
     }
 
     /**

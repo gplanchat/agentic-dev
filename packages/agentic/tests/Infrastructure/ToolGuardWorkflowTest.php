@@ -10,6 +10,7 @@ use Gplanchat\Agentic\Domain\Guard\ModeToolGuard;
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
+use Gplanchat\Agentic\Application\Chat\AgentOutcome;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
 use Gplanchat\Durable\Testing\WorkflowTestEnvironment;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -89,7 +90,7 @@ final class ToolGuardWorkflowTest extends TestCase
         ]);
 
         $result = $environment->run(
-            static fn ($workflowEnvironment): string => (new DurableAgentWorkflow($workflowEnvironment))->run(
+            static fn ($workflowEnvironment): array => (new DurableAgentWorkflow($workflowEnvironment))->run(
                 ['send_email' => ['description' => 'Send', 'effect' => 'external']],
                 mode: 'standard',
                 prompt: 'Send an email',
@@ -100,7 +101,7 @@ final class ToolGuardWorkflowTest extends TestCase
         );
 
         self::assertSame(0, $toolCalls, 'An expired approval triggered the tool anyway.');
-        self::assertSame(ApprovalOutcome::Expired->message(), $result);
+        self::assertSame(ApprovalOutcome::Expired->message(), AgentOutcome::fromWire($result)->answer);
     }
 
     /**
@@ -133,7 +134,7 @@ final class ToolGuardWorkflowTest extends TestCase
         ]);
 
         $result = $environment->run(
-            static fn ($workflowEnvironment): string => (new DurableAgentWorkflow($workflowEnvironment))->run(
+            static fn ($workflowEnvironment): array => (new DurableAgentWorkflow($workflowEnvironment))->run(
                 ['send_email' => ['description' => 'Send', 'effect' => 'external']],
                 prompt: 'Send an email',
                 maxTurns: 1,
@@ -143,7 +144,7 @@ final class ToolGuardWorkflowTest extends TestCase
         );
 
         self::assertSame(0, $toolCalls, 'The activity of a refused tool was scheduled anyway.');
-        self::assertStringContainsString('is forbidden by the agent policy', $result);
+        self::assertStringContainsString('is forbidden by the agent policy', AgentOutcome::fromWire($result)->answer);
     }
 
     /**

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Gplanchat\Agentic\Tests\Infrastructure;
 
+use Gplanchat\Agentic\Application\Chat\AgentOutcome;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
 use Gplanchat\Durable\Testing\WorkflowTestEnvironment;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -71,6 +72,7 @@ final class DelegateProfileWorkflowTest extends TestCase
             'prompt' => 'Delegate the sorting',
             'maxTurns' => 1,
         ], 'delegate-profile-1');
+        $answer = AgentOutcome::fromWire($answer)->answer;
 
         self::assertSame('done', (string) $answer);
 
@@ -158,13 +160,13 @@ final class DelegateProfileWorkflowTest extends TestCase
             },
         ]);
 
-        $answer = (string) $environment->runWorkflowClass(DurableAgentWorkflow::class, [
+        $answer = AgentOutcome::fromWire($environment->runWorkflowClass(DurableAgentWorkflow::class, [
             'tools' => self::TOOLS,
             'agents' => self::AGENTS,
             'mode' => 'auto',
             'prompt' => 'Delegate to ghost',
             'maxTurns' => 1,
-        ], 'delegate-profile-2');
+        ], 'delegate-profile-2'))->answer;
 
         self::assertStringContainsString('No sub-agent is named "ghost"', $answer);
         self::assertStringContainsString('sorter', $answer, 'The refusal says what is declared.');

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Gplanchat\Agentic\Tests\Infrastructure;
 
+use Gplanchat\Agentic\Application\Chat\AgentOutcome;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
 use Gplanchat\Durable\Testing\WorkflowTestEnvironment;
 use PHPUnit\Framework\Attributes\CoversClass;
@@ -34,7 +35,7 @@ final class DurableAgentReplayTest extends TestCase
     {
         [$result, $modelCalls, $toolCalls, $passes] = $this->executeAgent('exec-1');
 
-        self::assertSame('Paris 22°C, Lyon 25°C.', $result);
+        self::assertSame('Paris 22°C, Lyon 25°C.', AgentOutcome::fromWire($result)->answer);
 
         // Without this, the rest proves nothing: the workflow code — hence `Runner::run()` and the
         // tool-calling loop — must really have been re-executed.
@@ -94,7 +95,7 @@ final class DurableAgentReplayTest extends TestCase
     {
         [$result] = $this->executeAgent('exec-answer');
 
-        self::assertSame('Paris 22°C, Lyon 25°C.', $result);
+        self::assertSame('Paris 22°C, Lyon 25°C.', AgentOutcome::fromWire($result)->answer);
     }
 
     /**
@@ -126,7 +127,7 @@ final class DurableAgentReplayTest extends TestCase
         ]);
 
         $result = $environment->run(
-            static function ($workflowEnvironment) use (&$passes): string {
+            static function ($workflowEnvironment) use (&$passes): array {
                 ++$passes;
 
                 return (new DurableAgentWorkflow($workflowEnvironment))->run(

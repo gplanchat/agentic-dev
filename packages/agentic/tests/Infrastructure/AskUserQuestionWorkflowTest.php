@@ -6,6 +6,7 @@ namespace Gplanchat\Agentic\Tests\Infrastructure;
 
 use Gplanchat\Agentic\Domain\Guard\ModeToolGuard;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
+use Gplanchat\Agentic\Application\Chat\AgentOutcome;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
 use Gplanchat\Durable\Event\ExecutionStarted;
 use Gplanchat\Durable\Event\WorkflowSignalReceived;
@@ -50,7 +51,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
         // It really is a signal — the same one the page would send, in the same place.
         $this->answerUpFront($environment, 'question-1', ['Batch']);
 
-        self::assertSame('Understood: Batch', $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-1'));
+        self::assertSame('Understood: Batch', AgentOutcome::fromWire($environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-1'))->answer);
     }
 
     public function testSeveralAnswersTravelTogetherWhenTheQuestionAllowsIt(): void
@@ -58,7 +59,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
         $this->answerUpFront($environment, 'question-2', ['Batch', 'In the background']);
 
-        self::assertSame('Understood: Batch; In the background', $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-2'));
+        self::assertSame('Understood: Batch; In the background', AgentOutcome::fromWire($environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'question-2'))->answer);
     }
 
     /**
@@ -70,6 +71,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
 
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(5.0), 'question-3');
+        $answer = AgentOutcome::fromWire($answer)->answer;
 
         self::assertStringContainsString('No answer', $answer);
     }
@@ -90,7 +92,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
 
         self::assertSame(
             'Understood: Batch',
-            $environment->runWorkflowClass(DurableAgentWorkflow::class, $input, 'question-5'),
+            AgentOutcome::fromWire($environment->runWorkflowClass(DurableAgentWorkflow::class, $input, 'question-5'))->answer,
         );
     }
 
@@ -107,6 +109,7 @@ final class AskUserQuestionWorkflowTest extends TestCase
         // instead of returning an answer.
         $input = ['guard' => new ModeToolGuard(denied: [AskUserQuestion::TOOL])] + $this->input();
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $input, 'question-6');
+        $answer = AgentOutcome::fromWire($answer)->answer;
 
         self::assertStringContainsString('is forbidden by the agent policy', $answer);
     }

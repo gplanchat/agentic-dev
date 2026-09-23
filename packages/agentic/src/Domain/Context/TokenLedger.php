@@ -57,6 +57,18 @@ final class TokenLedger
         $this->spent += max(0, $total);
     }
 
+    /**
+     * Adds a total someone else counted — a delegate reporting what its whole subtree cost.
+     *
+     * This is what makes the accounting recursive without any recursion here: a child already
+     * added its own children's totals to its ledger before reporting, so one addition per level
+     * carries the entire tree below it.
+     */
+    public function add(int $tokens): void
+    {
+        $this->spent += max(0, $tokens);
+    }
+
     public function spent(): int
     {
         return $this->spent;

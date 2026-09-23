@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Tests\Infrastructure;
 
 use Gplanchat\Agentic\Domain\Watch\WatchTool;
+use Gplanchat\Agentic\Application\Chat\AgentOutcome;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
 use Gplanchat\Durable\Event\ExecutionStarted;
 use Gplanchat\Durable\Event\WorkflowSignalReceived;
@@ -30,6 +31,7 @@ final class WatchWorkflowTest extends TestCase
         $this->alertUpFront($environment, 'watch-1', 'the truck is at the dock');
 
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'watch-1');
+        $answer = AgentOutcome::fromWire($answer)->answer;
 
         self::assertStringContainsString('the truck is at the dock', $answer);
         self::assertStringContainsString('Record the goods receipt', $answer, 'Waking forgot to hand back the intent.');
@@ -44,6 +46,7 @@ final class WatchWorkflowTest extends TestCase
         $environment = WorkflowTestEnvironment::inMemory($this->scriptedModel());
 
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'watch-2');
+        $answer = AgentOutcome::fromWire($answer)->answer;
 
         self::assertStringContainsString('expired without an alert', $answer);
         self::assertStringContainsString('Record the goods receipt', $answer);
@@ -160,6 +163,7 @@ final class WatchWorkflowTest extends TestCase
         ]);
 
         $answer = $environment->runWorkflowClass(DurableAgentWorkflow::class, $this->input(), 'watch-refused');
+        $answer = AgentOutcome::fromWire($answer)->answer;
 
         self::assertStringContainsString('Unknown watch subject', $answer);
         self::assertStringContainsString('order.shipped', $answer, 'The refusal must say what is acceptable.');

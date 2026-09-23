@@ -84,7 +84,15 @@ every refresh, with no `messenger:consume` alongside.
   model calls); and a delegate is a child workflow with its own journal, so **its spend is not
   counted against its caller's** — a run has a budget, a conversation with sub-agents does not yet.
   Offline, the scripted client prices its replies at four characters per token so the counter behaves
-  as it does with a provider.
+  as it does with a provider. **A delegation is counted**: a child hands its total back in its
+  return value — the only channel from a child workflow to its parent — and since each level adds
+  what its own delegates reported before reporting in turn, one addition per level carries the
+  whole tree. The same number reaches the display, so the header and the ceiling cannot drift.
+- **Depth of delegation** (`max_delegation_depth`, 2 by default): a delegate keeps the `delegate`
+  tool, so without a bound an anonymous delegation could delegate for ever, each level costing a
+  model call. At the deepest level allowed the tool is not offered at all, rather than offered and
+  refused: a tool the model cannot see is one it does not spend a turn reaching for. `0` forbids
+  delegating outright.
 - **Decision hooks** (`tool_rules` in `config/packages/agentic.php`): for a tool (an `fnmatch`
   pattern) and, where needed, conditions on its arguments, `allow`, `ask` or `deny`, before the mode.
   Deny wins over ask, which wins over allow; `/tools` shows the rules.

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Infrastructure\Durable\Workflow;
 
 use Gplanchat\Agentic\Infrastructure\Durable\Activity\ModelInvocationActivityInterface;
+use Gplanchat\Agentic\Application\Chat\AgentOutcome;
 use Gplanchat\Agentic\Application\Chat\TranscriptMessage;
 use Gplanchat\Agentic\Domain\Context\ContextBudget;
 use Gplanchat\Agentic\Domain\Context\TokenLedger;
@@ -299,7 +300,11 @@ final class DurableAgentWorkflow
      * @param array<string, mixed>                                                                                $owner              on whose behalf this runs ({@see Principal}); `[]` = nobody, which claims nothing
      * @param int                                                                                                 $tokenBudget        what this run may spend in model tokens; `0` = no ceiling, still counted
      *
-     * @return string the agent's last reply
+     * @param int $depth    how far down the delegation chain this run sits; 0 for a conversation
+     * @param int $maxDepth the deepest a delegation may go; at that depth `delegate` is not offered
+     *
+     * @return array{answer: string, tokensSpent: int} {@see AgentOutcome} — the reply, and what the
+     *                                                whole subtree below it cost
      */
     #[AsWorkflowMethod]
     public function run(
@@ -328,7 +333,9 @@ final class DurableAgentWorkflow
         // parameter slipped into the middle silently shifts every one after it.
         array $owner = [],
         int $tokenBudget = 0,
-    ): string {
+        int $depth = 0,
+        int $maxDepth = 2,
+    ): array {
         // The ceiling first: the requested mode bends to it, it does not go around it.
         $this->ceiling = AgentMode::tryFrom($modeCeiling) ?? AgentMode::Auto;
         $this->mode = AgentMode::strictest($this->ceiling, AgentMode::tryFrom($mode) ?? AgentMode::Standard);
@@ -369,6 +376,8 @@ final class DurableAgentWorkflow
             workspace: $workspace,
             principal: Principal::fromWire($owner),
             ledger: $ledger,
+            depth: $depth,
+            maxDepth: $maxDepth,
         );
         $agent = $build();
         $agentModel = $this->model;
@@ -480,10 +489,15 @@ final class DurableAgentWorkflow
                     // What is left of the budget, not the original: a relay is the same conversation
                     // going on, and it must not hand itself a fresh purse.
                     'tokenBudget' => 0 === $tokenBudget ? 0 : max(1, $tokenBudget - $ledger->spent()),
+                    'depth' => $depth,
+                    'maxDepth' => $maxDepth,
                 ]);
             }
         }
 
-        return $answer;
+        // The cost travels with the reply because a child's journal is unreadable from its parent:
+        // this return value is the only channel back, and `$ledger` already holds what this run's
+        // own delegates reported. One addition per level therefore carries the whole tree.
+        return (new AgentOutcome($answer, $ledger->spent()))->toWire();
     }
 }
