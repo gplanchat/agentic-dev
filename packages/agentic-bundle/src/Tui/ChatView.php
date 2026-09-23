@@ -19,6 +19,7 @@ use Symfony\Component\Tui\Event\SelectEvent;
 use Symfony\Component\Tui\Event\SubmitEvent;
 use Symfony\Component\Tui\Input\Keybindings;
 use Symfony\Component\Tui\Render\RenderContext;
+use Symfony\Component\Tui\Render\Renderer;
 use Symfony\Component\Tui\Style\Style;
 use Symfony\Component\Tui\Style\StyleSheet;
 use Symfony\Component\Tui\Terminal\TerminalInterface;
@@ -69,6 +70,18 @@ final class ChatView
 
     public readonly Tui $tui;
 
+    /**
+     * Ours, so that a click can be placed.
+     *
+     * `Renderer::getWidgetRect()` is the only thing that says where a widget was actually drawn —
+     * `AbstractWidget::render()` gives the height of its content, not the row the layout put it on,
+     * and the thread stretches to fill the screen, so the two differ by most of it. `Tui` keeps its
+     * renderer private and its constructor marks this parameter `@internal`; the dependency is
+     * bounded the way the one on `symfony/ai`'s `Runner` is, by a pinned minor (`symfony/tui 8.2.*`).
+     * A `Tui::getWidgetRect()` upstream would retire this line.
+     */
+    private readonly Renderer $renderer;
+
     private readonly TextWidget $header;
 
     private readonly ThreadWidget $thread;
@@ -113,6 +126,9 @@ final class ChatView
     /** Which suggestion the arrows are on; `null` = none picked, so Tab takes the first. */
     private ?int $highlighted = null;
 
+    /** The list on screen — approval, question or command choice — so a click can move it. */
+    private ?SelectListWidget $choices = null;
+
 
     /** The line being typed, set aside while the history is browsed. */
     private string $draft = '';
@@ -150,7 +166,8 @@ final class ChatView
         ?TerminalInterface $terminal = null,
         ?string $startupNotice = null,
     ) {
-        $this->tui = new Tui(terminal: $terminal);
+        $this->renderer = new Renderer();
+        $this->tui = new Tui(terminal: $terminal, renderer: $this->renderer);
         $this->header = new TextWidget();
         $this->thread = new ThreadWidget();
         $this->interaction = new ContainerWidget();
@@ -304,7 +321,10 @@ final class ChatView
 
         if (1 === preg_match('/^\e\[<0;\d+;(\d+)M$/', $data, $click)) {
             $event->stopPropagation();
-            $this->toggleDiffAt((int) $click[1] - 1);
+            $row = (int) $click[1] - 1;
+            if (!$this->clickSuggestion($row) && !$this->clickChoice($row)) {
+                $this->toggleDiffAt($row);
+            }
 
             return;
         }
@@ -575,6 +595,8 @@ final class ChatView
             return;
         }
 
+        // The interaction is being rebuilt: a click must not reach a widget nothing draws.
+        $this->choices = null;
         $this->interactionKey = $key;
 
         $this->interaction->clear();
@@ -639,6 +661,55 @@ final class ChatView
      * Like a shell: ↑ goes up towards the older lines, ↓ comes back down, and past the most recent
      * one you find again what you were typing.
      */
+    /**
+     * Which row of a widget a screen row falls on, or `null` when it falls elsewhere. The geometry
+     * comes from the last render, so it is where the human actually clicked.
+     */
+    private function rowWithin(?AbstractWidget $widget, int $row): ?int
+    {
+        $rect = null === $widget ? null : $this->renderer->getWidgetRect($widget);
+
+        return null !== $rect && $row >= $rect->row && $row < $rect->row + $rect->rows
+            ? $row - $rect->row
+            : null;
+    }
+
+    /**
+     * A click on a listed command takes it, as a click on a completion does: one gesture, not a
+     * pick and then a key.
+     */
+    private function clickSuggestion(int $row): bool
+    {
+        $names = array_keys(SlashCommands::suggestions($this->input?->getValue() ?? ''));
+        $index = $this->rowWithin($this->notice, $row);
+        if (null === $this->input || null === $index || !isset($names[$index])) {
+            return false;
+        }
+
+        $this->input->setValue($names[$index].' ');
+        $this->highlighted = null;
+        $this->showSuggestions($this->input->getValue());
+
+        return true;
+    }
+
+    /**
+     * A click on a choice moves the selection there. It picks, it does not confirm: an approval is
+     * answered with a key one meant to press, never with a stray click.
+     */
+    private function clickChoice(int $row): bool
+    {
+        $index = $this->rowWithin($this->choices, $row);
+        if (null === $this->choices || null === $index) {
+            return false;
+        }
+
+        $this->choices->setSelectedIndex($index);
+        $this->tui->requestRender();
+
+        return true;
+    }
+
     /**
      * The command the arrows are on, or `null` when none is picked or the list has closed.
      */
@@ -762,6 +833,7 @@ final class ChatView
         ], $choice['choices']);
 
         $list = new SelectListWidget($items, maxVisible: 8);
+        $this->choices = $list;
         $list->onSelect(function (SelectEvent $event) use ($choice): void {
             $this->choice = null;
             $this->command($choice['choose'].' '.$event->getValue());
@@ -823,6 +895,7 @@ final class ChatView
             ['value' => 'yes', 'label' => 'Approve'],
             ['value' => 'no', 'label' => 'Refuse'],
         ]);
+        $this->choices = $list;
         $list->onSelect(function (SelectEvent $event) use ($pending): void {
             $this->confirm('yes' === $event->getValue() ? 'Approved' : 'Refused', $pending->tool);
             $this->act(fn () => $this->conversations->decide($this->conversation, $pending->callId, 'yes' === $event->getValue()));
@@ -851,6 +924,7 @@ final class ChatView
         }
 
         $list = new SelectListWidget($items, multiselect: $question->multiSelect);
+        $this->choices = $list;
         $list->onSelect(function (SelectEvent $event) use ($question): void {
             $this->confirm('Answer sent', $event->getValue());
             $this->act(fn () => $this->conversations->answer($this->conversation, $question->callId, [$event->getValue()]));
