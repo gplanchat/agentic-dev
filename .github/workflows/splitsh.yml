@@ -1,0 +1,151 @@
+# Runs splitsh-lite per prefix (monorepo → mirror commits for satellite repos).
+# Requires bin/splitsh-publish.sh (taken from gplanchat/durable-dev).
+# Optional secret SPLITSH_PUSH_TOKEN (PAT) for HTTPS git push to each satellite repo.
+#
+# Branch pushes (main/master): split HEAD and push to refs/heads/main on each satellite.
+# Tag pushes (v*): split the tagged commit and push refs/tags/<tag> to each satellite.
+#
+# splitsh/lite v2.0.0 uses git2go v34 → libgit2 **1.5.x** only. The runner's `libgit2-dev`
+# package (often 1.7+) is incompatible → build libgit2 v1.5.2 under $HOME.
+name: Splitsh
+
+on:
+    push:
+        branches: [main, master]
+        tags:
+            - 'v*'
+    workflow_dispatch:
+        inputs:
+            force:
+                description: "Force-push: realign satellites whose main diverged from the computed split (rewrites published history; previous heads are archived under refs/heads/archive/)"
+                type: boolean
+                default: false
+
+concurrency:
+    group: splitsh-${{ github.ref }}
+    cancel-in-progress: true
+
+jobs:
+    splitsh:
+        name: splitsh-lite (subtrees)
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+        steps:
+            # Do not persist GITHUB_TOKEN as a git credential helper: it would be used for
+            # *all* github.com HTTPS operations and breaks pushes to *other* repos with SPLITSH_PUSH_TOKEN
+            # (symptom: git exits 128 / permission denied on satellite remotes).
+            - name: Checkout (full history — required by splitsh)
+              uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+                  persist-credentials: false
+
+            - name: Local bin directory
+              run: mkdir -p "$HOME/.local/bin"
+
+            - name: Restore cache (splitsh-lite + libgit2 1.5)
+              id: cache-toolchain
+              uses: actions/cache/restore@v4
+              with:
+                  path: |
+                      ~/.local/bin/splitsh-lite
+                      ~/libgit2-install
+                  key: splitsh-toolchain-v2-libgit2-1.5.2-${{ runner.os }}-amd64
+
+            - name: System packages (build libgit2, not libgit2-dev)
+              if: steps.cache-toolchain.outputs.cache-hit != 'true'
+              run: |
+                  sudo apt-get update
+                  sudo apt-get install -y build-essential cmake curl libssl-dev pkg-config zlib1g-dev
+
+            - uses: actions/setup-go@v5
+              if: steps.cache-toolchain.outputs.cache-hit != 'true'
+              with:
+                  go-version: '1.22'
+                  cache: false
+
+            - name: Build libgit2 1.5.2 then splitsh-lite (splitsh/lite v2.0.0)
+              if: steps.cache-toolchain.outputs.cache-hit != 'true'
+              env:
+                  SPLITSH_LITE_REF: v2.0.0
+              run: |
+                  set -euo pipefail
+                  PREFIX="$HOME/libgit2-install"
+                  mkdir -p "$PREFIX"
+                  curl -sL https://github.com/libgit2/libgit2/archive/refs/tags/v1.5.2.tar.gz | tar xz -C /tmp
+                  cd /tmp/libgit2-1.5.2
+                  cmake -S . -B build \
+                    -DCMAKE_BUILD_TYPE=Release \
+                    -DCMAKE_INSTALL_PREFIX="$PREFIX" \
+                    -DBUILD_CLAR=OFF \
+                    -DBUILD_TESTS=OFF \
+                    -DUSE_SSH=OFF
+                  cmake --build build --parallel
+                  cmake --install build
+                  export PKG_CONFIG_PATH="$PREFIX/lib/pkgconfig"
+                  export LD_LIBRARY_PATH="$PREFIX/lib:${LD_LIBRARY_PATH:-}"
+                  pkg-config --print-errors --exists libgit2
+                  pkg-config --modversion libgit2
+                  git clone --depth 1 --branch "${SPLITSH_LITE_REF}" https://github.com/splitsh/lite.git /tmp/splitsh-lite-src
+                  (cd /tmp/splitsh-lite-src && CGO_ENABLED=1 go build -o splitsh-lite .)
+                  install -m 0755 /tmp/splitsh-lite-src/splitsh-lite "$HOME/.local/bin/splitsh-lite"
+
+            - name: LD_LIBRARY_PATH (binary linked to prefixed libgit2)
+              run: |
+                  if [ -d "$HOME/libgit2-install/lib" ]; then
+                    echo "LD_LIBRARY_PATH=$HOME/libgit2-install/lib" >> "$GITHUB_ENV"
+                  fi
+
+            - name: PATH
+              run: echo "$HOME/.local/bin" >> "${GITHUB_PATH}"
+
+            - name: Verify splitsh-lite
+              run: command -v splitsh-lite && test -x "$HOME/.local/bin/splitsh-lite"
+
+            - name: Validate SPLITSH_PUSH_TOKEN (does not print the secret)
+              env:
+                  SPLITSH_PUSH_TOKEN: ${{ secrets.SPLITSH_PUSH_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  if [ -z "${SPLITSH_PUSH_TOKEN:-}" ]; then
+                    echo "::notice::SPLITSH_PUSH_TOKEN is not set — splitsh will dry-run (no push to satellites)."
+                    exit 0
+                  fi
+                  code="$(curl -sS -o /dev/null -w '%{http_code}' -H "Authorization: Bearer ${SPLITSH_PUSH_TOKEN}" https://api.github.com/user)"
+                  if [ "$code" != "200" ]; then
+                    echo "::error::SPLITSH_PUSH_TOKEN is rejected by GitHub API (HTTP ${code}). Renew the PAT, ensure **repo** scope (classic) or Contents: Write on each satellite (fine-grained), and authorize SSO for the org if applicable."
+                    exit 1
+                  fi
+
+            - name: Publish splits to satellite repositories
+              env:
+                  SPLITSH_PUSH_TOKEN: ${{ secrets.SPLITSH_PUSH_TOKEN }}
+                  SPLITSH_FORCE: ${{ inputs.force && '1' || '0' }}
+              run: |
+                  set -euo pipefail
+                  chmod +x ./bin/splitsh-publish.sh
+                  if [ -z "${SPLITSH_PUSH_TOKEN:-}" ]; then
+                    echo "::notice::SPLITSH_PUSH_TOKEN is not set — splitsh runs in dry-run mode (no push to satellites)."
+                  fi
+                  echo "GITHUB_REF=${GITHUB_REF}"
+                  case "${GITHUB_REF}" in
+                    refs/heads/main|refs/heads/master)
+                      ./bin/splitsh-publish.sh
+                      ;;
+                    refs/tags/v*)
+                      ./bin/splitsh-publish.sh tag "${GITHUB_REF_NAME}"
+                      ;;
+                    *)
+                      echo "Skipping satellite publish for ${GITHUB_REF} (expected main, master, or v* tag)."
+                      ;;
+                  esac
+
+            - name: Save cache (splitsh-lite + libgit2)
+              if: success() && steps.cache-toolchain.outputs.cache-hit != 'true'
+              uses: actions/cache/save@v4
+              with:
+                  path: |
+                      ~/.local/bin/splitsh-lite
+                      ~/libgit2-install
+                  key: splitsh-toolchain-v2-libgit2-1.5.2-${{ runner.os }}-amd64

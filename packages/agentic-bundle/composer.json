@@ -1,11 +1,29 @@
 {
     "name": "gplanchat/agentic-bundle",
     "description": "Symfony integration of gplanchat/agentic: the agentic TUI application and its web version.",
+    "keywords": [
+        "symfony",
+        "symfony-bundle",
+        "ai",
+        "agent",
+        "tui",
+        "durable-execution"
+    ],
     "type": "symfony-bundle",
     "license": "MIT",
+    "authors": [
+        {
+            "name": "Grégory Planchat",
+            "email": "gregory@gyroscops.com"
+        }
+    ],
+    "support": {
+        "issues": "https://github.com/gplanchat/agentic-dev/issues",
+        "source": "https://github.com/gplanchat/agentic-bundle"
+    },
     "require": {
         "php": ">=8.4.1",
-        "gplanchat/agentic": "0.1.x-dev",
+        "gplanchat/agentic": "self.version",
         "gplanchat/durable-bundle": "0.1.x-dev",
         "symfony/config": "8.2.*",
         "symfony/console": "8.2.*",
@@ -32,7 +50,7 @@
     "repositories": [
         {
             "type": "path",
-            "url": "../agentic"
+            "url": "../agentic{,}"
         }
     ],
     "autoload": {
