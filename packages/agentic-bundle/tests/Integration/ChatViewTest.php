@@ -107,6 +107,49 @@ final class ChatViewTest extends KernelTestCase
         self::assertStringContainsString('› /tools ', $this->terminal->getOutput());
     }
 
+    /**
+     * The arrows walk the open suggestions instead of the history, the pick is visible, and Tab
+     * takes the pick rather than the first match.
+     */
+    public function testArrowsPickASuggestionAndTabTakesIt(): void
+    {
+        $view = $this->open();
+        $this->type($view, '/m');
+        $listed = $this->terminal->consumeOutput();
+        // Everything dim and nothing carets: before an arrow, no suggestion is picked.
+        self::assertStringContainsString("\e[2m  /mode", $listed);
+        self::assertStringContainsString("\e[2m  /mcp", $listed);
+        self::assertStringNotContainsString("\e[36m›", $listed);
+
+        // Only the line that changes is redrawn, so each step is read on its own output.
+        $this->key($view, "\e[B");
+        self::assertStringContainsString("\e[36m› /mode", $this->terminal->consumeOutput(), 'Down opens on the first listed.');
+
+        $this->key($view, "\e[B");
+        self::assertStringContainsString("\e[36m› /model", $this->terminal->consumeOutput(), 'Down again takes the next.');
+
+        $this->type($view, "\t");
+        self::assertStringContainsString('› /model ', $this->terminal->getOutput(), 'Tab took the pick, not the first match.');
+    }
+
+    /**
+     * Wrapping, and the reason the input is left alone: it is what filters the list, so a pick that
+     * rewrote it would collapse the very thing being browsed.
+     */
+    public function testUpFromNothingTakesTheLastAndTypingStartsTheChoiceAgain(): void
+    {
+        $view = $this->open();
+        $this->type($view, '/m');
+
+        $this->key($view, "\e[A");
+        self::assertStringContainsString("\e[36m› /mcp", $this->terminal->consumeOutput(), 'Up from nothing opens on the last.');
+
+        $this->type($view, 'o');
+        $narrowed = $this->terminal->consumeOutput();
+        self::assertStringContainsString('/mode', AnsiUtils::stripAnsiCodes($narrowed));
+        self::assertStringNotContainsString("\e[36m›", $narrowed, 'One more letter starts the choice again.');
+    }
+
     public function testClearSwitchesTheScreenToANewConversation(): void
     {
         $view = $this->open();

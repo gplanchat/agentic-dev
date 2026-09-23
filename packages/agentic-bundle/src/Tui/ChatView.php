@@ -108,6 +108,9 @@ final class ChatView
     /** Where the ↑/↓ recall stands; `null` = a fresh line is being typed. */
     private ?int $recall = null;
 
+    /** Which suggestion the arrows are on; `null` = none picked, so Tab takes the first. */
+    private ?int $highlighted = null;
+
     /** The line being typed, set aside while the history is browsed. */
     private string $draft = '';
 
@@ -315,7 +318,19 @@ final class ChatView
         if (null !== $this->input && $this->tui->getFocus() === $this->input
             && ($this->keys->matches($data, 'history_previous') || $this->keys->matches($data, 'history_next'))) {
             $event->stopPropagation();
-            $this->recallHistory($this->keys->matches($data, 'history_previous') ? -1 : 1);
+            $up = $this->keys->matches($data, 'history_previous');
+            // The open list wins over the history, as it does in an editor: while suggestions are
+            // on screen the arrows walk them, and the line being typed is not touched — it is what
+            // filters the list, so replacing it would collapse the very thing being browsed.
+            //
+            // Unless the history is already being walked. Recalling a command puts one in the input,
+            // which would open a list and hand it the arrows — and the walk back would stop on the
+            // first command ever sent. Browsing is one thing at a time.
+            if (null === $this->recall && [] !== SlashCommands::suggestions($this->input->getValue())) {
+                $this->moveHighlight($up ? -1 : 1);
+            } else {
+                $this->recallHistory($up ? -1 : 1);
+            }
 
             return;
         }
@@ -340,7 +355,8 @@ final class ChatView
             $suggestions = SlashCommands::suggestions($this->input->getValue());
             if ([] !== $suggestions) {
                 $event->stopPropagation();
-                $this->input->setValue(array_key_first($suggestions).' ');
+                $names = array_keys($suggestions);
+                $this->input->setValue(($names[$this->highlighted ?? 0] ?? $names[0]).' ');
                 $this->showSuggestions($this->input->getValue());
             }
         }
@@ -569,7 +585,12 @@ final class ChatView
             $input->setValue($this->prefill);
             $this->prefill = null;
         }
-        $input->onChange(fn (ChangeEvent $event) => $this->showSuggestions($event->getValue()));
+        $input->onChange(function (ChangeEvent $event): void {
+            // One more letter narrows the list, so whatever was picked no longer means what it
+            // meant: the choice starts again rather than sliding onto its neighbour.
+            $this->highlighted = null;
+            $this->showSuggestions($event->getValue());
+        });
         $input->onSubmit(function (SubmitEvent $event) use ($input): void {
             if ($event->isBlank()) {
                 return;
@@ -597,6 +618,24 @@ final class ChatView
      * Like a shell: ↑ goes up towards the older lines, ↓ comes back down, and past the most recent
      * one you find again what you were typing.
      */
+    /**
+     * Walks the open suggestions, wrapping at both ends: from nothing, ↓ takes the first and ↑ the
+     * last, the way a menu opens on the side you came from.
+     */
+    private function moveHighlight(int $direction): void
+    {
+        $count = \count(SlashCommands::suggestions($this->input?->getValue() ?? ''));
+        if (0 === $count) {
+            return;
+        }
+
+        $this->highlighted = null === $this->highlighted
+            ? ($direction > 0 ? 0 : $count - 1)
+            : ($this->highlighted + $direction + $count) % $count;
+
+        $this->showSuggestions($this->input?->getValue() ?? '');
+    }
+
     private function recallHistory(int $direction): void
     {
         if ([] === $this->history || null === $this->input) {
@@ -707,14 +746,39 @@ final class ChatView
         return [$list];
     }
 
+    /**
+     * The commands matching what is typed, the picked one apart.
+     *
+     * Apart by colour **and** by a caret: a selection carried by colour alone is no selection for a
+     * reader who does not separate the two, and a terminal's palette is not ours to assume.
+     */
     private function showSuggestions(string $value): void
     {
-        $suggestions = SlashCommands::suggestions($value);
-        $this->notice->setText([] === $suggestions ? '' : "\e[2m".implode("\n", array_map(
-            static fn (string $name, string $description): string => \sprintf('%s  %s', $name, $description),
-            array_keys($suggestions),
-            $suggestions,
-        ))."\e[0m\n");
+        // Nothing on screen while the history is being walked: a list the arrows do not drive is a
+        // list that lies about what they do.
+        $suggestions = null === $this->recall ? SlashCommands::suggestions($value) : [];
+        if ([] === $suggestions) {
+            $this->highlighted = null;
+            $this->notice->setText('');
+            $this->tui->requestRender();
+
+            return;
+        }
+
+        // The list just changed under the selection: keep it in range rather than pointing past the
+        // end — typing one more letter is what narrows it.
+        if (null !== $this->highlighted) {
+            $this->highlighted = min($this->highlighted, \count($suggestions) - 1);
+        }
+
+        $rows = [];
+        foreach (array_keys($suggestions) as $position => $name) {
+            $rows[] = $position === $this->highlighted
+                ? \sprintf("\e[36m› %s  %s\e[0m", $name, $suggestions[$name])
+                : \sprintf("\e[2m  %s  %s\e[0m", $name, $suggestions[$name]);
+        }
+
+        $this->notice->setText(implode("\n", $rows)."\n");
         $this->tui->requestRender();
     }
 
