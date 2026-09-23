@@ -552,6 +552,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     idle_timeout_seconds?: float|Param, // Silence after which the conversation ends. // Default: 3600.0
  *     rollover_after_turns?: int|Param, // Default: 40
  *     context_tokens?: int|Param, // Default: 24000
+ *     token_budget?: int|Param, // What one run may spend in model tokens before it stops taking turns. 0: no ceiling — the spend is counted either way, and counting is the part that cannot be done afterwards. // Default: 0
  *     instructions_file?: scalar|Param|null, // Project instructions appended to the system prompt when each conversation starts. Missing: ignored; null: disabled. // Default: "%kernel.project_dir%/AGENTS.md"
  *     tool_rules?: list<array{ // Default: []
  *         tool?: scalar|Param|null,

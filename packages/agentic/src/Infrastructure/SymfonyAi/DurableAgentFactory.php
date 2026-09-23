@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Infrastructure\SymfonyAi;
 
 use Gplanchat\Agentic\Domain\Context\ContextBudget;
+use Gplanchat\Agentic\Domain\Context\TokenLedger;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\ModeToolGuard;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
@@ -66,6 +67,7 @@ final class DurableAgentFactory
         array $toolsWire = [],
         array $rulesWire = [],
         ?Principal $principal = null,
+        ?TokenLedger $ledger = null,
     ): Agent {
         // Always offered: an agent that cannot ask makes things up, and an agent that cannot wait
         // botches the job.
@@ -78,7 +80,7 @@ final class DurableAgentFactory
         $platform = new Platform([
             new Provider(
                 'durable-mistral',
-                [new DurableModelClient($environment, $budget ?? new ContextBudget())],
+                [new DurableModelClient($environment, $budget ?? new ContextBudget(), ledger: $ledger)],
                 [new ResultConverter()],
                 new ModelCatalog(),
                 Contract::create([new AssistantMessageNormalizer(), new ToolNormalizer()]),

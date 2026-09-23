@@ -29,7 +29,36 @@ final class ScriptedChatModelClient implements ModelClientInterface
         return true;
     }
 
+    /**
+     * Every scripted reply carries a plausible `usage`, so that what reads it behaves offline as it
+     * does with a provider — {@see \Gplanchat\Agentic\Domain\Context\TokenLedger} above all, which
+     * would otherwise count zero for ever and make every offline run look free.
+     *
+     * A wrapper rather than a line in each of the ten branches below: one place to be wrong.
+     *
+     * ponytail: four characters per token, the stand-in {@see \Gplanchat\Agentic\Domain\Context\ContextBudget}
+     * already uses. These are not the provider's numbers and are not meant to be.
+     */
     public function request(Model $model, array|string $payload, array $options = []): RawResultInterface
+    {
+        $messages = \is_array($payload) ? ($payload['messages'] ?? []) : [];
+        $reply = $this->scripted($model, $payload, $options)->getData();
+
+        $prompt = intdiv(mb_strlen(json_encode($messages, \JSON_UNESCAPED_UNICODE) ?: ''), 4);
+        $completion = intdiv(mb_strlen(json_encode($reply, \JSON_UNESCAPED_UNICODE) ?: ''), 4);
+
+        return new InMemoryRawResult([...$reply, 'usage' => [
+            'prompt_tokens' => $prompt,
+            'completion_tokens' => $completion,
+            'total_tokens' => $prompt + $completion,
+        ]]);
+    }
+
+    /**
+     * @param array<mixed>|string  $payload
+     * @param array<string, mixed>        $options
+     */
+    private function scripted(Model $model, array|string $payload, array $options = []): RawResultInterface
     {
         $messages = $payload['messages'] ?? [];
 

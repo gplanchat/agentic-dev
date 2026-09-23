@@ -53,6 +53,10 @@ final readonly class Transcript implements \JsonSerializable
         public ?string $workspace = null,
         /** Who the conversation belongs to, frozen at start-up; `null` = opened before owners existed. */
         public ?Principal $owner = null,
+        /** What this run has spent in model tokens, counted from the journal. */
+        public int $tokensSpent = 0,
+        /** What it may spend; `0` = no ceiling, but the spend is counted all the same. */
+        public int $tokenBudget = 0,
     ) {
     }
 

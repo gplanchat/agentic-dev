@@ -9,6 +9,7 @@ use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Application\Chat\TranscriptMessage;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\PendingApproval;
+use Gplanchat\Agentic\Domain\Context\TokenLedger;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Domain\Identity\Principal;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion;
@@ -106,6 +107,9 @@ final class ChatTranscript
         $signalledModel = null;
         $messagesSignalled = 0;
         $deadlines = [];
+        // The spend is recomputed from the journal rather than read from the run's ledger: both
+        // count the same events, so there is nothing to keep in agreement.
+        $ledger = new TokenLedger();
         // The start payload is not in the same place depending on the backend: on native Temporal it
         // opens the journal (ExecutionStarted), on DBAL a dispatched run only writes its execution
         // events and the payload stays in the metadata store. We read both.
@@ -167,6 +171,9 @@ final class ChatTranscript
 
             if ($event instanceof ActivityCompleted) {
                 $results[$event->activityId()] = $event->result();
+                if (\is_array($event->result())) {
+                    $ledger->record($event->result());
+                }
 
                 continue;
             }
@@ -332,6 +339,8 @@ final class ChatTranscript
             profiles: AgentProfiles::fromWire(\is_array($started['agents'] ?? null) ? $started['agents'] : []),
             workspace: \is_string($started['workspace'] ?? null) ? $started['workspace'] : null,
             owner: Principal::fromWire($started['owner'] ?? null),
+            tokensSpent: $ledger->spent(),
+            tokenBudget: (int) ($started['tokenBudget'] ?? 0),
         );
     }
 }

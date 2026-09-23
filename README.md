@@ -76,6 +76,15 @@ every refresh, with no `messenger:consume` alongside.
   planning agent keeps planning rather than waiting for a decision nobody meant to take. Leaving plan
   mode is the human's move, `/mode edition`. `plan` is the floor of the order, so a delegate under a
   planning caller plans too, whatever its profile's ceiling says.
+- **Token budget** (`token_budget` in `config/packages/agentic.php`): what one run may spend before
+  it stops taking turns. **0 by default, which caps nothing** — the spend is counted either way, and
+  the header shows it, because counting is the part that cannot be done afterwards. The ceiling is a
+  policy an application sets knowing its own traffic. Two things it does not do: the check runs
+  before a turn, not during one, so a run overshoots by at most one turn (bounded by `maxToolCalls`
+  model calls); and a delegate is a child workflow with its own journal, so **its spend is not
+  counted against its caller's** — a run has a budget, a conversation with sub-agents does not yet.
+  Offline, the scripted client prices its replies at four characters per token so the counter behaves
+  as it does with a provider.
 - **Decision hooks** (`tool_rules` in `config/packages/agentic.php`): for a tool (an `fnmatch`
   pattern) and, where needed, conditions on its arguments, `allow`, `ask` or `deny`, before the mode.
   Deny wins over ask, which wins over allow; `/tools` shows the rules.

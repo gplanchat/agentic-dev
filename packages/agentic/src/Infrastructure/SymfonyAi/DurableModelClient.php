@@ -11,6 +11,7 @@ use Gplanchat\Durable\WorkflowEnvironment;
 use Symfony\AI\Platform\Model;
 use Symfony\AI\Platform\ModelClientInterface;
 use Gplanchat\Agentic\Domain\Context\ContextBudget;
+use Gplanchat\Agentic\Domain\Context\TokenLedger;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\ContextOverflow;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\JournaledHttpResult;
 use Symfony\AI\Platform\Result\RawResultInterface;
@@ -30,6 +31,8 @@ final class DurableModelClient implements ModelClientInterface
         private readonly WorkflowEnvironment $environment,
         private readonly ContextBudget $budget = new ContextBudget(),
         ?ActivityOptions $options = null,
+        /** What the run has spent so far; fed here because this is where every model call passes. */
+        private readonly ?TokenLedger $ledger = null,
     ) {
         $this->stub = $environment->activityStub(ModelInvocationActivityInterface::class, $options);
     }
@@ -55,6 +58,7 @@ final class DurableModelClient implements ModelClientInterface
         $payload['messages'] = $this->budget->fit($payload['messages'] ?? []);
 
         $data = $this->environment->await($this->stub->invokeModel($model->getName(), $payload, $options));
+        $this->ledger?->record($data);
 
         // Reactive: the provider counted differently from us. Replaying the same payload would give
         // the same verdict — it is the payload that has to change, not the call that has to be
@@ -62,6 +66,8 @@ final class DurableModelClient implements ModelClientInterface
         if (ContextOverflow::detected($data)) {
             $payload['messages'] = $this->budget->halved()->fit($payload['messages']);
             $data = $this->environment->await($this->stub->invokeModel($model->getName(), $payload, $options));
+            // The retry after a window overflow is a second call, and it is paid for like the first.
+            $this->ledger?->record($data);
         }
 
         return new JournaledHttpResult($data);

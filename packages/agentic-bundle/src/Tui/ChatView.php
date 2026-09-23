@@ -352,6 +352,24 @@ final class ChatView
     /**
      * The header: the dancing banana, and next to it what there is to know of the conversation.
      */
+    /**
+     * What the conversation has cost so far, and what it may. Shown always, because a number
+     * nobody sees is a number nobody acts on — and the ceiling is off by default.
+     */
+    private static function spend(Transcript $transcript): string
+    {
+        $spent = number_format($transcript->tokensSpent, 0, ',', ' ');
+
+        if (0 === $transcript->tokenBudget) {
+            return "\e[2m{$spent} tokens\e[0m";
+        }
+
+        $share = $transcript->tokensSpent / $transcript->tokenBudget;
+        $colour = match (true) { $share >= 1.0 => "\e[31m", $share >= 0.8 => "\e[33m", default => "\e[2m" };
+
+        return $colour.$spent.'/'.number_format($transcript->tokenBudget, 0, ',', ' ')." tokens\e[0m";
+    }
+
     private function headerText(Transcript $transcript): string
     {
         $status = match (true) {
@@ -366,6 +384,7 @@ final class ChatView
             self::clean($transcript->model),
             $status,
             "\e[2mconversation ".substr($this->conversation, 0, 8)."\e[0m",
+            self::spend($transcript),
         ];
         $offset = intdiv(Banana::height() - \count($info), 2);
 

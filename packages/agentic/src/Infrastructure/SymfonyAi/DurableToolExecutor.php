@@ -260,6 +260,11 @@ final class DurableToolExecutor implements ToolExecutorInterface
                 // The narrowed identity. Last, matching the signature of `run()` — and what proves
                 // the slot did not shift is `DelegateNarrowsIdentityTest`, not the counting.
                 $principal?->toWire() ?? [],          // owner
+                // No budget of its own, and — worth saying plainly — its spend does not come off
+                // its caller's either: a delegate is a child workflow with its own journal, and
+                // nothing carries the total back. A run has a budget; a conversation with
+                // sub-agents does not yet.
+                0,                                    // tokenBudget
             ),
         );
 

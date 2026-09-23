@@ -7,6 +7,7 @@ namespace Gplanchat\Agentic\Infrastructure\Durable\Workflow;
 use Gplanchat\Agentic\Infrastructure\Durable\Activity\ModelInvocationActivityInterface;
 use Gplanchat\Agentic\Application\Chat\TranscriptMessage;
 use Gplanchat\Agentic\Domain\Context\ContextBudget;
+use Gplanchat\Agentic\Domain\Context\TokenLedger;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableAgentFactory;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
@@ -296,6 +297,7 @@ final class DurableAgentWorkflow
      * @param array<string, array<string, mixed>>                                                                 $agents             the sub-agents the application declares ({@see \Gplanchat\Agentic\Domain\Team\AgentProfile})
      * @param string|null                                                                                         $workspace          the conversation's working directory, handed to the tools; `null` = the project
      * @param array<string, mixed>                                                                                $owner              on whose behalf this runs ({@see Principal}); `[]` = nobody, which claims nothing
+     * @param int                                                                                                 $tokenBudget        what this run may spend in model tokens; `0` = no ceiling, still counted
      *
      * @return string the agent's last reply
      */
@@ -325,6 +327,7 @@ final class DurableAgentWorkflow
         // ({@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableToolExecutor::delegate()}), so a
         // parameter slipped into the middle silently shifts every one after it.
         array $owner = [],
+        int $tokenBudget = 0,
     ): string {
         // The ceiling first: the requested mode bends to it, it does not go around it.
         $this->ceiling = AgentMode::tryFrom($modeCeiling) ?? AgentMode::Auto;
@@ -343,6 +346,9 @@ final class DurableAgentWorkflow
         }
 
         $this->model = $model;
+        // Owned by the run, like the gate and the watch desk: rebuilding the agent on a `set_model`
+        // must not reset what has already been spent.
+        $ledger = new TokenLedger($tokenBudget);
         $build = fn (): Agent => DurableAgentFactory::create(
             $this->environment,
             $this->model,
@@ -362,6 +368,7 @@ final class DurableAgentWorkflow
             rulesWire: $toolRules,
             workspace: $workspace,
             principal: Principal::fromWire($owner),
+            ledger: $ledger,
         );
         $agent = $build();
         $agentModel = $this->model;
@@ -396,6 +403,17 @@ final class DurableAgentWorkflow
             }
 
             if ($this->closed) {
+                break;
+            }
+
+            // Before the turn, not during it. A turn may make up to `maxToolCalls` model calls,
+            // so the run can overshoot its budget by one turn's worth.
+            //
+            // ponytail: an accepted ceiling, and a bounded one. Checking inside
+            // {@see \Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableModelClient} before each call
+            // would stop on the exact token — at the price of unwinding a half-finished tool loop,
+            // which is a worse thing to hand a human than a small overshoot.
+            if ($ledger->isSpent()) {
                 break;
             }
 
@@ -459,6 +477,9 @@ final class DurableAgentWorkflow
                     // The owner follows the relay, like the ceiling: otherwise a long conversation
                     // would come back from its rollover belonging to nobody.
                     'owner' => $owner,
+                    // What is left of the budget, not the original: a relay is the same conversation
+                    // going on, and it must not hand itself a fresh purse.
+                    'tokenBudget' => 0 === $tokenBudget ? 0 : max(1, $tokenBudget - $ledger->spent()),
                 ]);
             }
         }
