@@ -101,7 +101,9 @@ final class SlashCommandsTest extends KernelTestCase
     {
         $workspace = $this->conversations->transcript($this->id)->workspace;
 
-        self::assertStringEndsWith('/.worktrees/agentic-'.substr($this->id, 0, 8), (string) $workspace);
+        // The test kernel's project is a directory inside this repository: the worktree is the
+        // repository's, the workspace that directory within it.
+        self::assertStringEndsWith('/.worktrees/agentic-'.substr($this->id, 0, 8).'/packages/agentic-bundle/tests/Integration', (string) $workspace);
         self::assertStringContainsString('Workspace: '.$workspace.' (created by the first command)', $this->commands->run($this->id, '/tools')->notice);
 
         $restarted = $this->conversations->restart($this->id);

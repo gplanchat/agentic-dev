@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Gplanchat\AgenticBundle\Sandbox;
 
+use Gplanchat\AgenticBundle\Project\Project;
 use Symfony\Component\Console\Input\StringInput;
 use Symfony\Component\Process\Exception\ProcessTimedOutException;
 use Symfony\Component\Process\Process;
@@ -79,6 +80,14 @@ final class Bubblewrap
     ) {
         // The real path: it is the one bwrap mounts and the one the tool compares against.
         $this->workspace = realpath($workspace) ?: $workspace;
+    }
+
+    /**
+     * The sandbox of the project the agent was launched in: its root writable, its masked paths.
+     */
+    public static function forProject(Project $project, float $timeoutSeconds = 120.0, string $binary = 'bwrap'): self
+    {
+        return new self($project->root, $project->hidden, $timeoutSeconds, $binary);
     }
 
     public function workspace(): string
@@ -230,6 +239,9 @@ final class Bubblewrap
             '--setenv', 'LANG', 'C.UTF-8',
             // Most tools drop their colours on it; the others are cleaned by plain().
             '--setenv', 'NO_COLOR', '1',
+            // A workspace that is a subdirectory of its worktree is a mount point of its own: git
+            // stops looking for the repository there unless told it may cross.
+            '--setenv', 'GIT_DISCOVERY_ACROSS_FILESYSTEM', '1',
         );
 
         return $argv;

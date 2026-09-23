@@ -22,6 +22,19 @@ Each step: `send` (typed, then Enter; `""` = Enter alone, which picks the first 
 the agent chains several tools after the one you waited for). Exit code 1 if a step timed out. The
 conversation id is printed at the end.
 
+## Launch directory and approval
+
+The agent works on the project it is launched from. `--cwd DIR` launches it there (default: this
+repository). A project's `.agentic/config.{yaml,yml,toml,json,xml}` — this repository has one — is
+used only once approved: new or changed, it is shown before the chat opens and the chat asks
+`Use it?`. `--before y` (or `n`) answers that question, then the driver waits for the chat as usual.
+Without `--before`, an unapproved file keeps the chat from opening and the driver reports it did not
+open. Approvals are recorded in `var/agentic-trust.json` of the installation.
+
+To test another project without leaving this repository, build it under `var/` as a git repository
+of its own (`git init` inside it): anywhere else in this repository, the worktree would be this
+repository's.
+
 ## Scripted client or real model
 
 - **Default: scripted client, no network.** The driver forces `MISTRAL_API_KEY=` empty, because

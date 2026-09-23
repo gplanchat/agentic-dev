@@ -8,6 +8,7 @@ use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\AgenticBundle\Check\InfectionReport;
 use Gplanchat\AgenticBundle\Check\JUnitReport;
+use Gplanchat\AgenticBundle\Project\Project;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\Agentic\Application\Tool\ContextualTool;
 use Gplanchat\Agentic\Application\Tool\ToolContext;
@@ -51,6 +52,22 @@ final readonly class RunChecksTool implements ContextualTool
                 throw new \InvalidArgumentException(\sprintf('The review of the check layer "%s" names unknown layers: %s.', $name, implode(', ', $unknown)));
             }
         }
+    }
+
+    /**
+     * The layers of the project the agent was launched in.
+     */
+    public static function forProject(Workspaces $workspaces, Project $project): self
+    {
+        return new self($workspaces, $project->checks);
+    }
+
+    /**
+     * No layer, nothing to run: the tool is not offered.
+     */
+    public function hasLayers(): bool
+    {
+        return [] !== $this->layers;
     }
 
     public function definition(): ToolDefinition

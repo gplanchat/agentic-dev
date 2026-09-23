@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Drives `bin/agentic chat` in a pseudo-terminal: sends lines, waits for patterns, prints what appeared.
 
-Usage: driver.py [--real-model] STEPS_JSON
+Usage: driver.py [--real-model] [--cwd DIR] [--before ANSWER] STEPS_JSON
 
 STEPS_JSON is a list of steps: {"send": "text", "until": "regex", "timeout": 60, "settle": 2}.
 `send` is typed then Enter; "" sends Enter alone (picks the first choice of a list).
 Without --real-model, MISTRAL_API_KEY is forced empty: the scripted client answers, no network.
+--cwd DIR launches the chat from DIR: the project the agent works on (default: this repository).
+--before ANSWER answers the question asked before the chat opens — the approval of a project's
+.agentic/config.* — then waits for the chat.
 """
 import fcntl, json, os, pty, re, select, struct, sys, termios, time
 
@@ -17,18 +20,25 @@ ANSI = re.compile(r'\x1b\[[0-9;?<>=]*[ -/]*[@-~]|\x1b\][^\x07]*\x07|\x1b[()][A-Z
 args = sys.argv[1:]
 real = '--real-model' in args
 args = [a for a in args if a != '--real-model']
+options = {}
+for name in ('--cwd', '--before'):
+    if name in args:
+        i = args.index(name)
+        options[name] = args[i + 1]
+        del args[i:i + 2]
 if len(args) != 1:
     sys.exit(__doc__)
 steps = json.loads(args[0])
+launch_dir = os.path.abspath(options.get('--cwd', PROJECT))
 
 pid, fd = pty.fork()
 if pid == 0:
-    os.chdir(PROJECT)
+    os.chdir(launch_dir)
     os.environ['TERM'] = 'xterm-256color'
     if not real:
         # .env.local carries a real key; an empty variable wins over it.
         os.environ['MISTRAL_API_KEY'] = ''
-    os.execvp('php8.4', ['php8.4', 'bin/agentic', 'chat'])
+    os.execvp('php8.4', ['php8.4', os.path.join(PROJECT, 'bin/agentic'), 'chat'])
 
 fcntl.ioctl(fd, termios.TIOCSWINSZ, struct.pack('HHHH', 50, 140, 0, 0))
 raw = b''
@@ -75,6 +85,15 @@ def readable(chunk):
 
 
 pump(4)
+if '--before' in options:
+    before_start = len(text())
+    wait_for(r'\?', 20)
+    for ch in options['--before']:
+        os.write(fd, ch.encode())
+    os.write(fd, b'\r')
+    pump(2)
+    print('=== BEFORE THE CHAT:')
+    print('\n'.join(readable(text()[before_start:])[-40:]))
 if not wait_for(r'your turn', 20):
     print('=== the chat did not open:\n' + text()[-2000:])
     os.write(fd, b'\x03')

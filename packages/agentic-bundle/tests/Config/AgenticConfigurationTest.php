@@ -5,10 +5,23 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Tests\Config;
 
 use Gplanchat\AgenticBundle\AgenticBundle;
+use Gplanchat\Agentic\Application\Chat\Conversations;
 use Gplanchat\AgenticBundle\Chat\DurableConversations;
+use Gplanchat\AgenticBundle\Console\ChatCommand;
+use Gplanchat\AgenticBundle\Project\Project;
+use Gplanchat\AgenticBundle\Project\ProjectLoader;
+use Gplanchat\AgenticBundle\Project\TrustStore;
+use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
+use Gplanchat\AgenticBundle\Sandbox\Workspaces;
+use Gplanchat\AgenticBundle\Tool\EditFileTool;
+use Gplanchat\AgenticBundle\Tool\ReadFileTool;
+use Gplanchat\AgenticBundle\Tool\RunChecksTool;
+use Gplanchat\AgenticBundle\Tool\RunCommandTool;
+use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
+use Symfony\Component\DependencyInjection\Reference;
 
 /**
  * The bundle's configuration read and wired here, with no kernel: the test that asserts a setting is
@@ -37,11 +50,43 @@ final class AgenticConfigurationTest extends TestCase
     }
 
     /**
-     * @param array<string, mixed> $config
-     *
-     * @return array<string, mixed> the start payload options DurableConversations is given
+     * The project is read when the agent starts, from where it starts — and only then: lazy, so the
+     * chat can ask for the approval of a project file before anything reads it.
      */
-    private function conversationOptions(array $config): array
+    public function testTheProjectIsReadAtRuntimeFromTheLaunchDirectory(): void
+    {
+        $container = $this->container([]);
+
+        self::assertSame('%env(default:kernel.project_dir:AGENTIC_WORKSPACE)%', $container->getParameter('agentic.project_root'));
+        $project = $container->getDefinition(Project::class);
+        self::assertTrue($project->isLazy());
+        self::assertSame(['%agentic.project_root%'], $project->getArguments());
+        self::assertSame(['%kernel.project_dir%/var/agentic-trust.json'], $container->getDefinition(TrustStore::class)->getArguments(), 'Approvals live with the installation, not in the project.');
+
+        $chat = $container->getDefinition(ChatCommand::class)->getArguments();
+        self::assertSame([Conversations::class, ChatScreen::class, ProjectLoader::class, TrustStore::class], array_map(strval(...), \array_slice($chat, 0, 4)));
+        self::assertSame('%agentic.project_root%', $chat[4]);
+    }
+
+    public function testTheSandboxIsWiredOnlyWhenEnabled(): void
+    {
+        self::assertFalse($this->container([])->hasDefinition(Bubblewrap::class));
+        self::assertFalse($this->container([])->hasDefinition(RunChecksTool::class));
+
+        $container = $this->container(['sandbox' => ['enabled' => true, 'timeout_seconds' => 7.0, 'binary' => 'bw']]);
+        $sandbox = $container->getDefinition(Bubblewrap::class);
+        self::assertTrue($sandbox->isLazy());
+        self::assertSame([Project::class, 7.0, 'bw'], array_map(static fn (mixed $argument): mixed => $argument instanceof Reference ? (string) $argument : $argument, $sandbox->getArguments()));
+        self::assertTrue($container->getDefinition(Workspaces::class)->isLazy());
+        foreach ([ReadFileTool::class, EditFileTool::class, RunCommandTool::class, RunChecksTool::class] as $tool) {
+            self::assertArrayHasKey(AgenticBundle::TOOL_TAG, $container->getDefinition($tool)->getTags(), $tool);
+        }
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     */
+    private function container(array $config): ContainerBuilder
     {
         $container = new ContainerBuilder();
         $container->setParameter('kernel.environment', 'test');
@@ -52,7 +97,17 @@ final class AgenticConfigurationTest extends TestCase
         self::assertNotNull($extension);
         $extension->load([$config], $container);
 
-        foreach ($container->getDefinition(DurableConversations::class)->getArguments() as $argument) {
+        return $container;
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     *
+     * @return array<string, mixed> the start payload options DurableConversations is given
+     */
+    private function conversationOptions(array $config): array
+    {
+        foreach ($this->container($config)->getDefinition(DurableConversations::class)->getArguments() as $argument) {
             if (\is_array($argument) && \array_key_exists('maxToolCalls', $argument)) {
                 return $argument;
             }

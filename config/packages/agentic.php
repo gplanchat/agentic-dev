@@ -13,47 +13,18 @@ return static function (ContainerConfigurator $container): void {
         //   ['tool' => 'send_email', 'when' => ['to' => '*@example.test'], 'decision' => 'allow'],
         //   ['tool' => 'send_email', 'when' => ['to' => '*@competitor.test'], 'decision' => 'deny', 'reason' => 'Never to competitors.'],
         'tool_rules' => [],
-        // run_command, read_file and edit_file, inside a bubblewrap sandbox: no network, nothing of the disk but what is
-        // mounted; .env.local and var/ hidden, .git read-only. The agent writes in its own worktree
-        // (`worktrees`), not in the project; `shared` are the paths bound from the project into it —
-        // vendor/ among them, since a worktree has none. Outside auto, every command asks; in auto,
-        // only those of auto_allow pass (fnmatch patterns).
+        // run_command, read_file, edit_file and run_checks, inside a bubblewrap sandbox: no network,
+        // nothing of the disk but what is mounted; .env.local and var/ hidden, .git, .claude and
+        // .agentic read-only. The agent writes in its own worktree of the project it is launched in.
+        // What a project says about itself — its check layers, more shared paths, more auto-mode
+        // commands, its rules — is in its own .agentic/config.* (this repository's included), used
+        // once approved. What stays here holds for every project: the defaults.
         'sandbox' => [
             'enabled' => true,
-            // The layers run_checks may run, each in the sandbox and the conversation's workspace.
-            // `{report}` is where the JUnit report is expected; the tool reads it rather than
-            // returning kilobytes of output. One layer per package and per level of the pyramid.
-            'checks' => [
-                'component-static' => ['command' => ['php8.2 vendor/bin/phpunit --testsuite static --log-junit {report}', 'php8.2 vendor/bin/phpstan analyse --no-progress --error-format=junit --memory-limit=1G'], 'cwd' => 'packages/agentic', 'description' => 'agentic: architecture rules, test pyramid, PHPStan level 8', 'tests' => 'packages/agentic/tests/ArchitectureTest.php (dependency rules between layers of the code) and tests/TestPyramidTest.php; add a rule rather than a new file'],
-                'component-unit' => ['command' => 'php8.2 vendor/bin/phpunit --testsuite unit --log-junit {report}', 'cwd' => 'packages/agentic', 'filter_option' => '--filter', 'description' => 'agentic: domain and application, in memory', 'tests' => 'packages/agentic/tests/Domain and tests/Application, mirroring src/ (src/Domain/Guard/ToolRule.php → tests/Domain/Guard/ToolRuleTest.php); PHP 8.2, PHPUnit 11', 'review' => ['component-functional', 'bundle-functional', 'component-mutation', 'component-static']],
-                'component-functional' => ['command' => 'php8.2 vendor/bin/phpunit --testsuite functional --log-junit {report}', 'cwd' => 'packages/agentic', 'filter_option' => '--filter', 'description' => 'agentic: the durable workflow on Durable\'s test environment', 'tests' => 'packages/agentic/tests/Infrastructure/<Behaviour>WorkflowTest.php, on Gplanchat\\Durable\\Testing\\WorkflowTestEnvironment with the model scripted', 'review' => ['bundle-functional', 'component-mutation', 'component-static']],
-                'bundle-static' => ['command' => ['php8.4 vendor/bin/phpunit --testsuite static --log-junit {report}', 'php8.4 vendor/bin/phpstan analyse --no-progress --error-format=junit --memory-limit=1G'], 'cwd' => 'packages/agentic-bundle', 'description' => 'bundle: test pyramid, PHPStan level 8', 'tests' => 'packages/agentic-bundle/tests/TestPyramidTest.php only'],
-                'bundle-unit' => ['command' => 'php8.4 vendor/bin/phpunit --testsuite unit --log-junit {report}', 'cwd' => 'packages/agentic-bundle', 'filter_option' => '--filter', 'description' => 'bundle: TUI widgets, JUnit reader, factories', 'tests' => 'packages/agentic-bundle/tests/{Ai,Check,Controller,Tui}, mirroring src/; PHP 8.4, PHPUnit 12', 'review' => ['bundle-functional', 'bundle-mutation', 'bundle-static']],
-                'bundle-functional' => ['command' => 'php8.4 vendor/bin/phpunit --testsuite functional --log-junit {report}', 'cwd' => 'packages/agentic-bundle', 'filter_option' => '--filter', 'description' => 'bundle: the kernel with in-memory journal and transports', 'tests' => 'packages/agentic-bundle/tests/Integration (historical name), KernelTestCase on TestKernel with in-memory journal and transports', 'review' => ['bundle-integration', 'bundle-mutation', 'bundle-static']],
-                'bundle-integration' => ['command' => 'php8.4 vendor/bin/phpunit --testsuite integration --log-junit {report}', 'cwd' => 'packages/agentic-bundle', 'filter_option' => '--filter', 'description' => 'bundle: bubblewrap, git worktrees, MCP servers, HTTP', 'tests' => 'packages/agentic-bundle/tests/{Sandbox,Mcp,Chat} and tests/Integration/McpIntegrationTest.php; skip when bwrap is missing', 'review' => ['bundle-mutation', 'bundle-static']],
-                // Infection needs PHP >= 8.3, so it runs the tests it mutates under php8.4 — including
-                // the component's, whose own layers run under php8.2. A green mutation layer therefore
-                // says nothing about the 8.2 floor; component-unit and component-functional do.
-                'component-mutation' => ['command' => 'sh ../../tools/infection/mutate-changed', 'cwd' => 'packages/agentic', 'timeout_seconds' => 600, 'description' => 'agentic: mutation testing (Infection) of the lines changed since HEAD, new files included. Runs under PHP 8.4, not the 8.2 floor the other component layers check', 'tests' => 'none of its own: a surviving mutant asks for a sharper assertion in the unit or functional tests that cover the line'],
-                'bundle-mutation' => ['command' => 'sh ../../tools/infection/mutate-changed', 'cwd' => 'packages/agentic-bundle', 'timeout_seconds' => 900, 'description' => 'bundle: mutation testing (Infection) of the lines changed since HEAD, new files included', 'tests' => 'none of its own: a surviving mutant asks for a sharper assertion in the tests that cover the line'],
-            ],
-            // The bundle shares vendor/ by default; the packages have their own, and the bundle
-            // suite runs with cwd=packages/agentic-bundle.
-            // `tools/*/vendor` carries Infection, which needs PHP >= 8.3 and therefore lives outside
-            // the packages: a worktree borrows it read-only like any other installed dependency.
-            'shared' => ['vendor', 'packages/*/vendor', 'tools/*/vendor'],
-            // The machine's default PHP is 8.2; the bundle wants 8.4, so its suite runs through php8.4.
-            'auto_allow' => [
-                'git status', 'git status *', 'git diff', 'git diff *', 'git log', 'git log *',
-                'vendor/bin/phpunit', 'vendor/bin/phpunit *',
-                'php8.2 vendor/bin/phpunit', 'php8.2 vendor/bin/phpunit *',
-                'php8.4 vendor/bin/phpunit', 'php8.4 vendor/bin/phpunit *',
-            ],
         ],
-        // The project instructions, appended to the system prompt of every new conversation.
-        // The default is already AGENTS.md at the project root, which exists and carries ADR-001:
-        // the line below only needs uncommenting to point somewhere else.
-        // 'instructions_file' => '%kernel.project_dir%/AGENTS.md',
+        // Instructions of the installation, for every project. A project's own are its AGENTS.md
+        // (or what its .agentic/config.* names): this repository's carries ADR-001.
+        // 'instructions_file' => '%kernel.project_dir%/INSTALLATION.md',
         // The sub-agents `delegate` may hand a mission to. A profile narrows what its sub-agent may
         // do — model, instructions, tools, ceiling — and never grants more than the caller has: the
         // delegate takes the strictest of its ceiling and of the parent's effective mode.

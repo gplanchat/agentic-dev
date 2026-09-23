@@ -25,9 +25,12 @@ use Gplanchat\AgenticBundle\Console\ChatCommand;
 use Gplanchat\AgenticBundle\Console\ConsoleCommandCatalog;
 use Gplanchat\AgenticBundle\Console\HelpCommand;
 use Gplanchat\AgenticBundle\Controller\HelpController;
+use Gplanchat\AgenticBundle\Project\Project;
+use Gplanchat\AgenticBundle\Project\ProjectLoader;
+use Gplanchat\AgenticBundle\Project\ProjectSchema;
+use Gplanchat\AgenticBundle\Project\TrustStore;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
-use Gplanchat\AgenticBundle\Sandbox\Worktrees;
 use Gplanchat\AgenticBundle\Tool\AgentTools;
 use Gplanchat\AgenticBundle\Tool\EditFileTool;
 use Gplanchat\AgenticBundle\Tool\ReadFileTool;
@@ -88,42 +91,14 @@ final class AgenticBundle extends AbstractBundle
                     ->info('What one run may spend in model tokens before it stops taking turns. 0: no ceiling — the spend is counted either way, and counting is the part that cannot be done afterwards.')
                 ->end()
                 ->scalarNode('instructions_file')
-                    ->defaultValue('%kernel.project_dir%/AGENTS.md')
-                    ->info('Project instructions appended to the system prompt when each conversation starts. Missing: ignored; null: disabled.')
+                    ->defaultNull()
+                    ->info('Instructions of the installation, appended to the system prompt of every conversation, whatever the project. The project\'s own come from its .agentic/config.* (AGENTS.md by default). Missing: ignored; null: none.')
                 ->end()
-                ->arrayNode('tool_rules')
-                    ->info('The decision hooks: for a tool (fnmatch pattern) and arguments, allow, ask or deny. deny > ask > allow; with no rule, the mode.')
-                    ->arrayPrototype()
-                        ->children()
-                            ->scalarNode('tool')->isRequired()->cannotBeEmpty()->end()
-                            ->enumNode('decision')->values(['allow', 'ask', 'deny'])->isRequired()->end()
-                            ->arrayNode('when')
-                                ->info('argument → pattern its value must follow')
-                                ->useAttributeAsKey('argument')
-                                ->scalarPrototype()->end()
-                            ->end()
-                            ->scalarNode('reason')->defaultValue('')->end()
-                            ->arrayNode('modes')
-                                ->info('the modes where the rule holds; empty: all of them')
-                                ->enumPrototype()->values(['auto', 'edition', 'standard', 'plan'])->end()
-                            ->end()
-                            ->arrayNode('unless')
-                                ->info('argument → patterns that set the rule aside')
-                                ->useAttributeAsKey('argument')
-                                ->arrayPrototype()->scalarPrototype()->end()->end()
-                            ->end()
-                            ->arrayNode('unless_roles')
-                                ->info('roles that set the rule aside — "refused, except to finance". Negative and not positive because deny wins: "refuse to everyone but X" cannot be written as two rules.')
-                                ->scalarPrototype()->end()
-                            ->end()
-                        ->end()
-                    ->end()
-                ->end()
+                ->append(ProjectSchema::toolRules())
                 ->arrayNode('sandbox')
                     ->info('The run_command, read_file and edit_file tools, run inside a bubblewrap sandbox: the workspace writable, no network and nothing else from the disk.')
                     ->canBeEnabled()
                     ->children()
-                        ->scalarNode('workspace')->defaultValue('%kernel.project_dir%')->end()
                         ->arrayNode('hidden')
                             ->info('Project paths masked inside the sandbox (glob patterns): secrets, the agent journal.')
                             ->scalarPrototype()->end()
@@ -145,29 +120,7 @@ final class AgenticBundle extends AbstractBundle
                             ->scalarPrototype()->end()
                             ->defaultValue(['git status', 'git status *', 'git diff', 'git diff *', 'git log', 'git log *', 'vendor/bin/phpunit', 'vendor/bin/phpunit *'])
                         ->end()
-                        ->arrayNode('checks')
-                            // Layer names are what the model types: `component-unit` stays `component-unit`.
-                            ->normalizeKeys(false)
-                            ->info('The layers of the run_checks tool — static, unit, functional, integration, e2e… —: a command that writes a JUnit report to {report}, run in the sandbox. None: no run_checks.')
-                            ->useAttributeAsKey('layer')
-                            ->arrayPrototype()
-                                ->children()
-                                    ->arrayNode('command')
-                                        ->info('One command, or a list run in turn. Split like a terminal line, no shell; {report} is replaced by the report path; without it, the command prints its report (e.g. "vendor/bin/phpstan analyse --error-format=junit --no-progress").')
-                                        ->isRequired()
-                                        ->requiresAtLeastOneElement()
-                                        ->beforeNormalization()->castToArray()->end()
-                                        ->scalarPrototype()->cannotBeEmpty()->end()
-                                    ->end()
-                                    ->scalarNode('cwd')->defaultValue('')->info('Directory to run in, relative to the workspace root.')->end()
-                                    ->scalarNode('filter_option')->defaultNull()->info('The option that takes the model\'s filter, e.g. "--filter"; null: the layer runs whole.')->end()
-                                    ->floatNode('timeout_seconds')->defaultValue(300.0)->end()
-                                    ->scalarNode('description')->defaultValue('')->info('What the model reads about the layer.')->end()
-                                    ->scalarNode('tests')->defaultValue('')->info('Where the tests of this layer live, and how they are named — the agent places its new tests by it.')->end()
-                                    ->arrayNode('review')->info('The layers to run once this one is green: those a change here can break, and the static ones.')->scalarPrototype()->end()->end()
-                                ->end()
-                            ->end()
-                        ->end()
+                        ->append(ProjectSchema::checks())
                     ->end()
                 ->end()
                 ->arrayNode('agents')
@@ -226,7 +179,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, max_tool_calls: int, token_budget: int, max_delegation_depth: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int, roles: list<string>}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, workspace: string, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, max_tool_calls: int, token_budget: int, max_delegation_depth: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int, roles: list<string>}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -234,20 +187,40 @@ final class AgenticBundle extends AbstractBundle
 
         $services = $container->services();
 
+        // The project the agent is launched in: the launch directory, or the installation when no one
+        // says (tests, the web version). Read at runtime — the container is compiled once and reused
+        // from every directory.
+        $container->parameters()->set('agentic.project_root', '%env(default:kernel.project_dir:AGENTIC_WORKSPACE)%');
+
+        // Approvals belong to the installation: one written where the agent works could be written
+        // by the agent.
+        $services->set(TrustStore::class)
+            ->args(['%kernel.project_dir%/var/agentic-trust.json']);
+        $services->set(ProjectLoader::class)
+            ->args([service(TrustStore::class), [
+                'checks' => $config['sandbox']['checks'],
+                'hidden' => $config['sandbox']['hidden'],
+                'shared' => $config['sandbox']['shared'],
+                'auto_allow' => $config['sandbox']['auto_allow'],
+                'worktrees' => $config['sandbox']['worktrees'],
+            ]])
+            ->public();
+        // Lazy: read on first use, that is after the chat asked for the approval of a new project
+        // file — not when the container builds the command that asks.
+        $services->set(Project::class)
+            ->factory([service(ProjectLoader::class), 'load'])
+            ->args(['%agentic.project_root%'])
+            ->lazy();
+
         if ($config['sandbox']['enabled']) {
             $services->set(Bubblewrap::class)
-                ->args([
-                    $config['sandbox']['workspace'],
-                    $config['sandbox']['hidden'],
-                    $config['sandbox']['timeout_seconds'],
-                    $config['sandbox']['binary'],
-                ]);
-            if ($config['sandbox']['worktrees']) {
-                $services->set(Worktrees::class)
-                    ->args([$config['sandbox']['workspace'], $config['sandbox']['shared']]);
-            }
+                ->factory([Bubblewrap::class, 'forProject'])
+                ->args([service(Project::class), $config['sandbox']['timeout_seconds'], $config['sandbox']['binary']])
+                ->lazy();
             $services->set(Workspaces::class)
-                ->args([service(Bubblewrap::class), service(Worktrees::class)->nullOnInvalid()]);
+                ->factory([Workspaces::class, 'forProject'])
+                ->args([service(Bubblewrap::class), service(Project::class)])
+                ->lazy();
             $services->set(ReadFileTool::class)
                 ->args([service(Workspaces::class)])
                 ->tag(self::TOOL_TAG);
@@ -257,22 +230,11 @@ final class AgenticBundle extends AbstractBundle
             $services->set(RunCommandTool::class)
                 ->args([service(Workspaces::class)])
                 ->tag(self::TOOL_TAG);
-            if ([] !== $config['sandbox']['checks']) {
-                $services->set(RunChecksTool::class)
-                    ->args([service(Workspaces::class), $config['sandbox']['checks']])
-                    ->tag(self::TOOL_TAG);
-            }
-
-            // The auto-mode allowlist is a rule like the others: it goes to the journal with them,
-            // and `/tools` shows it. An ask beats an allow: an `allow` in tool_rules does not widen
-            // it, `auto_allow` is what has to be changed.
-            $config['tool_rules'][] = [
-                'tool' => RunCommandTool::TOOL,
-                'decision' => 'ask',
-                'modes' => ['auto'],
-                'unless' => ['command' => $config['sandbox']['auto_allow']],
-                'reason' => 'Command outside the auto-mode list (agentic.sandbox.auto_allow).',
-            ];
+            // Offered only when the project has layers: AgentTools leaves it out otherwise.
+            $services->set(RunChecksTool::class)
+                ->factory([RunChecksTool::class, 'forProject'])
+                ->args([service(Workspaces::class), service(Project::class)])
+                ->tag(self::TOOL_TAG);
         }
 
         // --- The durable agent
@@ -335,11 +297,7 @@ final class AgenticBundle extends AbstractBundle
                 service(CurrentPrincipal::class),
                 [
                     'model' => $config['model'],
-                    // With checks, the agent works along the test pyramid and the TDD cycle: said once,
-                    // in the prompt every conversation starts with.
-                    'systemPrompt' => [] === ($config['sandbox']['enabled'] ? $config['sandbox']['checks'] : [])
-                        ? $config['system_prompt']
-                        : $config['system_prompt']."\n\n".RunChecksTool::method($config['sandbox']['checks']),
+                    'systemPrompt' => $config['system_prompt'],
                     'humanTimeoutSeconds' => $config['human_timeout_seconds'],
                     'idleTimeoutSeconds' => $config['idle_timeout_seconds'],
                     'rolloverAfterTurns' => $config['rollover_after_turns'],
@@ -351,7 +309,8 @@ final class AgenticBundle extends AbstractBundle
                     'toolRules' => $config['tool_rules'],
                     'agents' => $config['agents'],
                 ],
-                service(Worktrees::class)->nullOnInvalid(),
+                service(Project::class),
+                service(Workspaces::class)->nullOnInvalid(),
             ]);
         $services->alias(Conversations::class, DurableConversations::class)->public();
 
@@ -371,7 +330,7 @@ final class AgenticBundle extends AbstractBundle
             ->args([service(HelpScreen::class)])
             ->tag(self::COMMAND_TAG);
         $services->set(ChatCommand::class)
-            ->args([service(Conversations::class), service(ChatScreen::class)])
+            ->args([service(Conversations::class), service(ChatScreen::class), service(ProjectLoader::class), service(TrustStore::class), '%agentic.project_root%'])
             ->tag(self::COMMAND_TAG);
 
         $services->set(AgenticApplication::class)

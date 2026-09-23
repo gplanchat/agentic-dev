@@ -19,6 +19,7 @@
             <directory>tests/Ai</directory>
             <directory>tests/Check</directory>
             <directory>tests/Config</directory>
+            <directory>tests/Tool</directory>
             <directory>tests/Controller</directory>
             <directory>tests/Tui</directory>
         </testsuite>
@@ -30,6 +31,7 @@
         </testsuite>
         <testsuite name="integration">
             <directory>tests/Sandbox</directory>
+            <directory>tests/Project</directory>
             <directory>tests/Mcp</directory>
             <directory>tests/Chat</directory>
             <file>tests/Integration/McpIntegrationTest.php</file>

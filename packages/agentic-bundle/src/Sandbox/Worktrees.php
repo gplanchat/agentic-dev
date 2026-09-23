@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Gplanchat\AgenticBundle\Sandbox;
 
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\Process\Process;
 
 /**
@@ -37,15 +38,39 @@ final readonly class Worktrees
 
     private string $project;
 
+    /** The repository the project belongs to: the project itself, or a directory above it. */
+    private string $repository;
+
+    /** Where the project sits in the repository — `/packages/lib`, or `` at its root. */
+    private string $subdirectory;
+
     /**
-     * @param list<string> $shared `glob` patterns, relative to the project, of the ignored directories
-     *                             the worktree borrows read-only
+     * @param list<string> $shared     `glob` patterns, relative to the project, of the ignored
+     *                                 directories the worktree borrows read-only
+     * @param string|null  $repository the root of the git repository; `null`: the project itself
      */
     public function __construct(
         string $project,
         private array $shared = ['vendor', 'packages/*/vendor'],
+        ?string $repository = null,
     ) {
         $this->project = realpath($project) ?: $project;
+        $this->repository = null === $repository ? $this->project : (realpath($repository) ?: $repository);
+        $this->subdirectory = substr($this->project, \strlen($this->repository));
+    }
+
+    /**
+     * The worktrees of the project the agent is launched in — a repository's root or any directory
+     * inside one. `null` outside a git repository: the agent then works in the project itself.
+     *
+     * @param list<string> $shared
+     */
+    public static function of(string $project, array $shared): ?self
+    {
+        $git = new Process(['git', '-C', $project, 'rev-parse', '--show-toplevel']);
+        $git->run();
+
+        return $git->isSuccessful() ? new self($project, $shared, trim($git->getOutput())) : null;
     }
 
     public function project(): string
@@ -61,7 +86,7 @@ final readonly class Worktrees
      */
     public function pathFor(string $conversation): string
     {
-        return $this->project.'/'.self::DIRECTORY.'/agentic-'.substr(preg_replace('/[^a-z0-9]/i', '', $conversation) ?? '', 0, 8);
+        return $this->repository.'/'.self::DIRECTORY.'/agentic-'.substr(preg_replace('/[^a-z0-9]/i', '', $conversation) ?? '', 0, 8).$this->subdirectory;
     }
 
     /**
@@ -70,7 +95,7 @@ final readonly class Worktrees
      */
     public function owns(string $path): bool
     {
-        return 1 === preg_match('#^'.preg_quote($this->project.'/'.self::DIRECTORY.'/', '#').'agentic-[a-z0-9]{1,8}$#i', $path);
+        return 1 === preg_match('#^'.preg_quote($this->repository.'/'.self::DIRECTORY.'/', '#').'agentic-[a-z0-9]{1,8}'.preg_quote($this->subdirectory, '#').'$#i', $path);
     }
 
     /**
@@ -84,14 +109,16 @@ final readonly class Worktrees
             throw new \InvalidArgumentException(\sprintf('"%s" is not an agent worktree of %s.', $path, $this->project));
         }
 
-        if (!is_dir($path)) {
-            $git = new Process(['git', '-C', $this->project, 'worktree', 'add', '-b', 'agentic/'.basename($path), $path, 'HEAD']);
+        $root = $this->rootOf($path);
+        if (!is_dir($root)) {
+            $git = new Process(['git', '-C', $this->repository, 'worktree', 'add', '-b', 'agentic/'.basename($root), $root, 'HEAD']);
             $git->setTimeout(60);
             $git->run();
             if (!$git->isSuccessful()) {
-                throw new \RuntimeException(\sprintf('Could not create the worktree %s: %s', $path, trim($git->getErrorOutput())));
+                throw new \RuntimeException(\sprintf('Could not create the worktree %s: %s', $root, trim($git->getErrorOutput())));
             }
         }
+        $this->keepOutOfGit();
 
         // The mount points of what the worktree borrows. Missing, bwrap would create them itself —
         // here, in the worktree, that is harmless, but explicit is easier to read.
@@ -114,12 +141,46 @@ final readonly class Worktrees
      */
     public function readOnlyMounts(string $path): array
     {
-        $mounts = [$this->project.'/.git' => $this->project.'/.git'];
+        $common = $this->commonDirectory();
+        $mounts = [$common => $common];
+        // From a subdirectory, git looks up for the worktree's `.git` file: it has to be there.
+        if ('' !== $this->subdirectory) {
+            $mounts[$this->rootOf($path).'/.git'] = $this->rootOf($path).'/.git';
+        }
         foreach ($this->borrowed($path) as $source => $target) {
             $mounts[$source] = $target;
         }
 
         return $mounts;
+    }
+
+    /**
+     * The worktree a workspace belongs to: the workspace, less the project's subdirectory.
+     */
+    private function rootOf(string $path): string
+    {
+        return substr($path, 0, \strlen($path) - \strlen($this->subdirectory));
+    }
+
+    /**
+     * The repository's own `.git` — the directory, even when the project is itself a worktree.
+     */
+    private function commonDirectory(): string
+    {
+        return trim((new Process(['git', '-C', $this->repository, 'rev-parse', '--path-format=absolute', '--git-common-dir']))->mustRun()->getOutput());
+    }
+
+    /**
+     * `.worktrees/` kept out of `git status`, through `.git/info/exclude`: local to this clone, and
+     * none of the project's own files touched — a `.gitignore` edit would be a change to review.
+     */
+    private function keepOutOfGit(): void
+    {
+        $exclude = $this->commonDirectory().'/info/exclude';
+        $contents = is_file($exclude) ? (string) file_get_contents($exclude) : '';
+        if (!\in_array('/'.self::DIRECTORY.'/', explode("\n", $contents), true)) {
+            (new Filesystem())->appendToFile($exclude, ('' === $contents || str_ends_with($contents, "\n") ? '' : "\n").'/'.self::DIRECTORY."/\n");
+        }
     }
 
     /**

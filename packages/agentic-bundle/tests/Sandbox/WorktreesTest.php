@@ -21,7 +21,9 @@ final class WorktreesTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->project = \dirname(__DIR__, 2).'/var/worktrees-test';
+        // Outside any repository, under /tmp: inside this one, a path gone wrong — a mutant, a bug —
+        // would have git fall back on this repository, and cut worktrees and branches in it.
+        $this->project = sys_get_temp_dir().'/agentic.worktrees-test-'.getmypid();
         $filesystem = new Filesystem();
         $filesystem->remove($this->project);
         $filesystem->dumpFile($this->project.'/src/Code.php', '<?php // committed');
@@ -48,9 +50,12 @@ final class WorktreesTest extends TestCase
 
         self::assertSame($this->project.'/.worktrees/agentic-3f2a9c1e', $path);
         self::assertDirectoryDoesNotExist($path, 'Nothing is created before a command needs it.');
+        file_put_contents($this->project.'/.git/info/exclude', 'local-rule');
 
         $worktrees->ensure($path);
         $worktrees->ensure($path);
+
+        self::assertSame("local-rule\n/.worktrees/\n", file_get_contents($this->project.'/.git/info/exclude'), 'Kept out of git once, on a line of its own.');
 
         self::assertFileExists($path.'/src/Code.php');
         self::assertFileDoesNotExist($path.'/src/Draft.php');
@@ -122,6 +127,66 @@ final class WorktreesTest extends TestCase
         self::assertSame('', file_get_contents($path.'/.env.local'));
     }
 
+    /**
+     * Launched from a subdirectory: the worktree is the repository's, the workspace the same
+     * subdirectory inside it — and git still works there, in the sandbox.
+     */
+    public function testLaunchedFromASubdirectoryTheWorkspaceIsThatSubdirectory(): void
+    {
+        $worktrees = Worktrees::of($this->project.'/packages/lib', ['vendor']);
+        self::assertNotNull($worktrees);
+        $path = $worktrees->pathFor('5ub0d1r0');
+
+        self::assertSame($this->project.'/.worktrees/agentic-5ub0d1r0/packages/lib', $path);
+        self::assertTrue($worktrees->owns($path));
+        self::assertFalse($worktrees->owns($this->project.'/.worktrees/agentic-5ub0d1r0'), 'Not the whole repository: the subdirectory.');
+
+        file_put_contents($this->project.'/.git/info/exclude', "local-rule\n");
+        $worktrees->ensure($path);
+        self::assertFileExists($path.'/composer.json');
+        self::assertSame("local-rule\n/.worktrees/\n", file_get_contents($this->project.'/.git/info/exclude'), 'Kept out of git, without touching the project\'s files.');
+        self::assertSame([
+            $this->project.'/.git' => $this->project.'/.git',
+            $this->project.'/.worktrees/agentic-5ub0d1r0/.git' => $this->project.'/.worktrees/agentic-5ub0d1r0/.git',
+            $this->project.'/packages/lib/vendor' => $path.'/vendor',
+        ], $worktrees->readOnlyMounts($path));
+
+        $sandbox = new Bubblewrap($this->project.'/packages/lib');
+        if (null !== $problem = $sandbox->problem()) {
+            self::markTestSkipped($problem);
+        }
+        $tool = new RunCommandTool(new Workspaces($sandbox, $worktrees));
+        self::assertStringStartsWith('Exit code: 0', $tool->inContext(['command' => 'git status --short'], new ToolContext('test-call', $path)));
+        self::assertSame("Exit code: 0\ncomposer.json\nvar\nvendor\n", $tool->inContext(['command' => 'ls'], new ToolContext('test-call', $path)));
+    }
+
+    /**
+     * A branch of that name already there: git refuses, and the failure says so — an infrastructure
+     * failure, retried like one, not a silent empty workspace.
+     */
+    public function testAWorktreeGitRefusesIsAFailureThatSaysSo(): void
+    {
+        $this->git('branch', 'agentic/agentic-c0111de0');
+        $worktrees = new Worktrees($this->project);
+
+        $this->expectException(\RuntimeException::class);
+        // git's own words follow, in the machine's language: only its naming of the branch is checked.
+        $this->expectExceptionMessageMatches('#^Could not create the worktree .*/agentic-c0111de0: .*agentic/agentic-c0111de0#s');
+        $worktrees->ensure($worktrees->pathFor('c0111de0'));
+    }
+
+    public function testOutsideAGitRepositoryThereIsNoWorktree(): void
+    {
+        // Under /tmp: anywhere in this repository, git would find the repository above.
+        $plain = sys_get_temp_dir().'/agentic-not-a-repository-'.getmypid();
+        (new Filesystem())->mkdir($plain);
+        try {
+            self::assertNull(Worktrees::of($plain, ['vendor']));
+        } finally {
+            (new Filesystem())->remove($plain);
+        }
+    }
+
     public function testOnlyItsOwnWorktreesAreAccepted(): void
     {
         $worktrees = new Worktrees($this->project);
@@ -130,6 +195,7 @@ final class WorktreesTest extends TestCase
         self::assertFalse($worktrees->owns($this->project));
         self::assertFalse($worktrees->owns($this->project.'/.worktrees/agentic-x/../../..'));
         self::assertFalse($worktrees->owns('/elsewhere/.worktrees/agentic-3f2a9c1e'));
+        self::assertFalse($worktrees->owns(str_replace('agentic.worktrees', 'agenticXworktrees', $this->project).'/.worktrees/agentic-3f2a9c1e'), 'The project path is matched as written, not as a pattern.');
 
         $this->expectException(\InvalidArgumentException::class);
         $worktrees->ensure($this->project.'/src');

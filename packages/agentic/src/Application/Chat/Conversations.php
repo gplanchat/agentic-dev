@@ -53,7 +53,14 @@ interface Conversations
     public function exists(string $conversation): bool;
 
     /**
-     * The most recent conversations first.
+     * Was this conversation begun in the project the agent now runs in? Its workspace, its approved
+     * configuration and its worktree belong to the directory it was begun in: it is listed and
+     * reopened from there, not from here.
+     */
+    public function belongsHere(string $conversation): bool;
+
+    /**
+     * The most recent conversations of this project first.
      *
      * @return list<ConversationSummary>
      */

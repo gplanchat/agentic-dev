@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Gplanchat\AgenticBundle\Sandbox;
 
+use Gplanchat\AgenticBundle\Project\Project;
+
 /**
  * The workspace of a conversation, and the file operations inside it.
  *
@@ -29,9 +31,28 @@ final readonly class Workspaces
     ) {
     }
 
+    /**
+     * The workspaces of the project the agent was launched in: a worktree per conversation when the
+     * project says so, borrowing what it shares.
+     */
+    public static function forProject(Bubblewrap $sandbox, Project $project): self
+    {
+        // Outside a git repository there is nothing to cut a worktree from: the agent works in the
+        // project itself, in the sandbox all the same.
+        return new self($sandbox, $project->worktrees ? Worktrees::of($project->root, $project->shared) : null);
+    }
+
     public function sandbox(): Bubblewrap
     {
         return $this->sandbox;
+    }
+
+    /**
+     * Where conversations get their worktree — `null` when they work in the project itself.
+     */
+    public function worktrees(): ?Worktrees
+    {
+        return $this->worktrees;
     }
 
     /**

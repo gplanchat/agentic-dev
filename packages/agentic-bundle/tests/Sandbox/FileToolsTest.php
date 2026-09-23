@@ -30,7 +30,9 @@ final class FileToolsTest extends TestCase
 
     protected function setUp(): void
     {
-        $this->project = \dirname(__DIR__, 2).'/var/file-tools-test';
+        // Outside any repository, under /tmp: inside this one, a path gone wrong — a mutant, a bug —
+        // would have git fall back on this repository, and cut worktrees and branches in it.
+        $this->project = sys_get_temp_dir().'/agentic-file-tools-test-'.getmypid();
         $filesystem = new Filesystem();
         $filesystem->remove($this->project);
         $filesystem->dumpFile($this->project.'/src/Code.php', "<?php\n\nfunction greet(): string\n{\n    return 'hello';\n}\n");

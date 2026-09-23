@@ -13,7 +13,10 @@ use Gplanchat\Agentic\Domain\Identity\ConversationNotOwned;
 use Gplanchat\Agentic\Domain\Identity\ConversationOwnerUnknown;
 use Gplanchat\Agentic\Infrastructure\Durable\ChatTranscript;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
-use Gplanchat\AgenticBundle\Sandbox\Worktrees;
+use Gplanchat\AgenticBundle\Project\Project;
+use Gplanchat\AgenticBundle\Sandbox\Workspaces;
+use Gplanchat\AgenticBundle\Tool\RunChecksTool;
+use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Tool\AgentTools;
 use Gplanchat\Durable\Observation\WorkflowRunStatus;
 use Gplanchat\Durable\Port\WorkflowResumeDispatcher;
@@ -44,8 +47,9 @@ final readonly class DurableConversations implements Conversations
         private EventStoreInterface $events,
         private WorkflowRunCatalogInterface $runs,
         private CurrentPrincipal $principal,
-        private array $options = [],
-        private ?Worktrees $worktrees = null,
+        private array $options,
+        private Project $project,
+        private ?Workspaces $workspaces = null,
     ) {
     }
 
@@ -93,7 +97,7 @@ final readonly class DurableConversations implements Conversations
             // Read unchecked, then filter: asserting here would throw on the first conversation
             // belonging to someone else instead of simply not listing it.
             $transcript = $this->read($run->runId);
-            if (!($transcript->owner?->is(($this->principal)()) ?? false)) {
+            if (!($transcript->owner?->is(($this->principal)()) ?? false) || !$this->isHere($transcript)) {
                 continue;
             }
 
@@ -118,10 +122,11 @@ final readonly class DurableConversations implements Conversations
     {
         $conversation = (string) Uuid::v4();
         // Only a path: the worktree is created by the first command that needs it.
-        $workspace ??= $this->worktrees?->pathFor($conversation);
+        $workspace ??= $this->workspaces?->worktrees()?->pathFor($conversation);
         $this->dispatcher->dispatchNewWorkflowRun($conversation, DurableAgentWorkflow::class, [
             ...$this->options,
-            'systemPrompt' => $this->instructions->appendTo((string) ($this->options['systemPrompt'] ?? DurableAgentWorkflow::SYSTEM_PROMPT)),
+            'systemPrompt' => $this->systemPrompt(),
+            'toolRules' => $this->toolRules(),
             'tools' => $this->tools->toolset()->toWire(),
             'history' => $history,
             'compactHistory' => $compact,
@@ -132,6 +137,65 @@ final readonly class DurableConversations implements Conversations
         ]);
 
         return $conversation;
+    }
+
+    public function belongsHere(string $conversation): bool
+    {
+        return $this->isHere($this->read($conversation));
+    }
+
+    /**
+     * Its workspace is this project's root, or one of this project's worktrees. With no workspace —
+     * no sandbox — or no project, there is nowhere else it could belong.
+     */
+    private function isHere(Transcript $transcript): bool
+    {
+        if (null === $transcript->workspace) {
+            return true;
+        }
+
+        return $transcript->workspace === $this->project->root
+            || ($this->workspaces?->worktrees()?->owns($transcript->workspace) ?? false);
+    }
+
+    /**
+     * The prompt a conversation starts with: the installation's, the method of the project's check
+     * layers, then the installation's instructions and the project's. Frozen into the start payload:
+     * a project file changed tomorrow does not change a conversation begun today.
+     */
+    private function systemPrompt(): string
+    {
+        $prompt = (string) ($this->options['systemPrompt'] ?? DurableAgentWorkflow::SYSTEM_PROMPT);
+        if (null !== $this->workspaces && [] !== $this->project->checks) {
+            $prompt .= "\n\n".RunChecksTool::method($this->project->checks);
+        }
+        $prompt = $this->instructions->appendTo($prompt);
+
+        return null === $this->project->instructionsFile ? $prompt : (new ProjectInstructions($this->project->instructionsFile))->appendTo($prompt);
+    }
+
+    /**
+     * The installation's rules, the project's, and — with the sandbox — the auto-mode list as a rule
+     * like the others: an ask beats an allow, so an `allow` elsewhere does not widen it.
+     *
+     * @return list<array<string, mixed>>
+     */
+    private function toolRules(): array
+    {
+        /** @var list<array<string, mixed>> $installation built by AgenticBundle from its configuration */
+        $installation = $this->options['toolRules'] ?? [];
+        $rules = [...$installation, ...$this->project->toolRules];
+        if (null !== $this->workspaces) {
+            $rules[] = [
+                'tool' => RunCommandTool::TOOL,
+                'decision' => 'ask',
+                'modes' => ['auto'],
+                'unless' => ['command' => $this->project->autoAllow],
+                'reason' => 'Command outside the auto-mode list (sandbox.auto_allow, in the installation or the project configuration).',
+            ];
+        }
+
+        return $rules;
     }
 
     public function send(string $conversation, string $text): void

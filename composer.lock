@@ -1253,7 +1253,7 @@
             "dist": {
                 "type": "path",
                 "url": "packages/agentic",
-                "reference": "30d5b10c6542be5795a2bb68dbbcd9833900cda6"
+                "reference": "a0a78225a88013e3bac815d56b29bc900bc287fb"
             },
             "require": {
                 "gplanchat/durable": "0.1.x-dev",
@@ -1263,6 +1263,7 @@
                 "symfony/ai-platform": "0.13.*"
             },
             "require-dev": {
+                "phpstan/phpstan": "^2",
                 "phpunit/phpunit": "^11.5"
             },
             "type": "library",
@@ -1284,7 +1285,25 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Grégory Planchat",
+                    "email": "gregory@gyroscops.com"
+                }
+            ],
             "description": "Durable AI agents on Symfony AI: tool guard, human questions, watches, context budget and delegation.",
+            "keywords": [
+                "agent",
+                "ai",
+                "durable-execution",
+                "llm",
+                "symfony-ai",
+                "tool-calling"
+            ],
+            "support": {
+                "issues": "https://github.com/gplanchat/agentic-dev/issues",
+                "source": "https://github.com/gplanchat/agentic"
+            },
             "transport-options": {
                 "relative": true
             }
@@ -1295,16 +1314,18 @@
             "dist": {
                 "type": "path",
                 "url": "packages/agentic-bundle",
-                "reference": "2db53670820cb6cebd691961a6cd8c672511a78c"
+                "reference": "51dbcc560e7b0fa331e52f9bf1f70bbce999bc42"
             },
             "require": {
                 "amphp/http-client": "^5.3",
-                "gplanchat/agentic": "0.1.x-dev",
+                "gplanchat/agentic": "self.version",
                 "gplanchat/durable-bundle": "0.1.x-dev",
+                "internal/toml": "^1.1",
                 "league/commonmark": "^2.10",
                 "mcp/sdk": "^0.8",
                 "nyholm/psr7": "^1.8",
                 "php": ">=8.4.1",
+                "sebastian/diff": "^6.0 || ^7.0",
                 "symfony/config": "8.2.*",
                 "symfony/console": "8.2.*",
                 "symfony/dependency-injection": "8.2.*",
@@ -1316,9 +1337,11 @@
                 "symfony/routing": "8.2.*",
                 "symfony/tui": "8.2.*",
                 "symfony/uid": "8.2.*",
+                "symfony/yaml": "8.2.*",
                 "tempest/highlight": "^2.28"
             },
             "require-dev": {
+                "phpstan/phpstan": "^2",
                 "phpunit/phpunit": "^12",
                 "symfony/framework-bundle": "8.2.*"
             },
@@ -1341,7 +1364,25 @@
             "license": [
                 "MIT"
             ],
+            "authors": [
+                {
+                    "name": "Grégory Planchat",
+                    "email": "gregory@gyroscops.com"
+                }
+            ],
             "description": "Symfony integration of gplanchat/agentic: the agentic TUI application and its web version.",
+            "keywords": [
+                "agent",
+                "ai",
+                "durable-execution",
+                "symfony",
+                "symfony-bundle",
+                "tui"
+            ],
+            "support": {
+                "issues": "https://github.com/gplanchat/agentic-dev/issues",
+                "source": "https://github.com/gplanchat/agentic-bundle"
+            },
             "transport-options": {
                 "relative": true
             }
@@ -1542,6 +1583,63 @@
                 "source": "https://github.com/gplanchat/durable-bundle/tree/main"
             },
             "time": "2026-09-14T21:26:37+00:00"
+        },
+        {
+            "name": "internal/toml",
+            "version": "1.1.3",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/php-internal/toml.git",
+                "reference": "b0e077794a179b0a39a4fba84185762a4425c472"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/php-internal/toml/zipball/b0e077794a179b0a39a4fba84185762a4425c472",
+                "reference": "b0e077794a179b0a39a4fba84185762a4425c472",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.1"
+            },
+            "require-dev": {
+                "buggregator/trap": "^1.13",
+                "internal/dload": "^1.11",
+                "phpunit/phpunit": "^10.5",
+                "spiral/code-style": "^2.3.0",
+                "ta-tikoma/phpunit-architecture-test": "^0.8.5",
+                "vimeo/psalm": "^6.13"
+            },
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Internal\\Toml\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Aleksei Gagarin (roxblnfk)",
+                    "homepage": "https://github.com/roxblnfk"
+                }
+            ],
+            "description": "TOML 1.0/1.1 parser and encoder",
+            "keywords": [
+                "toml"
+            ],
+            "support": {
+                "issues": "https://github.com/php-internal/toml/issues",
+                "source": "https://github.com/php-internal/toml/tree/1.1.3"
+            },
+            "funding": [
+                {
+                    "url": "https://boosty.to/roxblnfk",
+                    "type": "boosty"
+                }
+            ],
+            "time": "2026-06-28T16:28:37+00:00"
         },
         {
             "name": "kelunik/certificate",
@@ -3515,6 +3613,85 @@
                 "source": "https://github.com/revoltphp/event-loop/tree/v1.0.9"
             },
             "time": "2026-05-16T17:55:38+00:00"
+        },
+        {
+            "name": "sebastian/diff",
+            "version": "7.0.1",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/sebastianbergmann/diff.git",
+                "reference": "cd4cabe39f8a4e8ee6818ba99f10a05561ea4ad6"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/sebastianbergmann/diff/zipball/cd4cabe39f8a4e8ee6818ba99f10a05561ea4ad6",
+                "reference": "cd4cabe39f8a4e8ee6818ba99f10a05561ea4ad6",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.3"
+            },
+            "require-dev": {
+                "phpunit/phpunit": "^12.5.33",
+                "symfony/process": "^7.4.17"
+            },
+            "type": "library",
+            "extra": {
+                "branch-alias": {
+                    "dev-main": "7.0-dev"
+                }
+            },
+            "autoload": {
+                "classmap": [
+                    "src/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "BSD-3-Clause"
+            ],
+            "authors": [
+                {
+                    "name": "Sebastian Bergmann",
+                    "email": "sebastian@phpunit.de"
+                },
+                {
+                    "name": "Kore Nordmann",
+                    "email": "mail@kore-nordmann.de"
+                }
+            ],
+            "description": "Diff implementation",
+            "homepage": "https://github.com/sebastianbergmann/diff",
+            "keywords": [
+                "diff",
+                "udiff",
+                "unidiff",
+                "unified diff"
+            ],
+            "support": {
+                "issues": "https://github.com/sebastianbergmann/diff/issues",
+                "security": "https://github.com/sebastianbergmann/diff/security/policy",
+                "source": "https://github.com/sebastianbergmann/diff/tree/7.0.1"
+            },
+            "funding": [
+                {
+                    "url": "https://github.com/sebastianbergmann",
+                    "type": "github"
+                },
+                {
+                    "url": "https://liberapay.com/sebastianbergmann",
+                    "type": "liberapay"
+                },
+                {
+                    "url": "https://thanks.dev/u/gh/sebastianbergmann",
+                    "type": "thanks_dev"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/sebastian/diff",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-08-25T15:35:54+00:00"
         },
         {
             "name": "symfony/ai-agent",
@@ -7413,6 +7590,84 @@
                 }
             ],
             "time": "2026-08-29T06:30:03+00:00"
+        },
+        {
+            "name": "symfony/yaml",
+            "version": "8.2.x-dev",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/symfony/yaml.git",
+                "reference": "1cc7613297afc4da151658cf88fecca3f3c83fb0"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/symfony/yaml/zipball/1cc7613297afc4da151658cf88fecca3f3c83fb0",
+                "reference": "1cc7613297afc4da151658cf88fecca3f3c83fb0",
+                "shasum": ""
+            },
+            "require": {
+                "php": ">=8.4.1",
+                "symfony/polyfill-ctype": "^1.8"
+            },
+            "conflict": {
+                "symfony/console": "<7.4"
+            },
+            "require-dev": {
+                "opis/json-schema": "^2.6",
+                "symfony/console": "^7.4|^8.0",
+                "yaml/yaml-test-suite": "*"
+            },
+            "default-branch": true,
+            "bin": [
+                "Resources/bin/yaml-lint"
+            ],
+            "type": "library",
+            "autoload": {
+                "psr-4": {
+                    "Symfony\\Component\\Yaml\\": ""
+                },
+                "exclude-from-classmap": [
+                    "/Tests/"
+                ]
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Fabien Potencier",
+                    "email": "fabien@symfony.com"
+                },
+                {
+                    "name": "Symfony Community",
+                    "homepage": "https://symfony.com/contributors"
+                }
+            ],
+            "description": "Loads and dumps YAML files",
+            "homepage": "https://symfony.com",
+            "support": {
+                "source": "https://github.com/symfony/yaml/tree/8.2"
+            },
+            "funding": [
+                {
+                    "url": "https://symfony.com/sponsor",
+                    "type": "custom"
+                },
+                {
+                    "url": "https://github.com/fabpot",
+                    "type": "github"
+                },
+                {
+                    "url": "https://github.com/nicolas-grekas",
+                    "type": "github"
+                },
+                {
+                    "url": "https://tidelift.com/funding/github/packagist/symfony/symfony",
+                    "type": "tidelift"
+                }
+            ],
+            "time": "2026-09-18T16:04:11+00:00"
         },
         {
             "name": "tempest/highlight",

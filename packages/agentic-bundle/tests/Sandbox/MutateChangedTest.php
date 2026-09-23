@@ -42,10 +42,14 @@ final class MutateChangedTest extends TestCase
             self::markTestSkipped('Infection is not installed: composer install in tools/infection.');
         }
 
-        $this->project = $package.'/var/mutate-changed-test';
+        // Outside any repository, under /tmp: inside this one, a path gone wrong — a mutant, a bug —
+        // would have git fall back on this repository, and cut worktrees and branches in it.
+        $this->project = sys_get_temp_dir().'/agentic-mutate-changed-test-'.getmypid();
         $filesystem = new Filesystem();
         $filesystem->remove($this->project);
         $filesystem->dumpFile($this->project.'/src/Price.php', self::PRICE);
+        // Loaded by no test: a change here is code the test framework never executes.
+        $filesystem->dumpFile($this->project.'/src/Priced.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Shop;\n\ninterface Priced\n{\n}\n");
         $filesystem->dumpFile($this->project.'/tests/PriceTest.php', <<<'PHP'
             <?php
 
@@ -87,6 +91,17 @@ final class MutateChangedTest extends TestCase
 
     public function testNothingChangedIsNoMutant(): void
     {
+        self::assertSame(0, $this->mutate()['stats']['totalMutantsCount']);
+    }
+
+    /**
+     * A change with nothing to mutate — an interface, a comment: Infection writes no log at all, and
+     * the layer must still say GREEN, not ERROR for want of a report.
+     */
+    public function testAChangeWithNothingToMutateIsNoMutant(): void
+    {
+        file_put_contents($this->project.'/src/Priced.php', "<?php\n\ndeclare(strict_types=1);\n\nnamespace Shop;\n\ninterface Priced\n{\n    public function cents(): int;\n}\n");
+
         self::assertSame(0, $this->mutate()['stats']['totalMutantsCount']);
     }
 

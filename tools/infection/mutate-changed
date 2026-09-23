@@ -47,6 +47,14 @@ export PATH
 # --with-uncovered: Infection leaves out, by default, code no test runs — a method added without its
 # test made no mutant at all, and the check stayed green. Here it is what the review must catch.
 status=0
-php "$tools/vendor/bin/infection" --git-diff-lines --git-diff-base=HEAD --with-uncovered --ignore-msi-with-no-mutations -q "$@" || status=$?
+php "$tools/vendor/bin/infection" --git-diff-lines --git-diff-base=HEAD --with-uncovered --ignore-msi-with-no-mutations -q "$@" > "$scratch/log.json" || status=$?
+# When no changed line is executed by the tests — an interface, a declaration — Infection stops
+# with "No source code from the diff was executed" and writes no log: nothing to mutate, not an
+# error. ponytail: seen on a package, not reproduced on the throwaway repository of the tests.
+if [ "$status" -eq 0 ] && [ ! -s "$scratch/log.json" ]; then
+    echo '{"stats":{"totalMutantsCount":0,"killedCount":0,"escapedCount":0,"notCoveredCount":0,"timeOutCount":0,"msi":0},"escaped":[],"uncovered":[]}'
+else
+    cat "$scratch/log.json"
+fi
 rm -rf "$scratch"
 exit $status
