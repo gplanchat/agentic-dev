@@ -18,6 +18,7 @@
         <testsuite name="unit">
             <directory>tests/Ai</directory>
             <directory>tests/Check</directory>
+            <directory>tests/Config</directory>
             <directory>tests/Controller</directory>
             <directory>tests/Tui</directory>
         </testsuite>

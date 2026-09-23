@@ -552,6 +552,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *     idle_timeout_seconds?: float|Param, // Silence after which the conversation ends. // Default: 3600.0
  *     rollover_after_turns?: int|Param, // Default: 40
  *     context_tokens?: int|Param, // Default: 24000
+ *     max_tool_calls?: int|Param, // Tool-calling rounds a turn may make. Past them, the turn ends on the model saying where it stands, with no tool it may call; the next message goes on. A TDD cycle with its review takes a dozen. // Default: 40
  *     max_delegation_depth?: int|Param, // How deep a chain of sub-agents may go. At that depth `delegate` is not offered at all, so the chain stops. 0 forbids delegating; without a bound an anonymous delegation could delegate for ever, each level costing a model call. // Default: 2
  *     token_budget?: int|Param, // What one run may spend in model tokens before it stops taking turns. 0: no ceiling — the spend is counted either way, and counting is the part that cannot be done afterwards. // Default: 0
  *     instructions_file?: scalar|Param|null, // Project instructions appended to the system prompt when each conversation starts. Missing: ignored; null: disabled. // Default: "%kernel.project_dir%/AGENTS.md"

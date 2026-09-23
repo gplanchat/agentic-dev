@@ -8,8 +8,10 @@
 set -e
 tools=$(cd "$(dirname "$0")" && pwd)
 
-scratch="${TMPDIR:-/tmp}/agentic-mutate-changed"
-rm -rf "$scratch" && mkdir -p "$scratch/objects"
+# A directory of its own per run: runs nest — a test of this very script runs it again, from inside
+# the suite Infection runs — and a shared one had the inner run rebuild the outer run's index.
+scratch=$(mktemp -d "${TMPDIR:-/tmp}/agentic-mutate-changed.XXXXXX")
+mkdir -p "$scratch/objects"
 
 # The throwaway index, and a scratch object directory for what intent-to-add writes; the repository's
 # objects are read where they are. Handed to bin/git under names of our own: exported as GIT_*, they
@@ -26,11 +28,15 @@ scratchgit() {
 }
 
 scratchgit read-tree HEAD
-scratchgit add --intent-to-add --all -- src
+# Untracked files only: they are what `git diff HEAD` misses. Tracked ones keep HEAD's entry.
+scratchgit ls-files --others --exclude-standard -- src | while IFS= read -r file; do
+    scratchgit add --intent-to-add -- "$file"
+done
 
 if scratchgit diff --quiet HEAD -- src; then
     # Nothing to mutate: say so in the report's own shape, where Infection would stop on an error.
     echo '{"stats":{"totalMutantsCount":0,"killedCount":0,"escapedCount":0,"notCoveredCount":0,"timeOutCount":0,"msi":0},"escaped":[],"uncovered":[]}'
+    rm -rf "$scratch"
     exit 0
 fi
 
@@ -40,4 +46,7 @@ PATH="$tools/bin:$PATH"
 export PATH
 # --with-uncovered: Infection leaves out, by default, code no test runs — a method added without its
 # test made no mutant at all, and the check stayed green. Here it is what the review must catch.
-exec php "$tools/vendor/bin/infection" --git-diff-lines --git-diff-base=HEAD --with-uncovered --ignore-msi-with-no-mutations -q "$@"
+status=0
+php "$tools/vendor/bin/infection" --git-diff-lines --git-diff-base=HEAD --with-uncovered --ignore-msi-with-no-mutations -q "$@" || status=$?
+rm -rf "$scratch"
+exit $status

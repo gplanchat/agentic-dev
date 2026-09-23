@@ -28,6 +28,7 @@ use Gplanchat\Durable\Duration;
 use Gplanchat\Durable\Exception\DeadlineExceededException;
 use Gplanchat\Durable\WorkflowEnvironment;
 use Symfony\AI\Agent\Agent;
+use Symfony\AI\Agent\Exception\MaxIterationsExceededException;
 use Symfony\AI\Platform\Message\Message;
 use Symfony\AI\Platform\Message\MessageBag;
 use Symfony\AI\Platform\Result\MultiPartResult;
@@ -439,7 +440,15 @@ final class DurableAgentWorkflow
                 $agentModel = $this->model;
             }
 
-            $result = $agent->call($messages)->getResult();
+            try {
+                $result = $agent->call($messages)->getResult();
+            } catch (MaxIterationsExceededException) {
+                // The turn has used up its tool calls. That ends the turn, not the conversation: the
+                // Runner refuses the round before adding it, so the bag holds only whole rounds, and
+                // one more model call — no tool it may call — says where things stand. The human
+                // answers with the next message; replay throws at the same round, so it is stable.
+                $result = $agent->call($messages, ['tool_choice' => 'none'])->getResult();
+            }
             // The bag receives the whole result — `Message::toContent()` unfolds a `MultiPartResult`,
             // and the reasoning block thus goes back out on the next turn. The thread, for its part,
             // only wants the text: `getContent()` of a multi-part returns an array, not a string.

@@ -10,6 +10,7 @@ use Gplanchat\AgenticBundle\Tui\SlashCommands;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Gplanchat\Durable\Event\ActivityScheduled;
 use Gplanchat\Durable\Store\EventStoreInterface;
+use Gplanchat\Durable\Store\WorkflowMetadataStore;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 
 final class SlashCommandsTest extends KernelTestCase
@@ -58,6 +59,19 @@ final class SlashCommandsTest extends KernelTestCase
      * Layer names are what the model types: the configuration keeps `kernel-unit` as written, where
      * Symfony would turn the dash into an underscore.
      */
+    /**
+     * The tool calls a turn may make travel in the start payload: a coding turn needs more than
+     * Symfony AI's own default, and the configuration says how many.
+     */
+    public function testATurnMayMakeAsManyToolCallsAsConfigured(): void
+    {
+        $metadata = self::getContainer()->get(WorkflowMetadataStore::class);
+        self::assertInstanceOf(WorkflowMetadataStore::class, $metadata);
+        $payload = $metadata->get($this->id)['payload'] ?? [];
+
+        self::assertSame(40, $payload['maxToolCalls'] ?? null);
+    }
+
     public function testCheckLayersReachTheModelAsWritten(): void
     {
         $runChecks = null;

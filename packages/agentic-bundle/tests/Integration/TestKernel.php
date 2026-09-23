@@ -10,6 +10,7 @@ use Gplanchat\Durable\Bundle\DurableBundle;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
 use Symfony\Bundle\FrameworkBundle\Kernel\MicroKernelTrait;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
+use Symfony\Component\Filesystem\Filesystem;
 use Symfony\Component\HttpKernel\Kernel;
 use Symfony\Component\HttpKernel\Log\Logger;
 
@@ -31,10 +32,23 @@ class TestKernel extends Kernel
         return __DIR__;
     }
 
+    /**
+     * One container per process: under mutation testing each mutant runs in a process of its own, and
+     * a container compiled once and kept would never run the mutated configuration code — every
+     * mutant of AgenticBundle::configure() or loadExtension() would survive, tested or not.
+     */
     public function getCacheDir(): string
     {
-        return \dirname(__DIR__, 2).'/var/cache';
+        $dir = \dirname(__DIR__, 2).'/var/cache/'.getmypid();
+        if (!self::$cleanupRegistered) {
+            self::$cleanupRegistered = true;
+            register_shutdown_function(static fn () => (new Filesystem())->remove($dir));
+        }
+
+        return $dir;
     }
+
+    private static bool $cleanupRegistered = false;
 
     public function getLogDir(): string
     {
