@@ -15,6 +15,7 @@ use Gplanchat\Durable\Store\WorkflowMetadataStore;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Tui\Ansi\AnsiUtils;
+use Symfony\Component\Tui\Terminal\ScreenBuffer;
 use Symfony\Component\Tui\Terminal\VirtualTerminal;
 
 final class ChatViewTest extends KernelTestCase
@@ -168,6 +169,25 @@ final class ChatViewTest extends KernelTestCase
         self::assertStringContainsString('› /clear ', $this->terminal->getOutput(), 'Enter wrote the pick into the line.');
         self::assertSame($before, $view->conversation, 'And did not run it: /clear would have opened another conversation.');
         self::assertSame([], $conversations->transcript($before)->messages, 'Nor sent it as a message.');
+    }
+
+    /**
+     * A click on a listed command takes it: one gesture, not a pick and then a key.
+     *
+     * The row comes from the emulated screen — the whole stream replayed through a ScreenBuffer —
+     * because the list is drawn near the bottom, where a widget's own height says nothing about
+     * where the layout put it.
+     */
+    public function testClickingASuggestionTakesIt(): void
+    {
+        $view = $this->open();
+        $this->type($view, '/mo');
+        $screen = self::screen($this->terminal->getOutput());
+
+        // The second listed, `/model`: taking the first would prove nothing about the row.
+        $this->key($view, \sprintf("\e[<0;10;%dM", self::rowOf($screen, '/model') + 1));
+
+        self::assertStringContainsString('› /model ', $this->terminal->getOutput());
     }
 
     public function testClearSwitchesTheScreenToANewConversation(): void
@@ -458,9 +478,13 @@ final class ChatViewTest extends KernelTestCase
      */
     private static function screen(string $output): array
     {
-        $rows = explode("\n", str_replace("\r", '', AnsiUtils::stripAnsiCodes($output)));
+        // The component's own terminal emulator, not a hand-rolled one: a redraw moves the cursor
+        // and overwrites, so stripping the codes and keeping the last rows shows what was drawn
+        // last rather than what is on screen. Feed it the whole stream, from the first byte.
+        $screen = new ScreenBuffer(100, 30);
+        $screen->write($output);
 
-        return \array_slice($rows, -30);
+        return array_values($screen->getLines());
     }
 
     /**
