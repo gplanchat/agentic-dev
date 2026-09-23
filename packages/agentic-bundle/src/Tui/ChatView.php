@@ -8,6 +8,7 @@ use Gplanchat\Agentic\Application\Chat\Conversations;
 use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\AgenticBundle\Tool\EditFileTool;
+use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Revolt\EventLoop;
 use Symfony\Component\Tui\Event\CancelEvent;
@@ -35,7 +36,7 @@ use Symfony\Component\Tui\Widget\Util\StringUtils;
  * every refresh, after having moved the worker forward. Quitting (Ctrl+C) does not close the
  * conversation; Ctrl+X closes it; Shift+Tab rotates the mode, shown at the bottom. The wheel and
  * Pg.Up/Pg.Dn scroll the thread; ↑/↓ recall the messages already sent, like a shell. A line that starts with `/` is a command
- * ({@see SlashCommands}), not a message. A file edit shows its diff, folded; a click unfolds it.
+ * ({@see SlashCommands}), not a message. A change to files — an edit, a command — shows its diff, folded; a click unfolds it.
  */
 final class ChatView
 {
@@ -503,18 +504,25 @@ final class ChatView
         foreach ($transcript->steps as $step) {
             // A result that ends its line — the sandbox's do — would leave an empty one under it.
             $result = null === $step->result ? '…' : self::clean(rtrim($step->result, "\n"));
-            if (EditFileTool::TOOL !== $step->tool) {
-                $entries[] = [self::styled(\sprintf('⚙ %s %s → %s', $step->tool, self::clean(json_encode($step->arguments, \JSON_UNESCAPED_UNICODE) ?: ''), $result), "\e[2m"), false];
-
-                continue;
+            $shown = self::clean(json_encode($step->arguments, \JSON_UNESCAPED_UNICODE) ?: '');
+            $diff = null;
+            if (EditFileTool::TOOL === $step->tool) {
+                // The strings replaced are the diff below: in the arguments, they would say it twice.
+                $shown = self::clean((string) json_encode($step->arguments['path'] ?? '', \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES));
+                // A refused edit changed nothing: no diff. The words are the sandbox's, Workspaces::file().
+                if (null !== $step->result && (str_starts_with($step->result, 'Edited ') || str_starts_with($step->result, 'Created '))) {
+                    $diff = FoldedDiff::ofEdit($step->arguments, isset($this->unfolded[$step->callId]));
+                }
+            } elseif (RunCommandTool::TOOL === $step->tool && null !== $step->result && str_contains($step->result, RunCommandTool::CHANGES)) {
+                // ponytail: split at the first marker — an output that printed it would split early.
+                [$output, $changes] = explode(RunCommandTool::CHANGES, $step->result, 2);
+                $result = self::clean(rtrim($output, "\n"));
+                $diff = FoldedDiff::ofUnified($changes, isset($this->unfolded[$step->callId]));
             }
 
-            // The strings replaced are the diff below: in the arguments, they would say it twice.
-            $entries[] = [self::styled(\sprintf('⚙ %s %s → %s', $step->tool, self::clean((string) json_encode($step->arguments['path'] ?? '', \JSON_UNESCAPED_UNICODE | \JSON_UNESCAPED_SLASHES)), $result), "\e[2m"), false];
-            // A refused edit changed nothing: no diff. The words are the sandbox's, Workspaces::file().
-            if (null !== $step->result && (str_starts_with($step->result, 'Edited ') || str_starts_with($step->result, 'Created '))) {
-                [$diff, $foldable] = EditDiff::render($step->arguments, isset($this->unfolded[$step->callId]));
-                $entries[] = [$diff, false, $foldable ? $step->callId : null];
+            $entries[] = [self::styled(\sprintf('⚙ %s %s → %s', $step->tool, $shown, $result), "\e[2m"), false];
+            if (null !== $diff) {
+                $entries[] = [$diff[0], false, $diff[1] ? $step->callId : null];
             }
         }
 

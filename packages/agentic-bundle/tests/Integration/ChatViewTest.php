@@ -7,6 +7,7 @@ namespace Gplanchat\AgenticBundle\Tests\Integration;
 use Gplanchat\Agentic\Application\Chat\Conversations;
 use Gplanchat\Agentic\Application\Chat\ToolStep;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
+use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Tui\BananaWords;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use Gplanchat\AgenticBundle\Tui\ChatView;
@@ -199,6 +200,31 @@ final class ChatViewTest extends KernelTestCase
         // where "click to unfold" was. Only the rows that changed are redrawn — not a whole frame.
         $this->key($view, \sprintf("\e[<0;10;%dM", self::rowOf($screen, 'click to unfold') + 1));
         self::assertStringContainsString('click to unfold', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
+    }
+
+    /**
+     * A command that changed files: its output on the call line, the diff of the changes under it,
+     * folded like an edit's.
+     */
+    public function testWhatACommandChangedIsShownLikeAnEdit(): void
+    {
+        $diff = "diff --git a/src/A.php b/src/A.php\nindex 1111111..2222222 100644\n--- a/src/A.php\n+++ b/src/A.php\n@@ -1,8 +1,8 @@\n"
+            .implode("\n", array_map(static fn (int $i): string => "-old $i\n+new $i", range(1, 8)));
+        $view = $this->openOn(new EditedConversations([
+            new ToolStep('call-fixer', 'run_command', ['command' => 'vendor/bin/php-cs-fixer fix'], "Exit code: 0\nFixed 1 file\n".RunCommandTool::CHANGES.$diff),
+            new ToolStep('call-status', 'run_command', ['command' => 'git status'], "Exit code: 0\nclean\n"),
+        ]));
+        $screen = self::screen($this->terminal->consumeOutput());
+        $shown = implode("\n", $screen);
+
+        self::assertStringContainsString('⚙ run_command {"command":"vendor\/bin\/php-cs-fixer fix"} → Exit code: 0', $shown);
+        self::assertStringNotContainsString('Files changed by the command', $shown, 'The marker is for the thread to split on, not to show.');
+        self::assertStringContainsString('    diff --git a/src/A.php b/src/A.php', $screen[self::rowOf($screen, 'Fixed 1 file') + 1], 'Right under the output.');
+        self::assertStringNotContainsString('+++ b/src/A.php', $shown);
+        self::assertStringContainsString('⚙ run_command {"command":"git status"} → Exit code: 0', $shown, 'No change, no diff: as before.');
+
+        $this->key($view, \sprintf("\e[<0;10;%dM", self::rowOf($screen, 'diff --git') + 1));
+        self::assertStringContainsString('+new 8', AnsiUtils::stripAnsiCodes($this->terminal->consumeOutput()));
     }
 
     public function testAClickElsewhereFoldsNothing(): void

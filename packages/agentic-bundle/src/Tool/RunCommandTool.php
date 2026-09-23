@@ -9,6 +9,7 @@ use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\Agentic\Application\Tool\ContextualTool;
 use Gplanchat\Agentic\Application\Tool\ToolContext;
+use Gplanchat\AgenticBundle\Sandbox\WorkingTreeChanges;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 
 /**
@@ -20,10 +21,16 @@ use Gplanchat\AgenticBundle\Sandbox\Workspaces;
  *
  * With worktrees on, the command runs in the conversation's worktree — its path comes from the
  * start payload, never from the model —, created on the first call. Without, in the project.
+ *
+ * In a git repository, what the command changed follows its output, as a diff
+ * ({@see WorkingTreeChanges}): the model learns what its formatter touched, the human sees it.
  */
 final readonly class RunCommandTool implements ContextualTool
 {
     public const TOOL = 'run_command';
+
+    /** Between the output and the diff of what the command changed. */
+    public const CHANGES = "\n\nFiles changed by the command:\n";
 
     public function __construct(private Workspaces $workspaces)
     {
@@ -35,7 +42,8 @@ final readonly class RunCommandTool implements ContextualTool
             self::TOOL,
             'Runs a command inside a sandbox: the project writable, no network, no access to the '
             .'rest of the disk. No shell: no `;`, no `|`, no `&&`, no redirection, no `*` — one '
-            .'command per call. Returns the exit code and the output (truncated beyond 16 KiB).',
+            .'command per call. Returns the exit code and the output (truncated beyond 16 KiB), then '
+            .'the diff of the files it changed, if any.',
             ToolEffect::External,
             [
                 'type' => 'object',
@@ -72,6 +80,10 @@ final readonly class RunCommandTool implements ContextualTool
             return \sprintf('Directory refused: "%s" is not a folder of the project.', (string) ($arguments['cwd'] ?? ''));
         }
 
-        return $this->workspaces->sandbox()->run((string) ($arguments['command'] ?? ''), $cwd, $root, $readOnly);
+        $changes = WorkingTreeChanges::before($root);
+        $result = $this->workspaces->sandbox()->run((string) ($arguments['command'] ?? ''), $cwd, $root, $readOnly);
+        $diff = $changes?->after() ?? '';
+
+        return '' === $diff ? $result : rtrim($result, "\n").self::CHANGES.$diff;
     }
 }
