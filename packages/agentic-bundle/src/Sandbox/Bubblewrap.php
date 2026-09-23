@@ -20,9 +20,12 @@ use Symfony\Component\Process\Process;
  * Inside the workspace, two exceptions:
  * - the masked paths (`.env.local` and its key, `var/` and the agent journal), `glob` patterns: a
  *   file is covered over by `/dev/null`, a folder by a tmpfs;
- * - `.git` and `.claude` read-only: a `.git/config`, a hook or an agent setting written here would
- *   run **on the host**, at the human's next command. `.git` is a file in a worktree: it is
- *   protected as well, otherwise its `gitdir:` line would point wherever the agent wants.
+ * - `.git`, `.claude` and `.agentic` read-only: a `.git/config`, a hook, an agent setting or a
+ *   project configuration written here would run — or be obeyed — **on the host**, at the human's
+ *   next command. `.agentic` is the sharpest of the three: it declares the commands `run_checks`
+ *   runs without approval, so an agent able to write it would be writing its own guard. `.git` is a
+ *   file in a worktree: it is protected as well, otherwise its `gitdir:` line would point wherever
+ *   the agent wants.
  *
  * **What the sandbox does not do:** make safe what the agent writes into the workspace. A
  * `composer.json`, a `vendor/bin/*`, a test bootstrap changed there will run on the host when the
@@ -50,8 +53,15 @@ final class Bubblewrap
         '--ro-bind', '/etc', '/etc',
     ];
 
-    /** Mounted read-only: what the host executes without being asked to. */
-    private const READ_ONLY = ['.git', '.claude'];
+    /**
+     * Mounted read-only: what the host executes, or obeys, without being asked to. `glob` patterns,
+     * so a nested one is covered too — this is a monorepo, and `bin/agentic` launched from a package
+     * makes that package's `.agentic` the one that is read.
+     *
+     * A pattern matching nothing mounts nothing; {@see Worktrees::PREPARED_DIRECTORIES} is what
+     * makes the ones that matter exist, since a missing path cannot be mounted over.
+     */
+    private const READ_ONLY = ['.git', '.claude', '.agentic', '*/.agentic', '*/*/.agentic'];
 
     /** `false`: not probed yet. */
     private string|null|false $problem = false;
@@ -196,9 +206,8 @@ final class Bubblewrap
         }
 
         // Only what exists: a missing mount point, and bwrap would create it — on the host.
-        foreach (self::READ_ONLY as $relative) {
-            $path = $workspace.'/'.$relative;
-            if (file_exists($path)) {
+        foreach (self::READ_ONLY as $pattern) {
+            foreach (glob($workspace.'/'.$pattern, \GLOB_NOSORT) ?: [] as $path) {
                 array_push($argv, '--ro-bind', $path, $path);
             }
         }

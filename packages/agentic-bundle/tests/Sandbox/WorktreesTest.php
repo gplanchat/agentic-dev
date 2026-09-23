@@ -97,6 +97,22 @@ final class WorktreesTest extends TestCase
         self::assertStringStartsNotWith('Exit code: 0', $tool->inContext(['command' => 'touch vendor/planted.php'], new ToolContext('test-call', $path)), 'Borrowed read-only.');
         self::assertStringStartsNotWith('Exit code: 0', $tool->inContext(['command' => 'ls '.$this->project.'/src'], new ToolContext('test-call', $path)), 'The project itself is not mounted.');
 
+        // The project configuration declares the commands run_checks runs WITHOUT approval: an
+        // agent able to write it would be writing its own guard. It is protected even when the
+        // project had none — a repository adopting agentic has no `.agentic/` yet, which is exactly
+        // when the hole would be open.
+        // `mkdir -p` first, on purpose: without it `touch` would fail for want of a parent and the
+        // assertion would pass whether or not anything protects the directory.
+        $tool->inContext(['command' => 'mkdir -p .agentic'], new ToolContext('test-call', $path));
+        $tool->inContext(['command' => 'touch .agentic/config.yaml'], new ToolContext('test-call', $path));
+        self::assertFileDoesNotExist($path.'/.agentic/config.yaml', 'The agent wrote its own guard.');
+
+        // And a nested one: this is a monorepo, and `bin/agentic` launched from a package makes
+        // that package's `.agentic` the one that is read.
+        $tool->inContext(['command' => 'mkdir -p packages/inner/.agentic'], new ToolContext('test-call', $path));
+        $tool->inContext(['command' => 'touch packages/inner/.agentic/config.yaml'], new ToolContext('test-call', $path));
+        self::assertFileDoesNotExist($path.'/packages/inner/.agentic/config.yaml', 'A nested guard was writable.');
+
         // Ignored by git, run by the host: in a fresh worktree too, the agent cannot plant them.
         $tool->inContext(['command' => 'touch .claude/settings.json'], new ToolContext('test-call', $path));
         $tool->inContext(['command' => 'mkdir -p var/cache/dev'], new ToolContext('test-call', $path));

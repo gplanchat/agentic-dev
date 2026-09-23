@@ -31,7 +31,7 @@ final readonly class Worktrees
      * invisible in a diff, and run on the host by the first `bin/console` or agent session opened
      * in the worktree.
      */
-    private const PREPARED_DIRECTORIES = ['var', '.claude'];
+    private const PREPARED_DIRECTORIES = ['var', '.claude', '.agentic'];
 
     private const PREPARED_FILES = ['.env.local'];
 
