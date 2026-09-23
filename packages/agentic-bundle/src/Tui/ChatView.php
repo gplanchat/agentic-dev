@@ -96,6 +96,9 @@ final class ChatView
 
     private ?Transcript $transcript = null;
 
+    /** Why the conversation cannot be read, if it cannot; shown instead of letting the loop die. */
+    private ?string $unreadable = null;
+
     /** @var list<string> what the human has already sent, messages and commands, oldest first */
     private array $history = [];
 
@@ -206,7 +209,23 @@ final class ChatView
                 $this->draining = false;
             }
         }
-        $transcript = $this->conversations->transcript($this->conversation);
+        try {
+            $transcript = $this->conversations->transcript($this->conversation);
+        } catch (\RuntimeException $unreadable) {
+            // The refresh runs in a Revolt callback: an exception thrown here does not fail a
+            // frame, it kills the loop and takes the whole chat with it. A conversation that can
+            // no longer be read is a thing to say in the header — the human can still /resume or
+            // /clear — not a reason for the screen to vanish.
+            //
+            // It really happens: Durable drops an execution's metadata row when it fails, and with
+            // it the owner, so the ownership check refused the reader their own conversation.
+            $this->unreadable = self::clean($unreadable->getMessage());
+            $this->header->setText($this->headerText($this->transcript));
+            $this->tui->requestRender();
+
+            return;
+        }
+        $this->unreadable = null;
         $this->mode = $transcript->mode;
         if (null === $this->transcript && [] === $this->history) {
             // A resumed conversation: its messages are the starting history.
@@ -370,9 +389,11 @@ final class ChatView
         return $colour.$spent.'/'.number_format($transcript->tokenBudget, 0, ',', ' ')." tokens\e[0m";
     }
 
-    private function headerText(Transcript $transcript): string
+    private function headerText(?Transcript $transcript): string
     {
         $status = match (true) {
+            null !== $this->unreadable => "\e[31munreadable: ".$this->unreadable."\e[0m",
+            null === $transcript => "\e[2m…\e[0m",
             null !== $transcript->failure => "\e[31mfailed: ".self::clean($transcript->failure)."\e[0m",
             $transcript->finished => "\e[2mfinished\e[0m",
             $transcript->working => "\e[33mthinking…\e[0m",
@@ -381,10 +402,10 @@ final class ChatView
 
         $info = [
             "\e[1;38;2;255;214;64mAgentic\e[0m",
-            self::clean($transcript->model),
+            self::clean($transcript->model ?? ''),
             $status,
             "\e[2mconversation ".substr($this->conversation, 0, 8)."\e[0m",
-            self::spend($transcript),
+            null === $transcript ? '' : self::spend($transcript),
         ];
         $offset = intdiv(Banana::height() - \count($info), 2);
 

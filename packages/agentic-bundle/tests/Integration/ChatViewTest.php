@@ -9,6 +9,7 @@ use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Tui\BananaWords;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use Gplanchat\AgenticBundle\Tui\ChatView;
+use Gplanchat\Durable\Store\WorkflowMetadataStore;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Symfony\Bundle\FrameworkBundle\Test\KernelTestCase;
 use Symfony\Component\Tui\Ansi\AnsiUtils;
@@ -271,6 +272,28 @@ final class ChatViewTest extends KernelTestCase
 
         self::assertFalse($view->tui->isRunning());
         self::assertFalse(self::getContainer()->get(Conversations::class)->transcript($view->conversation)->finished);
+    }
+
+    /**
+     * The bug that killed the chat: refresh() runs in a Revolt callback, so an exception from
+     * transcript() did not fail a frame, it took the loop and the whole screen with it. A
+     * conversation that can no longer be read is a line in the header, not the end of the session.
+     */
+    public function testAnUnreadableConversationIsShownInsteadOfKillingTheChat(): void
+    {
+        $view = $this->open();
+        $container = self::getContainer();
+        $metadata = $container->get(WorkflowMetadataStore::class);
+        self::assertInstanceOf(WorkflowMetadataStore::class, $metadata);
+
+        // Exactly what Durable leaves behind when a run fails, on a conversation that called no
+        // tool: nothing anywhere says who it belongs to.
+        $metadata->delete($view->conversation);
+
+        $view->refresh();
+        $view->tui->tick();
+
+        self::assertStringContainsString('unreadable', $this->terminal->consumeOutput());
     }
 
     private function open(): ChatView

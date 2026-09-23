@@ -191,4 +191,8 @@ every refresh, with no `messenger:consume` alongside.
   would cost every turn of every conversation.
 - **Journal on SQLite** (`var/agentic.sqlite`): conversations survive the TUI being closed and can be
   resumed. The Messenger transports stay in memory, the TUI being the only worker: a turn in flight
-  when you quit is lost.
+  when you quit is lost. **A conversation belongs to whoever opened it**, and a run that fails keeps
+  its owner: Durable drops the execution's metadata row on failure — the start payload with it — so
+  the projection recovers the owner from the journal, where every tool call carries it. A run that
+  failed before calling a single tool leaves nothing to recover; it is refused as *unknown owner*,
+  not as somebody else's, and the chat says so in its header rather than dying on it.

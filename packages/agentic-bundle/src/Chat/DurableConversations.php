@@ -10,6 +10,7 @@ use Gplanchat\Agentic\Application\Chat\CurrentPrincipal;
 use Gplanchat\Agentic\Application\Chat\Transcript;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Identity\ConversationNotOwned;
+use Gplanchat\Agentic\Domain\Identity\ConversationOwnerUnknown;
 use Gplanchat\Agentic\Infrastructure\Durable\ChatTranscript;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
 use Gplanchat\AgenticBundle\Sandbox\Worktrees;
@@ -189,7 +190,12 @@ final readonly class DurableConversations implements Conversations
     public function transcript(string $conversation): Transcript
     {
         $transcript = $this->read($conversation);
-        if (!($transcript->owner?->is(($this->principal)()) ?? false)) {
+        // Three states, not two. Telling someone their own conversation is not theirs — which is
+        // what a missing owner used to do — is worse than refusing: it accuses them.
+        if (null === $transcript->owner) {
+            throw new ConversationOwnerUnknown($conversation);
+        }
+        if (!$transcript->owner->is(($this->principal)())) {
             throw new ConversationNotOwned($conversation);
         }
 

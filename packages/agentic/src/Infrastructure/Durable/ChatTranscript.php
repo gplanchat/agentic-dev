@@ -112,6 +112,9 @@ final class ChatTranscript
         // The spend is recomputed from the journal rather than read from the run's ledger: both
         // count the same events, so there is nothing to keep in agreement.
         $ledger = new TokenLedger();
+        // What a tool call carried, kept in case the start payload is gone (see below).
+        $fromCall = null;
+        $workspaceFromCall = null;
         // The start payload is not in the same place depending on the backend: on native Temporal it
         // opens the journal (ExecutionStarted), on DBAL a dispatched run only writes its execution
         // events and the payload stays in the metadata store. We read both.
@@ -144,6 +147,14 @@ final class ChatTranscript
 
                 if ('ai_tool_call' === $event->activityName()) {
                     $call = self::descendTo($payload, 'arguments');
+                    // Durable drops an execution's metadata row when it fails
+                    // ({@see \Gplanchat\Durable\Handler\ResumeWorkflowHandler}), and on a backend
+                    // where a dispatched run writes no ExecutionStarted, the start payload goes with
+                    // it — owner, workspace and all. The journal survives, though, and every tool
+                    // call carries both: a failed conversation is still readable by whoever opened
+                    // it. Same authority as the start payload — journal data, never the model's.
+                    $fromCall = \is_array($call['owner'] ?? null) ? $call['owner'] : $fromCall;
+                    $workspaceFromCall = \is_string($call['workspace'] ?? null) ? $call['workspace'] : $workspaceFromCall;
                     $settled->settle((string) ($call['callId'] ?? ''));
                     $steps[$event->activityId()] = new ToolStep(
                         (string) ($call['callId'] ?? ''),
@@ -348,8 +359,8 @@ final class ChatTranscript
             // Named from here on: this list grows, and a positional argument slipping one slot is
             // exactly how the workspace once became the profiles.
             profiles: AgentProfiles::fromWire(\is_array($started['agents'] ?? null) ? $started['agents'] : []),
-            workspace: \is_string($started['workspace'] ?? null) ? $started['workspace'] : null,
-            owner: Principal::fromWire($started['owner'] ?? null),
+            workspace: \is_string($started['workspace'] ?? null) ? $started['workspace'] : $workspaceFromCall,
+            owner: Principal::fromWire($started['owner'] ?? null) ?? Principal::fromWire($fromCall),
             tokensSpent: $ledger->spent(),
             tokenBudget: (int) ($started['tokenBudget'] ?? 0),
         );
