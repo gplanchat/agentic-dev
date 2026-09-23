@@ -8,6 +8,11 @@ Monorepo:
 | `packages/agentic-bundle` — `gplanchat/agentic-bundle` | Symfony integration: the `agentic` TUI application (`help`, `chat`) and its web version. Depends on `gplanchat/durable-bundle` and `symfony/tui`. | ≥ 8.4.1 |
 | root | Dev application installing both by `path`. | ≥ 8.4.1 |
 
+The decisions the code cannot state on its own — why, and what was turned down — are in
+[`docs/decisions/`](docs/decisions/README.md). Start with
+[ADR-001](docs/decisions/ADR-001-value-objects-and-enums.md): value objects over arrays, enums over
+magic strings, and where the journal boundary puts the limit on both.
+
 ```bash
 composer install
 bin/agentic                          # help in the TUI (q, Esc or Ctrl+C to quit)
