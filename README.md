@@ -36,6 +36,14 @@ The static layers run PHPUnit's static suite then PHPStan (level 8, `phpstan.dis
 package, a baseline for the errors the code already had: fixing one means deleting its entry).
 New code meets the level — it does not go to the baseline.
 
+The mutation layers run Infection (`tools/infection`, a tool project of its own: it needs PHP ≥ 8.3,
+so it cannot be a dependency of `packages/agentic`, which stays installable on 8.2) over the lines
+changed since HEAD, new files included. A surviving or uncovered mutant is RED, and the verdict asks
+for a sharper test — never for other code. Two things follow from where Infection lives: it runs the
+tests it mutates under PHP 8.4, so a green `component-mutation` says nothing about the 8.2 floor that
+`component-unit` and `component-functional` check; and a worktree borrows `tools/*/vendor` read-only
+through `sandbox.shared`, like any other installed dependency.
+
 ## The chat
 
 A conversation is an execution of the `DurableAgentWorkflow` workflow; every message, approval,
