@@ -38,4 +38,6 @@ fi
 # applies the throwaway index to Infection's `git diff` alone.
 PATH="$tools/bin:$PATH"
 export PATH
-exec php "$tools/vendor/bin/infection" --git-diff-lines --git-diff-base=HEAD --ignore-msi-with-no-mutations -q "$@"
+# --with-uncovered: Infection leaves out, by default, code no test runs — a method added without its
+# test made no mutant at all, and the check stayed green. Here it is what the review must catch.
+exec php "$tools/vendor/bin/infection" --git-diff-lines --git-diff-base=HEAD --with-uncovered --ignore-msi-with-no-mutations -q "$@"
