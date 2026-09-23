@@ -121,7 +121,9 @@ final class ChatViewTest extends KernelTestCase
         $conversations = self::getContainer()->get(Conversations::class);
         self::assertStringContainsString('● mode standard', $this->terminal->consumeOutput());
 
-        foreach (['edition', 'auto', 'standard'] as $expected) {
+        // The rotation is a full cycle over AgentMode, back to where it started: standard →
+        // edition → auto → plan → standard.
+        foreach (['edition', 'auto', 'plan', 'standard'] as $expected) {
             // An escape sequence arrives in one block, not character by character.
             $this->terminal->simulateInput("\e[Z");
             $view->refresh();

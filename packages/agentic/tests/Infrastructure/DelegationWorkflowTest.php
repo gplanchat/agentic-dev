@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Tests\Infrastructure;
 
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
+use Gplanchat\Agentic\Domain\Guard\ToolVerdict;
 use Gplanchat\Agentic\Domain\Team\DelegateTool;
 use Gplanchat\Agentic\Infrastructure\Durable\Workflow\DurableAgentWorkflow;
 use Gplanchat\Durable\Event\ExecutionStarted;
@@ -85,8 +86,9 @@ final class DelegationWorkflowTest extends TestCase
         $definition = DelegateTool::definition();
 
         self::assertSame('delegate', $definition->name);
-        self::assertFalse(
-            AgentMode::Standard->requiresApprovalFor($definition->effect),
+        self::assertSame(
+            ToolVerdict::Allow,
+            AgentMode::Standard->verdictFor($definition->effect),
             'Delegating writes nowhere: it is what the delegate does that goes back through a guard.',
         );
     }

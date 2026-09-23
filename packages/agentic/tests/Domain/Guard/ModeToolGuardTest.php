@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Gplanchat\Agentic\Tests\Domain\Guard;
 
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
+use Gplanchat\Agentic\Domain\Guard\ToolVerdict;
 use Gplanchat\Agentic\Domain\Guard\ModeToolGuard;
 use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Team\DelegateTool;
@@ -80,6 +81,6 @@ final class ModeToolGuardTest extends TestCase
 
     public function testDelegatingIsHarmlessByItself(): void
     {
-        self::assertFalse(AgentMode::Standard->requiresApprovalFor(DelegateTool::definition()->effect));
+        self::assertSame(ToolVerdict::Allow, AgentMode::Standard->verdictFor(DelegateTool::definition()->effect));
     }
 }

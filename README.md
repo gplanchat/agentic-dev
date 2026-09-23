@@ -60,7 +60,7 @@ every refresh, with no `messenger:consume` alongside.
 - A tool that fails three times in a row is handed back to the model as its result ("Tool … failed");
   a failing model call ends the conversation, and the header says why.
 - Chat commands, typed instead of a message (Tab completes the name):
-  `/help`, `/mode [standard|edition|auto]`, `/model [name]` (from the next message on),
+  `/help`, `/mode [plan|standard|edition|auto]`, `/model [name]` (from the next message on),
   `/tools` (and what the guard makes of each in the current mode), `/clear` (new conversation),
   `/rewind [n°]` (go back before one of your messages, which returns to the input), `/compact`
   (restart from a summary), `/resume [id]` (resume a past conversation).
@@ -69,6 +69,13 @@ every refresh, with no `messenger:consume` alongside.
 - The wheel and PgUp/PgDn scroll the thread inside the chat: the terminal switches to mouse mode for
   the duration. To select text with the mouse, hold Shift (most terminals).
 - ↑/↓ recall the messages and commands already sent, like a shell.
+- **Modes** (Shift+Tab rotates, `/mode` sets): `plan` reads only and **refuses** the rest, `standard`
+  reads and holds writes for approval, `edition` writes and holds external effects, `auto` lets
+  everything through. `plan` is not a stricter `standard`: `standard` suspends the conversation on an
+  approval card, `plan` answers the model at once and tells it to say what it would do instead — so a
+  planning agent keeps planning rather than waiting for a decision nobody meant to take. Leaving plan
+  mode is the human's move, `/mode edition`. `plan` is the floor of the order, so a delegate under a
+  planning caller plans too, whatever its profile's ceiling says.
 - **Decision hooks** (`tool_rules` in `config/packages/agentic.php`): for a tool (an `fnmatch`
   pattern) and, where needed, conditions on its arguments, `allow`, `ask` or `deny`, before the mode.
   Deny wins over ask, which wins over allow; `/tools` shows the rules.

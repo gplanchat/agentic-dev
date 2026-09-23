@@ -20,6 +20,16 @@ enum AgentMode: string
     case Standard = 'standard';
 
     /**
+     * Reads go through; everything else is **refused**, not held for approval.
+     *
+     * The difference with `standard` is the whole point: there, an approval card interrupts the
+     * human and the agent waits. Here nobody is asked, because the answer would always be no — the
+     * agent is meant to look and then say what it would do. A refusal it reads straight away is
+     * also what lets it carry on planning instead of suspending on a decision nobody will take.
+     */
+    case Plan = 'plan';
+
+    /**
      * The rule of the mode, stated once — this is where it belongs, not in the comparisons of some
      * guard.
      *
@@ -28,13 +38,19 @@ enum AgentMode: string
      * | `auto` | goes | goes | goes |
      * | `edition` | goes | goes | asks |
      * | `standard` | goes | asks | asks |
+     * | `plan` | goes | refuses | refuses |
+     *
+     * A {@see ToolVerdict} and not a boolean: "does this need approval" is a two-state answer to a
+     * three-state question, and `plan` is the state it could not express
+     * (`docs/decisions/ADR-001-value-objects-and-enums.md`).
      */
-    public function requiresApprovalFor(ToolEffect $effect): bool
+    public function verdictFor(ToolEffect $effect): ToolVerdict
     {
         return match ($this) {
-            self::Auto => false,
-            self::Edition => $effect->isIrreversible(),
-            self::Standard => !$effect->isHarmless(),
+            self::Auto => ToolVerdict::Allow,
+            self::Edition => $effect->isIrreversible() ? ToolVerdict::Ask : ToolVerdict::Allow,
+            self::Standard => $effect->isHarmless() ? ToolVerdict::Allow : ToolVerdict::Ask,
+            self::Plan => $effect->isHarmless() ? ToolVerdict::Allow : ToolVerdict::Deny,
         };
     }
 
@@ -46,9 +62,13 @@ enum AgentMode: string
     private function permissiveness(): int
     {
         return match ($this) {
-            self::Standard => 0,
-            self::Edition => 1,
-            self::Auto => 2,
+            // `plan` is the floor: it lets through strictly less than `standard`, which still holds
+            // a write for approval. Anything added below it shifts what `strictest()` and
+            // `loosens()` mean, so the order is the contract, not the numbers.
+            self::Plan => 0,
+            self::Standard => 1,
+            self::Edition => 2,
+            self::Auto => 3,
         };
     }
 

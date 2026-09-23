@@ -294,9 +294,10 @@ final class ChatView
         } elseif ($this->keys->matches($data, 'mode')) {
             $event->stopPropagation();
             $this->act(fn () => $this->conversations->setMode($this->conversation, match ($this->mode) {
+                AgentMode::Plan => AgentMode::Standard,
                 AgentMode::Standard => AgentMode::Edition,
                 AgentMode::Edition => AgentMode::Auto,
-                AgentMode::Auto => AgentMode::Standard,
+                AgentMode::Auto => AgentMode::Plan,
             }));
         } elseif ($this->keys->matches($data, 'close')) {
             $event->stopPropagation();
@@ -382,6 +383,7 @@ final class ChatView
     private function footerText(): string
     {
         $color = match ($this->mode) {
+            AgentMode::Plan => "\e[34m",
             AgentMode::Standard => "\e[32m",
             AgentMode::Edition => "\e[33m",
             AgentMode::Auto => "\e[31m",

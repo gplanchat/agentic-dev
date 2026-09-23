@@ -554,7 +554,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         decision?: "allow"|"ask"|"deny"|Param,
  *         when?: array<string, scalar|Param|null>,
  *         reason?: scalar|Param|null, // Default: ""
- *         modes?: list<"auto"|"edition"|"standard"|Param>,
+ *         modes?: list<"auto"|"edition"|"standard"|"plan"|Param>,
  *         unless?: array<string, list<scalar|Param|null>>,
  *         unless_roles?: list<scalar|Param|null>,
  *     }>,
@@ -581,7 +581,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  *         description?: scalar|Param|null, // What it is for — the model reads this to choose. // Default: ""
  *         prompt?: scalar|Param|null, // Its instructions; empty takes the default system prompt. // Default: ""
  *         model?: scalar|Param|null, // Its model; null takes the caller's. // Default: null
- *         ceiling?: "standard"|"edition"|"auto"|Param, // The most it may ever do; the strictest of this and the parent wins. // Default: "standard"
+ *         ceiling?: "plan"|"standard"|"edition"|"auto"|Param, // The most it may ever do; the strictest of this and the parent wins. // Default: "standard"
  *         tools?: list<scalar|Param|null>,
  *         max_turns?: int|Param, // Default: 1
  *         roles?: list<scalar|Param|null>,

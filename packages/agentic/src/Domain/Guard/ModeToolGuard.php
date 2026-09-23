@@ -37,8 +37,19 @@ final class ModeToolGuard implements ToolGuardInterface
 
         $effect = $this->tools->effectOf($name);
 
-        return $mode->requiresApprovalFor($effect)
-            ? ToolDecision::ask(\sprintf('"%s" (%s) needs approval in %s mode.', $name, $effect->value, $mode->value))
-            : ToolDecision::allow();
+        return match ($mode->verdictFor($effect)) {
+            ToolVerdict::Allow => ToolDecision::allow(),
+            ToolVerdict::Ask => ToolDecision::ask(\sprintf('"%s" (%s) needs approval in %s mode.', $name, $effect->value, $mode->value)),
+            // The refusal is what the model reads back, so it says what to do instead. In plan mode
+            // that costs nothing and spares the prompt a paragraph: the agent learns it is planning
+            // from the first tool it reaches for, not from an instruction it may have drifted from.
+            ToolVerdict::Deny => ToolDecision::deny(\sprintf(
+                '"%s" (%s) is refused in %s mode: look and read all you need, then say what you would '
+                .'do and why, without doing it. Leaving plan mode is the human\'s decision.',
+                $name,
+                $effect->value,
+                $mode->value,
+            )),
+        };
     }
 }
