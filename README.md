@@ -153,7 +153,10 @@ every refresh, with no `messenger:consume` alongside.
   reads HEAD's version of the files, not your uncommitted edits, its first call being what cuts the
   worktree even in `standard`.
 - **`AGENTS.md`** at the project root (path configurable through `instructions_file`): appended to
-  the system prompt when a conversation starts, truncated beyond 32 KiB.
+  the system prompt when a conversation starts, truncated beyond 32 KiB. It carries the code
+  convention of [ADR-001](docs/decisions/ADR-001-value-objects-and-enums.md) and nothing the prompt
+  already says — the pyramid and the TDD cycle come from `run_checks`, and paying for them twice
+  would cost every turn of every conversation.
 - **Journal on SQLite** (`var/agentic.sqlite`): conversations survive the TUI being closed and can be
   resumed. The Messenger transports stay in memory, the TUI being the only worker: a turn in flight
   when you quit is lost.

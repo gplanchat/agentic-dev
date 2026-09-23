@@ -44,6 +44,8 @@ return static function (ContainerConfigurator $container): void {
             ],
         ],
         // The project instructions, appended to the system prompt of every new conversation.
+        // The default is already AGENTS.md at the project root, which exists and carries ADR-001:
+        // the line below only needs uncommenting to point somewhere else.
         // 'instructions_file' => '%kernel.project_dir%/AGENTS.md',
         // The sub-agents `delegate` may hand a mission to. A profile narrows what its sub-agent may
         // do — model, instructions, tools, ceiling — and never grants more than the caller has: the
