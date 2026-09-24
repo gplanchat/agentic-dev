@@ -1,5 +1,7 @@
 # agentic
 
+![The chat: the agent asks its questions, then plans a site in plan mode](docs/demo/agentic.gif)
+
 Monorepo:
 
 | Package | Role | PHP |

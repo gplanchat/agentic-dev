@@ -26,6 +26,24 @@ conversation id is printed at the end.
 edit's diff unfolds on `"click": "click to unfold"`, folds back on `"click": "▴ fold"` — then prints
 the whole screen as it stands, rebuilt from the renderer's cursor moves.
 
+`{"keys": ["down", "enter"], ...}` presses keys (`up`, `down`, `enter`, `shift+tab`, `esc`).
+`{"choose": "regex", ...}` walks a list (a questionnaire) down to the first row matching the regex,
+then presses Enter; with no match, it takes the first row. Any step takes `"pause": seconds` before
+it.
+
+## Recording the README demo
+
+`--record FILE` writes an asciicast v2, typing at a human pace and stopping before the exit;
+`--size COLSxROWS` sets the terminal. `docs/demo/agentic.gif` comes from `docs/demo/steps.json`,
+with the real model (ask first), then [agg](https://github.com/asciinema/agg):
+
+```bash
+python3 .claude/skills/chat-driver/driver.py --real-model --size 120x40 --record demo.cast "$(cat docs/demo/steps.json)"
+agg --font-size 14 --idle-time-limit 2 --last-frame-duration 8 demo.cast docs/demo/agentic.gif
+```
+
+The model answers differently each take: check the answers picked in the output, and take again.
+
 ## Launch directory and approval
 
 The agent works on the project it is launched from. `--cwd DIR` launches it there (default: this
@@ -80,7 +98,7 @@ The conversation itself stays in the journal (`var/agentic.sqlite`); `/resume` l
 ## Known limits
 
 - The screen text is a stream of redraws, not a snapshot: the same line can appear several times.
-  `until` matches anywhere in what was printed since the chat opened, so pick a pattern that only
-  the expected answer produces.
+  `until` matches anywhere in what the step printed — the header's `your turn` included, redrawn
+  while you type: wait for an answer with `thinking…[\s\S]*your turn`.
 - A `run_command` blocks the screen for as long as the command runs (120 s at most): raise
   `timeout` accordingly.

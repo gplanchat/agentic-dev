@@ -1,0 +1,7 @@
+[
+ {"pause": 2, "send": "I want to make a website about bananas. Before we start, ask me two questions about bananas with ask_user.", "until": "→", "timeout": 150, "settle": 2},
+ {"pause": 2, "choose": "(?i)health|nutri|inform", "until": "→|thinking…[\\s\\S]*your turn", "timeout": 150, "settle": 2},
+ {"pause": 2, "choose": "(?i)health|nutri|general|public", "until": "thinking…[\\s\\S]*your turn", "timeout": 150, "settle": 3},
+ {"pause": 3, "send": "/mode plan", "until": "Mode: plan", "timeout": 15, "settle": 2},
+ {"pause": 1, "send": "Plan a small website about the nutritional riches of bananas.", "until": "thinking…[\\s\\S]*your turn", "timeout": 240, "settle": 8}
+]
