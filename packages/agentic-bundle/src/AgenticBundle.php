@@ -37,7 +37,6 @@ use Gplanchat\AgenticBundle\Tool\ReadFileTool;
 use Gplanchat\AgenticBundle\Tool\RunChecksTool;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
-use Gplanchat\AgenticBundle\Tui\HelpScreen;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Gplanchat\Durable\Port\WorkflowResumeDispatcher;
 use Gplanchat\Durable\Port\WorkflowRunCatalogInterface;
@@ -319,7 +318,6 @@ final class AgenticBundle extends AbstractBundle
             ->public();
 
         // --- The TUI application
-        $services->set(HelpScreen::class);
         $services->set(ChatScreen::class)
             ->args([service(Conversations::class), service(InProcessWorker::class), service(Bubblewrap::class)->nullOnInvalid(), service(McpCatalog::class)])
             ->public();
@@ -327,7 +325,6 @@ final class AgenticBundle extends AbstractBundle
         // No `console.command` tag: these commands belong to the `agentic` application, and a
         // `help` registered in `bin/console` would replace Symfony's own there.
         $services->set(HelpCommand::class)
-            ->args([service(HelpScreen::class)])
             ->tag(self::COMMAND_TAG);
         $services->set(ChatCommand::class)
             ->args([service(Conversations::class), service(ChatScreen::class), service(ProjectLoader::class), service(TrustStore::class), '%agentic.project_root%'])

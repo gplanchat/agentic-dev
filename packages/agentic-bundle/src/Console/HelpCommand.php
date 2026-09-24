@@ -5,28 +5,21 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Console;
 
 use Gplanchat\Agentic\Application\Help\ListCommands;
-use Gplanchat\AgenticBundle\Tui\HelpScreen;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Command\HelpCommand as ConsoleHelpCommand;
 use Symfony\Component\Console\Input\InputInterface;
 use Symfony\Component\Console\Output\OutputInterface;
-use Symfony\Component\Console\Output\StreamOutput;
 
 /**
- * Primary adapter: `help` with no argument opens the help screen in the TUI.
+ * Primary adapter: `help` with no argument prints the list of commands, and returns.
  *
  * `help <command>` and `<command> --help` keep the detailed help of Symfony Console, hence the
  * inheritance: Application::doRun() only injects the targeted command into a HelpCommand. `help`,
- * `--help` and `help help` all three open the help screen: the argument defaults to `help`.
+ * `--help` and `help help` all three print the list: the argument defaults to `help`.
  */
 final class HelpCommand extends ConsoleHelpCommand
 {
     private bool $targeted = false;
-
-    public function __construct(private readonly HelpScreen $screen)
-    {
-        parent::__construct();
-    }
 
     public function setCommand(Command $command): void
     {
@@ -47,16 +40,11 @@ final class HelpCommand extends ConsoleHelpCommand
         // application that holds this command — injecting it would make a cycle in the container.
         $commands = (new ListCommands(new ConsoleCommandCatalog($this->getApplication())))();
 
-        if (!$input->isInteractive() || !$output instanceof StreamOutput || !stream_isatty($output->getStream())) {
-            // Outside a terminal (pipe, CI): the same list in plain text.
-            foreach ($commands as $command) {
-                $output->writeln(\sprintf('%-20s %s', $command->name, $command->description));
-            }
-
-            return self::SUCCESS;
+        $width = max(array_map(static fn ($c): int => mb_strlen($c->name), $commands) ?: [0]);
+        $output->writeln(['<options=bold>Agentic — available commands</>', '']);
+        foreach ($commands as $command) {
+            $output->writeln(\sprintf('  <info>%s</info>  %s', str_pad($command->name, $width), $command->description));
         }
-
-        $this->screen->build($commands)->run();
 
         return self::SUCCESS;
     }

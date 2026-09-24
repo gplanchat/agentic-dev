@@ -24,6 +24,6 @@ final class AgenticApplication extends Application
             $this->addCommand($command);
         }
 
-        $this->setDefaultCommand('help');
+        $this->setDefaultCommand('chat');
     }
 }
