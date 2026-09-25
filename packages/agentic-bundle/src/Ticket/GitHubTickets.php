@@ -95,6 +95,23 @@ final readonly class GitHubTickets implements Tickets
         $this->request('DELETE', '/issues/'.$number.'/dependencies/blocked_by/'.$this->idOf($by));
     }
 
+    public function comments(int $number): array
+    {
+        $bodies = [];
+        foreach ($this->request('GET', '/issues/'.$number.'/comments?per_page=100') as $comment) {
+            if (\is_array($comment) && \is_string($comment['body'] ?? null)) {
+                $bodies[] = $comment['body'];
+            }
+        }
+
+        return $bodies;
+    }
+
+    public function comment(int $number, string $body): void
+    {
+        $this->request('POST', '/issues/'.$number.'/comments', ['body' => $body]);
+    }
+
     private function idOf(int $number): int
     {
         $id = $this->request('GET', '/issues/'.$number)['id'] ?? null;

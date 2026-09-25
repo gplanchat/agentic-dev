@@ -70,4 +70,13 @@ interface Tickets
     public function block(int $number, int $by): void;
 
     public function unblock(int $number, int $by): void;
+
+    /**
+     * The bodies of a ticket's comments, oldest first — enough to find one just posted.
+     *
+     * @return list<string>
+     */
+    public function comments(int $number): array;
+
+    public function comment(int $number, string $body): void;
 }

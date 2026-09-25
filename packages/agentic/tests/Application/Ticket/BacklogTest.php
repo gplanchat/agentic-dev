@@ -149,6 +149,20 @@ final class BacklogTest extends TestCase
         self::assertSame(TicketState::Done, $forge->get($head->number)->state);
     }
 
+    public function testACommentIsPostedOncePerKey(): void
+    {
+        $forge = new InMemoryTickets();
+        $forge->add(1);
+        $backlog = new Backlog($forge);
+
+        $backlog->comment(1, "The graph.\n", 'call-3');
+        $backlog->comment(1, 'The graph.', 'call-3');
+        $backlog->comment(1, 'Plain.', null);
+
+        self::assertSame(["The graph.\n\n<!-- agentic:call-3 -->", 'Plain.'], $forge->comments(1));
+        self::assertRefused('A comment needs a body.', static fn () => $backlog->comment(1, ' ', 'call-4'));
+    }
+
     private static function assertRefused(string $message, \Closure $call): void
     {
         try {
@@ -250,6 +264,19 @@ final class InMemoryTickets implements Tickets
     public function unblock(int $number, int $by): void
     {
         $this->blockers[$number] = array_values(array_diff($this->blockers[$number] ?? [], [$by]));
+    }
+
+    /** @var array<int, list<string>> */
+    private array $comments = [];
+
+    public function comments(int $number): array
+    {
+        return $this->comments[$number] ?? [];
+    }
+
+    public function comment(int $number, string $body): void
+    {
+        $this->comments[$number][] = $body;
     }
 
     private function next(): int

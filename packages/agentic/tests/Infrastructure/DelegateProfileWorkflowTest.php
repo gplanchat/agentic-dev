@@ -84,7 +84,7 @@ final class DelegateProfileWorkflowTest extends TestCase
         self::assertNotNull($child, 'The sub-agent never called the model.');
         self::assertSame('ministral-3b-latest', $child['model'], 'The profile carries its own model.');
         self::assertSame('You sort, briefly.', $child['system'], 'And its own instructions.');
-        self::assertSame(['weather', 'ask_user', 'watch', 'delegate'], $child['tools'], 'Only the tools the profile allows, plus the always-offered ones.');
+        self::assertSame(['weather', 'ask_user', 'watch', 'delegate', 'mikado_start', 'mikado_note', 'mikado_done', 'mikado_show'], $child['tools'], 'Only the tools the profile allows, plus the always-offered ones.');
     }
 
     /**

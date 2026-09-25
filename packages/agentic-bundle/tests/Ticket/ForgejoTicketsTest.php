@@ -196,6 +196,23 @@ final class ForgejoTicketsTest extends TestCase
         ], $forge->requests);
     }
 
+    public function testCommentsAreReadAndPosted(): void
+    {
+        $forge = new RecordingForge(
+            new JsonMockResponse([['body' => 'First'], ['body' => 3], 'noise', ['body' => 'Second']]),
+            new JsonMockResponse(['id' => 9, 'body' => 'Third'], ['http_code' => 201]),
+        );
+        $tickets = self::tickets($forge);
+
+        self::assertSame(['First', 'Second'], $tickets->comments(4));
+        $tickets->comment(4, 'Third');
+
+        self::assertSame([
+            'GET https://forge.test/api/v1/repos/acme/app/issues/4/comments',
+            'POST https://forge.test/api/v1/repos/acme/app/issues/4/comments {"body":"Third"}',
+        ], $forge->requests);
+    }
+
     public function testAnEmptyAnswerIsNotAnError(): void
     {
         $forge = new RecordingForge(new MockResponse('', ['http_code' => 204]));

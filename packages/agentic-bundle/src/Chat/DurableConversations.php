@@ -8,6 +8,7 @@ use Gplanchat\Agentic\Application\Chat\ConversationSummary;
 use Gplanchat\Agentic\Application\Chat\Conversations;
 use Gplanchat\Agentic\Application\Chat\CurrentPrincipal;
 use Gplanchat\Agentic\Application\Chat\Transcript;
+use Gplanchat\Agentic\Domain\Mikado\MikadoGraph;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Identity\ConversationNotOwned;
 use Gplanchat\Agentic\Domain\Identity\ConversationOwnerUnknown;
@@ -69,8 +70,10 @@ final readonly class DurableConversations implements Conversations
         }
 
         // An empty thread has nothing to summarise: compaction would cost a model call for nothing.
-        // The worktree carries over: /rewind, /compact and /resume go on with the same work.
-        return $this->launch($history, $compact && [] !== $history, $transcript->workspace);
+        // The worktree carries over: /rewind, /compact and /resume go on with the same work — and so
+        // does the Mikado graph, its latest state even on /rewind: it describes the code in the
+        // worktree, which is not rewound either.
+        return $this->launch($history, $compact && [] !== $history, $transcript->workspace, $transcript->mikado);
     }
 
     /**
@@ -118,7 +121,7 @@ final readonly class DurableConversations implements Conversations
     /**
      * @param list<array{role: string, content: string}> $history
      */
-    private function launch(array $history, bool $compact, ?string $workspace): string
+    private function launch(array $history, bool $compact, ?string $workspace, ?MikadoGraph $mikado = null): string
     {
         $conversation = (string) Uuid::v4();
         // Only a path: the worktree is created by the first command that needs it.
@@ -134,6 +137,8 @@ final readonly class DurableConversations implements Conversations
             // Frozen at start like the tools and the rules: who opened the conversation is a fact
             // of the journal, not of the session that reads it back.
             'owner' => ($this->principal)()->toWire(),
+            // Only when there is one: a payload with no graph keeps the shape it always had.
+            ...(null === $mikado ? [] : ['mikado' => $mikado->toWire()]),
         ]);
 
         return $conversation;

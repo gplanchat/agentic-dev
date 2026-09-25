@@ -22,6 +22,7 @@ enum TicketOperation: string
     case Block = 'ticket_block';
     case Unblock = 'ticket_unblock';
     case Close = 'ticket_close';
+    case Comment = 'ticket_comment';
 
     public function definition(): ToolDefinition
     {
@@ -83,6 +84,12 @@ enum TicketOperation: string
                 'Closes a head ticket as done, once all its work is closed. A work ticket is not closed here: it closes with its code, through commit_worktree with closes.',
                 ToolEffect::External,
                 ['type' => 'object', 'properties' => ['head' => $number('The head ticket done.')], 'required' => ['head']],
+            ),
+            self::Comment => new ToolDefinition(
+                $this->value,
+                'Posts a comment on a ticket. At the end of a task, post its Mikado graph (mikado_show) on its work ticket: the trace of what the task required.',
+                ToolEffect::External,
+                ['type' => 'object', 'properties' => ['ticket' => $number('The ticket to comment on.'), 'body' => $text('The comment, in Markdown.')], 'required' => ['ticket', 'body']],
             ),
         };
     }

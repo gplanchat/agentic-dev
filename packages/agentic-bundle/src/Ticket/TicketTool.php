@@ -70,6 +70,7 @@ final readonly class TicketTool implements ContextualTool
                 TicketOperation::Block => self::block($backlog, self::number($arguments, 'ticket'), self::number($arguments, 'blocker')),
                 TicketOperation::Unblock => self::unblock($tickets, self::number($arguments, 'ticket'), self::number($arguments, 'blocker')),
                 TicketOperation::Close => self::close($backlog, self::number($arguments, 'head')),
+                TicketOperation::Comment => self::comment($backlog, self::number($arguments, 'ticket'), (string) ($arguments['body'] ?? ''), $callId),
             };
         } catch (\DomainException $e) {
             // The model's request, or the forge refusing it: handed back, not retried.
@@ -146,6 +147,13 @@ final readonly class TicketTool implements ContextualTool
         $backlog->closeHead($head);
 
         return \sprintf('#%d closed as done.', $head);
+    }
+
+    private static function comment(Backlog $backlog, int $ticket, string $body, ?string $callId): string
+    {
+        $backlog->comment($ticket, $body, $callId);
+
+        return \sprintf('Commented on #%d.', $ticket);
     }
 
     private static function line(Ticket $ticket): string

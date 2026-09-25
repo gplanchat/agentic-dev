@@ -144,6 +144,23 @@ final class GitHubTicketsTest extends TestCase
         $tickets->adopt(1, 4);
     }
 
+    public function testCommentsAreReadAndPosted(): void
+    {
+        $forge = new RecordingForge(
+            new JsonMockResponse([['body' => 'First'], ['body' => null], 'noise', ['body' => 'Second']]),
+            new JsonMockResponse(['id' => 9, 'body' => 'Third'], ['http_code' => 201]),
+        );
+        $tickets = self::tickets($forge);
+
+        self::assertSame(['First', 'Second'], $tickets->comments(4));
+        $tickets->comment(4, 'Third');
+
+        self::assertSame([
+            'GET https://api.github.com/repos/acme/app/issues/4/comments?per_page=100',
+            'POST https://api.github.com/repos/acme/app/issues/4/comments {"body":"Third"}',
+        ], $forge->requests);
+    }
+
     public function testPullRequestsAreNotTickets(): void
     {
         $forge = new RecordingForge(new JsonMockResponse([

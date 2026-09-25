@@ -13,6 +13,7 @@ use Gplanchat\Agentic\Infrastructure\SymfonyAi\DurableAgentFactory;
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Domain\Identity\Principal;
+use Gplanchat\Agentic\Domain\Mikado\MikadoBoard;
 use Gplanchat\Agentic\Domain\Team\AgentProfiles;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
@@ -26,6 +27,7 @@ use Gplanchat\Durable\Attribute\AsWorkflow;
 use Gplanchat\Durable\Attribute\AsWorkflowMethod;
 use Gplanchat\Durable\Duration;
 use Gplanchat\Durable\Exception\DeadlineExceededException;
+use Gplanchat\Durable\Versioning\ChangePoint;
 use Gplanchat\Durable\WorkflowEnvironment;
 use Symfony\AI\Agent\Agent;
 use Symfony\AI\Agent\Exception\MaxIterationsExceededException;
@@ -131,12 +133,16 @@ final class DurableAgentWorkflow
 
     private readonly WatchDesk $watches;
 
+    /** The Mikado graph of the task under way, carried from run to run in the start payload. */
+    private MikadoBoard $mikado;
+
     public function __construct(
         private readonly WorkflowEnvironment $environment,
     ) {
         $this->gate = new ToolApprovalGate();
         $this->desk = new HumanQuestionDesk();
         $this->watches = new WatchDesk();
+        $this->mikado = new MikadoBoard();
     }
 
     /**
@@ -304,6 +310,8 @@ final class DurableAgentWorkflow
      * @param int $depth    how far down the delegation chain this run sits; 0 for a conversation
      * @param int $maxDepth the deepest a delegation may go; at that depth `delegate` is not offered
      *
+     * @param array<string, mixed> $mikado the Mikado graph of the task under way ({@see \Gplanchat\Agentic\Domain\Mikado\MikadoGraph}); `[]` = none
+     *
      * @return array{answer: string, tokensSpent: int} {@see AgentOutcome} — the reply, and what the
      *                                                whole subtree below it cost
      */
@@ -336,6 +344,8 @@ final class DurableAgentWorkflow
         int $tokenBudget = 0,
         int $depth = 0,
         int $maxDepth = 2,
+        // Last, for the reason `owner` gives above — and passed last in `delegate()` too.
+        array $mikado = [],
     ): array {
         // The ceiling first: the requested mode bends to it, it does not go around it.
         $this->ceiling = AgentMode::tryFrom($modeCeiling) ?? AgentMode::Auto;
@@ -354,6 +364,10 @@ final class DurableAgentWorkflow
         }
 
         $this->model = $model;
+        $this->mikado = MikadoBoard::fromWire($mikado);
+        // A change point: the Mikado tools join every model call's payload, and Durable compares
+        // that payload on replay. A conversation begun before them replays without them.
+        $withMikado = ChangePoint::DEFAULT_VERSION !== $this->environment->version('mikado-tools', ChangePoint::DEFAULT_VERSION, 1);
         // Owned by the run, like the gate and the watch desk: rebuilding the agent on a `set_model`
         // must not reset what has already been spent.
         $ledger = new TokenLedger($tokenBudget);
@@ -379,6 +393,7 @@ final class DurableAgentWorkflow
             ledger: $ledger,
             depth: $depth,
             maxDepth: $maxDepth,
+            mikado: $withMikado ? $this->mikado : null,
         );
         $agent = $build();
         $agentModel = $this->model;
@@ -390,7 +405,12 @@ final class DurableAgentWorkflow
             $thread = $this->compact($model, $thread);
         }
 
-        $messages = new MessageBag(Message::forSystem($systemPrompt));
+        // A graph carried over from another run: the thread may no longer say a word of it, and the
+        // model would start the task again blind.
+        $graph = $this->mikado->graph;
+        $messages = new MessageBag(Message::forSystem(null === $graph || $graph->isFinished()
+            ? $systemPrompt
+            : $systemPrompt."\n\n# The task under way\n\nYou were conducting it with the Mikado method; its graph so far:\n\n".$graph->render()));
         foreach ($thread as $carried) {
             $messages->add($carried->isUser()
                 ? Message::ofUser((string) $carried->content)
@@ -500,6 +520,8 @@ final class DurableAgentWorkflow
                     'tokenBudget' => 0 === $tokenBudget ? 0 : max(1, $tokenBudget - $ledger->spent()),
                     'depth' => $depth,
                     'maxDepth' => $maxDepth,
+                    // Only when there is one: a payload with no graph keeps the shape it always had.
+                    ...([] === $this->mikado->toWire() ? [] : ['mikado' => $this->mikado->toWire()]),
                 ]);
             }
         }

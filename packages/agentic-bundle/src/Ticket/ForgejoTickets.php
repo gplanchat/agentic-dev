@@ -108,6 +108,23 @@ final readonly class ForgejoTickets implements Tickets
         $this->request('DELETE', '/issues/'.$number.'/dependencies', $this->meta($by));
     }
 
+    public function comments(int $number): array
+    {
+        $bodies = [];
+        foreach ($this->request('GET', '/issues/'.$number.'/comments') as $comment) {
+            if (\is_array($comment) && \is_string($comment['body'] ?? null)) {
+                $bodies[] = $comment['body'];
+            }
+        }
+
+        return $bodies;
+    }
+
+    public function comment(int $number, string $body): void
+    {
+        $this->request('POST', '/issues/'.$number.'/comments', ['body' => $body]);
+    }
+
     /**
      * Every issue `$number` depends on, all of this repository: another repository's #5 is not ours
      * — read as ours, a closed local #5 would unblock, or let a head close.

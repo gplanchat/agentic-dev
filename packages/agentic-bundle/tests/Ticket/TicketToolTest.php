@@ -59,6 +59,7 @@ final class TicketToolTest extends TestCase
         self::assertSame(['type' => 'object', 'properties' => ['ticket' => $number('The ticket that waits.'), 'blocker' => $number('The ticket to finish first.')], 'required' => ['ticket', 'blocker']], TicketOperation::Block->definition()->parameters);
         self::assertSame(['type' => 'object', 'properties' => ['ticket' => $number('The ticket that waits.'), 'blocker' => $number('The ticket it no longer waits on.')], 'required' => ['ticket', 'blocker']], TicketOperation::Unblock->definition()->parameters);
         self::assertSame(['type' => 'object', 'properties' => ['head' => $number('The head ticket done.')], 'required' => ['head']], TicketOperation::Close->definition()->parameters);
+        self::assertSame(['type' => 'object', 'properties' => ['ticket' => $number('The ticket to comment on.'), 'body' => $text('The comment, in Markdown.')], 'required' => ['ticket', 'body']], TicketOperation::Comment->definition()->parameters);
     }
 
     public function testAHeadIsReadWithItsWorkAndWhatItWaitsOn(): void
@@ -160,6 +161,22 @@ final class TicketToolTest extends TestCase
         self::assertSame('#1 closed as done.', self::tool(TicketOperation::Close, $forge)(['head' => 1]));
         self::assertStringStartsWith('PATCH https://api.github.com/repos/acme/app/issues/1 ', $forge->requests[2]);
         self::assertStringStartsWith('#2 is a work ticket: it closes with its code', self::tool(TicketOperation::Close, $forge)(['head' => 2]));
+    }
+
+    public function testAGraphIsPostedOnceOnItsWorkTicket(): void
+    {
+        $forge = new RecordingForge(
+            new JsonMockResponse([]),
+            new JsonMockResponse(['id' => 9], ['http_code' => 201]),
+            new JsonMockResponse([['body' => "Graph.\n\n<!-- agentic:call-5 -->"]]),
+        );
+        $tool = self::tool(TicketOperation::Comment, $forge);
+
+        self::assertSame('Commented on #45.', $tool->inContext(['ticket' => 45, 'body' => 'Graph.'], new ToolContext('call-5')));
+        self::assertSame('Commented on #45.', $tool->inContext(['ticket' => 45, 'body' => 'Graph.'], new ToolContext('call-5')));
+        self::assertSame('POST https://api.github.com/repos/acme/app/issues/45/comments {"body":"Graph.\n\n\\u003C!-- agentic:call-5 --\\u003E"}', $forge->requests[1]);
+        self::assertCount(3, $forge->requests, 'The retry found its comment and posted nothing.');
+        self::assertSame('A comment needs a body.', $tool(['ticket' => 45]));
     }
 
     public function testAMalformedNumberIsHandedBackToTheModel(): void

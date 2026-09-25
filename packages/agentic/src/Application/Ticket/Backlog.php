@@ -118,6 +118,29 @@ final readonly class Backlog
     }
 
     /**
+     * Posts a comment once per key: like opening, a retried post would say it twice.
+     */
+    public function comment(int $ticket, string $body, ?string $key): void
+    {
+        if ('' === trim($body)) {
+            throw new \DomainException('A comment needs a body.');
+        }
+        if (null === $key) {
+            $this->tickets->comment($ticket, $body);
+
+            return;
+        }
+
+        $marker = \sprintf('<!-- agentic:%s -->', $key);
+        foreach ($this->tickets->comments($ticket) as $posted) {
+            if (str_contains($posted, $marker)) {
+                return;
+            }
+        }
+        $this->tickets->comment($ticket, rtrim($body)."\n\n".$marker);
+    }
+
+    /**
      * Opens a ticket once per key, however often the call is retried: opening cannot be undone, and
      * an activity is retried after a failure that may have come *after* the forge created it. The key
      * is written in the body, and looked for among the latest tickets before opening.

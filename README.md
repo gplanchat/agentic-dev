@@ -216,13 +216,22 @@ every refresh, with no `messenger:consume` alongside.
   ticket closed as *not planned* or *duplicate* (GitHub) does not unblock. A link to another
   repository is refused, never read as the local ticket of the same number. Tools: `ticket_read`
   (read), `ticket_open_head`, `ticket_open_work`, `ticket_block`, `ticket_unblock`, `ticket_close`
-  (heads only, once their work is closed) — all `external`: `plan` refuses them, `standard` asks. A
+  (heads only, once their work is closed), `ticket_comment` — all `external`: `plan` refuses them,
+  `standard` asks. A
   rule allowing them holds in every mode unless it says `modes`. Opening survives a retry: the call's
   id is written in the body and looked for before opening again. Forgejo needs issue dependencies
   enabled in the repository's settings.
-- **Mikado: the conduct of one task.** Inside a work ticket, the agent tries the change naively,
-  `run_checks` goes red, it notes the prerequisites, `revert_worktree` back to its last commit, works
-  on a leaf, `commit_worktree` once green. **Not yet:** a tool that keeps the graph of prerequisites in
-  the conversation's journal — until then, the agent holds it in the thread. The prerequisites are not tickets — they would be leaves
-  with no time and no proof; one too big for the task becomes a new work ticket. Both git tools run
-  on the host, in the conversation's worktree only, with hooks and fsmonitor off; they are `write`.
+- **Mikado: the conduct of one task.** Inside a work ticket, the agent keeps the task's graph with
+  `mikado_start` (the goal, M1, and optionally its work ticket), `mikado_note`, `mikado_done` and
+  `mikado_show`: it tries the change naively, `run_checks` goes red, it notes each prerequisite,
+  `revert_worktree` back to its last commit, does a READY node, `commit_worktree` once green,
+  `mikado_done` — up to the goal, then posts the graph on the work ticket (`ticket_comment`, posted
+  once however often the call is retried). The prerequisites are not tickets — they would be leaves
+  with no time and no proof; one too big for the task becomes a new work ticket. The graph is
+  workflow state, changed by tools the workflow runs itself (classed `read`: `plan` may keep it),
+  journaled at each change, and carried to the next run by the relay, `/resume`, `/compact` and
+  `/rewind` — its **latest** state even on `/rewind`: it describes the code in the worktree, which
+  is not rewound either. A run that carries one is told of it in its system prompt. A delegate
+  starts without its caller's graph. A conversation begun before these tools replays without them
+  (a Durable change point, `mikado-tools`). Both git tools run on the host, in the conversation's
+  worktree only, with hooks and fsmonitor off; they are `write`.
