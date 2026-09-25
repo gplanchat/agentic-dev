@@ -20,6 +20,13 @@ final class WorkingTreeChanges
     /** Lines of diff kept: it goes to the model, and a formatter run on the whole tree is long. */
     public const MAX_LINES = 400;
 
+    /**
+     * Git runs here on the host, in the worktree the agent writes: no hook, no fsmonitor. A relative
+     * core.hooksPath (Husky's) or fsmonitor command resolves inside the worktree, and `git add`
+     * would run the agent's own code outside the sandbox.
+     */
+    private const SAFE = ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false'];
+
     private function __construct(
         private readonly string $root,
         private readonly string $scratch,
@@ -95,7 +102,7 @@ final class WorkingTreeChanges
      */
     private function git(array $arguments): ?string
     {
-        $git = new Process(['git', '-C', $this->root, ...$arguments], null, [
+        $git = new Process(['git', '-C', $this->root, ...self::SAFE, ...$arguments], null, [
             'GIT_INDEX_FILE' => $this->scratch.'/index',
             'GIT_OBJECT_DIRECTORY' => $this->scratch.'/objects',
             'GIT_ALTERNATE_OBJECT_DIRECTORIES' => $this->objects,
