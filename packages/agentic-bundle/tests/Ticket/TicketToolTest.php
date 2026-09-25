@@ -30,6 +30,20 @@ final class TicketToolTest extends TestCase
         self::assertStringContainsString('names no ticket tracker', $tool(['ticket' => 1]));
     }
 
+    /**
+     * `%env(default::AGENTIC_TICKETS_TOKEN)%` is null when the variable is unset: the chat must still
+     * open, and the forge will say what it thinks of an empty token.
+     */
+    public function testAnUnsetTokenIsAnEmptyOne(): void
+    {
+        $work = new JsonMockResponse(['number' => 2, 'title' => 'W', 'state' => 'open']);
+        $forge = new RecordingForge($work, clone $work, new JsonMockResponse([]));
+
+        (new TicketTool(TicketOperation::Read, self::project(new TicketTracker(Forge::GitHub, 'acme/app')), null, $forge->http))(['ticket' => 2]);
+
+        self::assertContains('Authorization: Bearer ', $forge->headers[0]);
+    }
+
     public function testOnlyReadingIsHarmless(): void
     {
         foreach (TicketOperation::cases() as $operation) {

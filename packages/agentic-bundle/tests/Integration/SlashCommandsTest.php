@@ -48,7 +48,7 @@ final class SlashCommandsTest extends KernelTestCase
 
         self::assertMatchesRegularExpression('/^weather\s+read\s+passes$/m', $notice);
         self::assertMatchesRegularExpression('/^send_email\s+external\s+needs approval$/m', $notice);
-        self::assertStringContainsString('delegate', $notice);
+        self::assertStringContainsString('Always offered: ask_user, watch, delegate, mikado_start, mikado_note, mikado_done, mikado_show.', $notice);
     }
 
     /**

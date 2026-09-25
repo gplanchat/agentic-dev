@@ -24,7 +24,8 @@ final readonly class TicketTool implements ContextualTool
     public function __construct(
         private TicketOperation $operation,
         private Project $project,
-        private string $token,
+        /** `null`: an unset `%env(default::…)%` — sent as an empty token. */
+        private ?string $token,
         private ?HttpClientInterface $http = null,
     ) {
     }
@@ -59,7 +60,7 @@ final readonly class TicketTool implements ContextualTool
         if (null === $tracker) {
             return 'This project names no ticket tracker (tickets in its .agentic/config.*).';
         }
-        $tickets = $tracker->tickets($this->http ?? HttpClient::create(), $this->token);
+        $tickets = $tracker->tickets($this->http ?? HttpClient::create(), (string) $this->token);
         $backlog = new Backlog($tickets);
 
         try {

@@ -9,6 +9,7 @@ use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\ModeToolGuard;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Domain\Guard\ToolRule;
+use Gplanchat\Agentic\Domain\Mikado\MikadoTool;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Team\DelegateTool;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
@@ -171,7 +172,7 @@ final readonly class SlashCommands
         return implode("\n", [
             ...([] === $lines ? ['No tool declared by the application.'] : $lines),
             '',
-            \sprintf('Mode %s. Always offered: %s.', $transcript->mode->value, implode(', ', [AskUserQuestion::TOOL, WatchTool::TOOL, DelegateTool::TOOL])),
+            \sprintf('Mode %s. Always offered: %s.', $transcript->mode->value, implode(', ', [AskUserQuestion::TOOL, WatchTool::TOOL, DelegateTool::TOOL, ...array_map(static fn (ToolDefinition $tool): string => $tool->name, MikadoTool::definitions())])),
             ...(null === $transcript->workspace ? [] : [\sprintf('Workspace: %s%s', $transcript->workspace, is_dir($transcript->workspace) ? '' : ' (created by the first command)')]),
             ...([] === $rules ? [] : ['Project rules (deny > ask > allow, before the mode):', ...$rules]),
         ]);

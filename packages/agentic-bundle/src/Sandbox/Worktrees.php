@@ -34,7 +34,7 @@ final readonly class Worktrees
      */
     private const PREPARED_DIRECTORIES = ['var', '.claude', '.agentic'];
 
-    private const PREPARED_FILES = ['.env.local'];
+    public const PREPARED_FILES = ['.env.local'];
 
     private string $project;
 

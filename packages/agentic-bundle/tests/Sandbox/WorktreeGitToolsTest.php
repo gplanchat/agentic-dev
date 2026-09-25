@@ -138,7 +138,8 @@ final class WorktreeGitToolsTest extends TestCase
 
         self::assertMatchesRegularExpression('#^Committed [0-9a-f]{7,} on agentic/agentic-3f2a9c1e\.$#', $answer);
         self::assertSame("agentic <agentic@localhost> Extract the port\n", $this->git($path, 'log', '-1', '--format=%an <%ae> %s'));
-        self::assertSame("", $this->git($path, 'status', '--porcelain'), 'Edits and new files alike.');
+        // The sandbox's placeholder, which this project does not ignore, stays out of the commit.
+        self::assertSame("?? .env.local\n", $this->git($path, 'status', '--porcelain'), 'Edits and new files alike — not the placeholder.');
         self::assertSame('Nothing to commit: the worktree is as its last commit.', $commit->inContext(['message' => 'Again'], new ToolContext('c2', $path)));
 
         file_put_contents($path.'/src/Code.php', '<?php // the naive attempt');

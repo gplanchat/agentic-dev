@@ -10,6 +10,7 @@ use Gplanchat\Agentic\Domain\Guard\ToolEffect;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\AgenticBundle\Sandbox\HostGit;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
+use Gplanchat\AgenticBundle\Sandbox\Worktrees;
 
 /**
  * Commits everything the agent changed in its worktree, on the worktree's own branch
@@ -72,7 +73,13 @@ final readonly class CommitWorktreeTool implements ContextualTool
             return $refusal;
         }
 
-        HostGit::run((string) $workspace, ['add', '--all', '--', ':/']);
+        // The sandbox's placeholders are not the agent's work: a project that does not ignore
+        // `.env.local` would otherwise start tracking it on the agent's branch.
+        $add = ['add', '--all', '--', ':/'];
+        foreach (Worktrees::PREPARED_FILES as $placeholder) {
+            $add[] = ':(exclude)'.$placeholder;
+        }
+        HostGit::run((string) $workspace, $add);
         // Retried after it committed, the call finds nothing staged: done already, not an error.
         if ('' === HostGit::run((string) $workspace, ['diff', '--cached', '--name-only'])) {
             return 'Nothing to commit: the worktree is as its last commit.';
