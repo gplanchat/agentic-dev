@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace Gplanchat\AgenticBundle\Project;
 
+use Gplanchat\AgenticBundle\Ticket\Forge;
+use Gplanchat\AgenticBundle\Ticket\HeadLabels;
+use Gplanchat\AgenticBundle\Ticket\TicketTracker;
 use Symfony\Component\Config\Definition\Processor;
 
 /**
@@ -54,6 +57,15 @@ final readonly class ProjectLoader
 
         $instructions = trim((string) $settings['instructions_file']);
 
+        $tickets = null;
+        if (isset($settings['tickets'])) {
+            try {
+                $tickets = new TicketTracker(Forge::from($settings['tickets']['forge']), $settings['tickets']['repository'], $settings['tickets']['url'], new HeadLabels($settings['tickets']['labels']));
+            } catch (\InvalidArgumentException $e) {
+                throw new InvalidProjectConfiguration(\sprintf('%s: %s', $file->path ?? 'the project configuration', $e->getMessage()), 0, $e);
+            }
+        }
+
         return new Project(
             $root,
             $checks,
@@ -64,6 +76,7 @@ final readonly class ProjectLoader
             $settings['sandbox']['worktrees'] ?? $this->installation['worktrees'],
             '' === $instructions ? null : $root.'/'.ltrim($instructions, '/'),
             $file,
+            $tickets,
         );
     }
 

@@ -8,6 +8,7 @@ use Gplanchat\Agentic\Application\Tool\AgentTool;
 use Gplanchat\Agentic\Application\Tool\ContextualTool;
 use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\Agentic\Domain\Tool\Toolset;
+use Gplanchat\AgenticBundle\Ticket\TicketTool;
 
 /**
  * The tools the application has declared ({@see AgentTool} services), indexed by name.
@@ -61,6 +62,10 @@ final class AgentTools
                 foreach ($source as $tool) {
                     // A project with no check layer has nothing for run_checks to run.
                     if ($tool instanceof RunChecksTool && !$tool->hasLayers()) {
+                        continue;
+                    }
+                    // A project with no ticket tracker has no tickets to work on.
+                    if ($tool instanceof TicketTool && !$tool->isOffered()) {
                         continue;
                     }
                     $this->byName[$tool->definition()->name] = $tool;

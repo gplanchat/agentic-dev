@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Gplanchat\AgenticBundle\Project;
 
+use Gplanchat\AgenticBundle\Ticket\TicketTracker;
+
 /**
  * The project the agent was launched in, as it will work on it: the installation's configuration
  * with the approved `.agentic/config.*` laid over it.
@@ -27,6 +29,8 @@ final readonly class Project
         public bool $worktrees,
         public ?string $instructionsFile,
         public ?ProjectFile $file,
+        /** Where the project keeps its tickets; `null`: no ticket tools. */
+        public ?TicketTracker $tickets = null,
     ) {
     }
 }

@@ -31,9 +31,13 @@ use Gplanchat\AgenticBundle\Project\ProjectSchema;
 use Gplanchat\AgenticBundle\Project\TrustStore;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
+use Gplanchat\AgenticBundle\Ticket\TicketOperation;
+use Gplanchat\AgenticBundle\Ticket\TicketTool;
 use Gplanchat\AgenticBundle\Tool\AgentTools;
+use Gplanchat\AgenticBundle\Tool\CommitWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\EditFileTool;
 use Gplanchat\AgenticBundle\Tool\ReadFileTool;
+use Gplanchat\AgenticBundle\Tool\RevertWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\RunChecksTool;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
@@ -71,6 +75,7 @@ final class AgenticBundle extends AbstractBundle
             ->children()
                 ->scalarNode('model')->defaultValue('mistral-small-latest')->end()
                 ->scalarNode('mistral_api_key')->defaultValue('')->info('Empty: a scripted client answers, with no network.')->end()
+                ->scalarNode('tickets_token')->defaultValue('')->info('The token of the forge a project names in its tickets setting. The installation\'s, never a project file\'s.')->end()
                 ->scalarNode('system_prompt')->defaultValue(DurableAgentWorkflow::SYSTEM_PROMPT)->end()
                 ->floatNode('human_timeout_seconds')->defaultValue(900.0)->info('Deadline of every wait on a human: approval as well as question.')->end()
                 ->floatNode('idle_timeout_seconds')->defaultValue(3600.0)->info('Silence after which the conversation ends.')->end()
@@ -178,7 +183,7 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
-     * @param array{model: string, mistral_api_key: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, max_tool_calls: int, token_budget: int, max_delegation_depth: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int, roles: list<string>}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
+     * @param array{model: string, mistral_api_key: string, tickets_token: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, max_tool_calls: int, token_budget: int, max_delegation_depth: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int, roles: list<string>}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -233,6 +238,19 @@ final class AgenticBundle extends AbstractBundle
             $services->set(RunChecksTool::class)
                 ->factory([RunChecksTool::class, 'forProject'])
                 ->args([service(Workspaces::class), service(Project::class)])
+                ->tag(self::TOOL_TAG);
+            $services->set(RevertWorktreeTool::class)
+                ->args([service(Workspaces::class)])
+                ->tag(self::TOOL_TAG);
+            $services->set(CommitWorktreeTool::class)
+                ->args([service(Workspaces::class)])
+                ->tag(self::TOOL_TAG);
+        }
+
+        // Offered only when the project names a ticket tracker: AgentTools leaves them out otherwise.
+        foreach (TicketOperation::cases() as $operation) {
+            $services->set(null, TicketTool::class)
+                ->args([$operation, service(Project::class), $config['tickets_token'], service('http_client')->nullOnInvalid()])
                 ->tag(self::TOOL_TAG);
         }
 

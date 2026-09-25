@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Gplanchat\AgenticBundle\Project;
 
+use Gplanchat\AgenticBundle\Ticket\Forge;
+
 use Symfony\Component\Config\Definition\Builder\TreeBuilder;
 use Symfony\Component\Config\Definition\ConfigurationInterface;
 
@@ -27,6 +29,19 @@ final class ProjectConfiguration implements ConfigurationInterface
                 ->end()
                 ->append(ProjectSchema::checks())
                 ->append(ProjectSchema::toolRules())
+                ->arrayNode('tickets')
+                    ->info('The forge where the project keeps its plan: head tickets, their work tickets, what waits on what (EWA-002). Absent: no ticket tools. The token is the installation\'s (tickets_token), never the project\'s.')
+                    ->children()
+                        ->enumNode('forge')->values(array_column(Forge::cases(), 'value'))->isRequired()->end()
+                        ->scalarNode('repository')->info('owner/name')->isRequired()->cannotBeEmpty()->end()
+                        ->scalarNode('url')->info('The forge\'s root, e.g. https://codeberg.org — required for forgejo. For github, its API: https://api.github.com by default.')->defaultNull()->end()
+                        ->arrayNode('labels')
+                            ->info('The forge label of each head family (defect, debt, groundwork, capability, investigation), in the project\'s vocabulary. A family left out is labelled with its own name. The labels must exist on the forge: none is created.')
+                            ->useAttributeAsKey('family')
+                            ->scalarPrototype()->cannotBeEmpty()->end()
+                        ->end()
+                    ->end()
+                ->end()
                 ->arrayNode('sandbox')
                     ->addDefaultsIfNotSet()
                     ->fixXmlConfig('hide', 'hidden')

@@ -25,6 +25,8 @@ use Symfony\Component\Uid\Uuid;
  */
 final class ProjectConfigurationTest extends KernelTestCase
 {
+    private const TICKET_TOOLS = ['ticket_read', 'ticket_open_head', 'ticket_open_work', 'ticket_block', 'ticket_unblock', 'ticket_close'];
+
     private string $project;
 
     protected static function getKernelClass(): string
@@ -44,6 +46,7 @@ final class ProjectConfigurationTest extends KernelTestCase
                 - {tool: weather, decision: deny, reason: 'The project says no.'}
             sandbox:
                 auto_allow: ['make test']
+            tickets: {forge: github, repository: acme/app}
             YAML);
         $filesystem->dumpFile($this->project.'/AGENTS.md', 'Write the tests first in this project.');
         $_SERVER['AGENTIC_WORKSPACE'] = $_ENV['AGENTIC_WORKSPACE'] = $this->project;
@@ -63,6 +66,9 @@ final class ProjectConfigurationTest extends KernelTestCase
         [, $transcript] = $this->start();
 
         self::assertSame(['kernel-unit'], self::layers($transcript), 'The installation\'s layer only.');
+        self::assertSame([], array_intersect(self::TICKET_TOOLS, self::tools($transcript)), 'No tracker named: no ticket tools.');
+        self::assertContains('revert_worktree', self::tools($transcript));
+        self::assertContains('commit_worktree', self::tools($transcript));
         self::assertSame([], array_filter($transcript->rules, static fn ($rule): bool => 'The project says no.' === $rule->reason));
         // Launched from a directory inside this repository: the worktree is the repository's, and the
         // workspace the launch directory within it.
@@ -76,6 +82,7 @@ final class ProjectConfigurationTest extends KernelTestCase
         [$id, $transcript] = $this->start();
 
         self::assertSame(['kernel-unit', 'project-unit'], self::layers($transcript));
+        self::assertSame(self::TICKET_TOOLS, array_values(array_intersect(self::tools($transcript), self::TICKET_TOOLS)), 'The project names its tracker.');
         $project = array_values(array_filter($transcript->rules, static fn ($rule): bool => 'The project says no.' === $rule->reason));
         self::assertSame('weather', $project[0]->tool ?? null, 'The project\'s rule, next to the installation\'s.');
         $auto = array_values(array_filter($transcript->rules, static fn ($rule): bool => 'run_command' === $rule->tool && [] !== $rule->unless));
@@ -170,6 +177,14 @@ final class ProjectConfigurationTest extends KernelTestCase
         }
 
         return [];
+    }
+
+    /**
+     * @return list<string>
+     */
+    private static function tools(Transcript $transcript): array
+    {
+        return array_map(static fn ($tool): string => $tool->name, iterator_to_array($transcript->tools, false));
     }
 
     private static function trustFile(): string

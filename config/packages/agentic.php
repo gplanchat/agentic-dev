@@ -8,6 +8,9 @@ return static function (ContainerConfigurator $container): void {
     $container->extension('agentic', [
         // Empty: a scripted client answers, with no network and no key.
         'mistral_api_key' => '%env(default::MISTRAL_API_KEY)%',
+        // The token of the forge a project names in the tickets setting of its .agentic/config.*
+        // (GitHub or Forgejo). Empty: the ticket tools answer with the forge's refusal.
+        'tickets_token' => '%env(default::AGENTIC_TICKETS_TOKEN)%',
         // The decision hooks, before the mode: deny > ask > allow, fnmatch patterns on the tool and
         // on its arguments. For instance:
         //   ['tool' => 'send_email', 'when' => ['to' => '*@example.test'], 'decision' => 'allow'],

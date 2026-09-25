@@ -13,8 +13,12 @@ use Gplanchat\AgenticBundle\Project\ProjectLoader;
 use Gplanchat\AgenticBundle\Project\TrustStore;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
+use Gplanchat\AgenticBundle\Ticket\TicketOperation;
+use Gplanchat\AgenticBundle\Ticket\TicketTool;
+use Gplanchat\AgenticBundle\Tool\CommitWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\EditFileTool;
 use Gplanchat\AgenticBundle\Tool\ReadFileTool;
+use Gplanchat\AgenticBundle\Tool\RevertWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\RunChecksTool;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
@@ -78,9 +82,38 @@ final class AgenticConfigurationTest extends TestCase
         self::assertTrue($sandbox->isLazy());
         self::assertSame([Project::class, 7.0, 'bw'], array_map(static fn (mixed $argument): mixed => $argument instanceof Reference ? (string) $argument : $argument, $sandbox->getArguments()));
         self::assertTrue($container->getDefinition(Workspaces::class)->isLazy());
-        foreach ([ReadFileTool::class, EditFileTool::class, RunCommandTool::class, RunChecksTool::class] as $tool) {
+        foreach ([ReadFileTool::class, EditFileTool::class, RunCommandTool::class, RunChecksTool::class, RevertWorktreeTool::class, CommitWorktreeTool::class] as $tool) {
             self::assertArrayHasKey(AgenticBundle::TOOL_TAG, $container->getDefinition($tool)->getTags(), $tool);
         }
+    }
+
+    /**
+     * One tool per operation, whatever the sandbox: AgentTools offers them when the project names
+     * a tracker. The token is the installation's.
+     */
+    public function testEveryTicketOperationIsATool(): void
+    {
+        self::assertSame(array_map(static fn (TicketOperation $operation): array => [$operation, 's3cret'], TicketOperation::cases()), $this->ticketTools(['tickets_token' => 's3cret']));
+        self::assertSame('', $this->ticketTools([])[0][1] ?? null, 'No token by default.');
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     *
+     * @return list<array{0: mixed, 1: mixed}> each ticket tool's operation and token
+     */
+    private function ticketTools(array $config): array
+    {
+        $container = $this->container($config);
+        $tools = [];
+        foreach (array_keys($container->findTaggedServiceIds(AgenticBundle::TOOL_TAG)) as $id) {
+            $definition = $container->getDefinition($id);
+            if (TicketTool::class === $definition->getClass()) {
+                $tools[] = [$definition->getArgument(0), $definition->getArgument(2)];
+            }
+        }
+
+        return $tools;
     }
 
     /**

@@ -7,6 +7,8 @@ namespace Gplanchat\AgenticBundle\Tests\Project;
 use Gplanchat\AgenticBundle\Project\InvalidProjectConfiguration;
 use Gplanchat\AgenticBundle\Project\ProjectLoader;
 use Gplanchat\AgenticBundle\Project\TrustStore;
+use Gplanchat\Agentic\Domain\Ticket\HeadKind;
+use Gplanchat\AgenticBundle\Ticket\Forge;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
 
@@ -134,6 +136,41 @@ final class ProjectLoaderTest extends TestCase
         $this->approve();
 
         self::assertNull($this->loader()->load($this->root)->instructionsFile);
+    }
+
+    public function testTheTicketTrackerIsTheProjects(): void
+    {
+        self::assertNull($this->loader()->load($this->root)->tickets, 'None said: no ticket tools.');
+
+        $this->write("tickets: {forge: forgejo, repository: acme/app, url: 'https://codeberg.org', labels: {debt: 'dette technique'}}\n");
+        $this->approve();
+        $tickets = $this->loader()->load($this->root)->tickets;
+
+        self::assertSame(Forge::Forgejo, $tickets?->forge);
+        self::assertSame('acme/app', $tickets->repository);
+        self::assertSame('https://codeberg.org', $tickets->url);
+        self::assertSame('dette technique', $tickets->labels->of(HeadKind::Debt));
+        self::assertSame('defect', $tickets->labels->of(HeadKind::Defect));
+    }
+
+    public function testAForgejoTrackerWithoutItsUrlIsRefused(): void
+    {
+        $this->write("tickets: {forge: forgejo, repository: acme/app}\n");
+        $this->approve();
+
+        $this->expectException(InvalidProjectConfiguration::class);
+        $this->expectExceptionMessageMatches('#config\.yaml: A Forgejo ticket tracker needs the url#');
+        $this->loader()->load($this->root);
+    }
+
+    public function testALabelTableThatWouldConfuseTwoFamiliesIsRefused(): void
+    {
+        $this->write("tickets: {forge: github, repository: acme/app, labels: {debt: tech, groundwork: Tech}}\n");
+        $this->approve();
+
+        $this->expectException(InvalidProjectConfiguration::class);
+        $this->expectExceptionMessageMatches('#config\\.yaml: Two head families share a label#');
+        $this->loader()->load($this->root);
     }
 
     private function loader(): ProjectLoader
