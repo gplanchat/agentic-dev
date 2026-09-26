@@ -197,9 +197,9 @@ final readonly class TicketTool implements ContextualTool, OfferedTool
 
     private static function wait(Backlog $backlog, int $ticket, string $on, string $reason, ?string $callId): string
     {
-        $mark = TicketMark::tryFrom('attend:'.$on);
+        $mark = TicketMark::tryFrom('waits:'.$on);
         if (null === $mark) {
-            throw new \DomainException('"on" is one of: auteur, tiers, mesure.');
+            throw new \DomainException('"on" is one of: author, third-party, measure.');
         }
         $backlog->wait($ticket, $mark, $reason, $callId);
 

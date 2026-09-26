@@ -200,7 +200,7 @@ final class ForgejoTicketsTest extends TestCase
     public function testTheOpenTicketsCarryTheirMarks(): void
     {
         $forge = new RecordingForge(new JsonMockResponse([
-            ['number' => 7, 'title' => 'T', 'state' => 'open', 'labels' => [['name' => 'attend:tiers'], ['name' => 'p1'], ['name' => 'attend:mesure']]],
+            ['number' => 7, 'title' => 'T', 'state' => 'open', 'labels' => [['name' => 'waits:third-party'], ['name' => 'p1'], ['name' => 'waits:measure']]],
         ]));
 
         self::assertEquals([new Ticket(7, 'T', TicketState::Open, '', null, [TicketMark::WaitsForThirdParty, TicketMark::WaitsForMeasure])], self::tickets($forge)->listOpen());
@@ -209,7 +209,7 @@ final class ForgejoTicketsTest extends TestCase
 
     public function testAMarkIsALabelFoundByItsId(): void
     {
-        $labels = new JsonMockResponse([['id' => 3, 'name' => 'p1'], ['id' => 'x', 'name' => 'pris'], ['id' => 5, 'name' => 'Pris']]);
+        $labels = new JsonMockResponse([['id' => 3, 'name' => 'p1'], ['id' => 'x', 'name' => 'taken'], ['id' => 5, 'name' => 'Taken']]);
         $forge = new RecordingForge($labels, new JsonMockResponse([]), clone $labels, new JsonMockResponse(null, ['http_code' => 204]), clone $labels);
         $tickets = self::tickets($forge);
 
@@ -222,7 +222,7 @@ final class ForgejoTicketsTest extends TestCase
             'GET https://forge.test/api/v1/repos/acme/app/labels?limit=100',
             'DELETE https://forge.test/api/v1/repos/acme/app/issues/4/labels/5',
         ], $forge->requests);
-        $this->expectExceptionMessage('The repository has no label "attend:auteur" to mark tickets with: create it.');
+        $this->expectExceptionMessage('The repository has no label "waits:author" to mark tickets with: create it.');
         $tickets->mark(4, TicketMark::WaitsForAuthor);
     }
 

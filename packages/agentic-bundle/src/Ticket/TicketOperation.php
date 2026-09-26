@@ -97,7 +97,7 @@ enum TicketOperation: string
             ),
             self::Take => new ToolDefinition(
                 $this->value,
-                'Takes a ticket to work on it, so that no other conversation does: labels it "pris" and comments who took it. Refused unless it can be worked on now — open, a leaf, waiting on nobody, not taken, every blocker done.',
+                'Takes a ticket to work on it, so that no other conversation does: labels it "taken" and comments who took it. Refused unless it can be worked on now — open, a leaf, waiting on nobody, not taken, every blocker done.',
                 ToolEffect::External,
                 ['type' => 'object', 'properties' => ['ticket' => $number('The ticket to take.')], 'required' => ['ticket']],
             ),
@@ -113,7 +113,7 @@ enum TicketOperation: string
                 ToolEffect::External,
                 ['type' => 'object', 'properties' => [
                     'ticket' => $number('The ticket that waits.'),
-                    'on' => ['type' => 'string', 'enum' => ['auteur', 'tiers', 'mesure']],
+                    'on' => ['type' => 'string', 'enum' => ['author', 'third-party', 'measure']],
                     'reason' => $text('What it waits for, understandable without your context — a closed question, for the author.'),
                 ], 'required' => ['ticket', 'on', 'reason']],
             ),

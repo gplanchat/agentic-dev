@@ -26,9 +26,9 @@ Rank **at most five**. A list of twenty decides nothing.
 
 ## 3. Keep apart what waits on a human
 
-- **Decisions to take** (`attend:auteur`): each as a closed question with its options, so the
+- **Decisions to take** (`waits:author`): each as a closed question with its options, so the
   author can answer in a sentence. You report them; you do not ask them here.
-- **Waiting on someone else** (`attend:tiers`, `attend:mesure`, or another ticket): who must deliver
+- **Waiting on someone else** (`waits:third-party`, `waits:measure`, or another ticket): who must deliver
   what, and what it would unblock.
 - **Out of order**: work under no open head (EWA-002 forbids it), capabilities not scoped yet —
   `/scope` is for those.

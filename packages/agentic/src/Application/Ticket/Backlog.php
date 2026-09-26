@@ -138,7 +138,7 @@ final readonly class Backlog
     }
 
     /**
-     * A conversation takes a ticket — Épopée's PRISES, on the forge: a `pris` label, and a comment
+     * A conversation takes a ticket — Épopée's PRISES, on the forge: a `taken` label, and a comment
      * saying by whom. Only what can really be worked on now: open, a leaf (or a head simple enough to
      * be its own leaf, EWA-002 § 4), waiting on nobody, not taken, every blocker done.
      *

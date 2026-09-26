@@ -197,8 +197,8 @@ final class BacklogTest extends TestCase
         $backlog->wait($work->number, TicketMark::WaitsForAuthor, 'Which cache: PSR-6 or PSR-16?', 'call-5');
 
         self::assertSame([TicketMark::WaitsForAuthor], $forge->get($work->number)->marks, 'Given back, and waiting.');
-        self::assertSame(["Taken by me.", "Waits (attend:auteur): Which cache: PSR-6 or PSR-16?\n\n<!-- agentic:call-5 -->"], $forge->comments($work->number));
-        self::assertRefused('"pris" is not a wait.', static fn () => $backlog->wait($work->number, TicketMark::Taken, 'x', null));
+        self::assertSame(["Taken by me.", "Waits (waits:author): Which cache: PSR-6 or PSR-16?\n\n<!-- agentic:call-5 -->"], $forge->comments($work->number));
+        self::assertRefused('"taken" is not a wait.', static fn () => $backlog->wait($work->number, TicketMark::Taken, 'x', null));
         self::assertRefused('Say what it waits for: whoever lifts the wait has not your context.', static fn () => $backlog->wait($work->number, TicketMark::WaitsForMeasure, ' ', null));
         self::assertSame([TicketMark::WaitsForAuthor], $forge->get($work->number)->marks);
     }
@@ -217,7 +217,7 @@ final class BacklogTest extends TestCase
         self::assertRefused('#3 waits on #4: take that first.', static fn () => $backlog->take($work->number, 'me', null));
         $forge->mark($blocker->number, TicketMark::WaitsForAuthor);
         $forge->mark($blocker->number, TicketMark::WaitsForMeasure);
-        self::assertRefused('#4 waits (attend:auteur, attend:mesure): that must be lifted before anyone takes it.', static fn () => $backlog->take($blocker->number, 'me', null));
+        self::assertRefused('#4 waits (waits:author, waits:measure): that must be lifted before anyone takes it.', static fn () => $backlog->take($blocker->number, 'me', null));
         $forge->close($blocker->number);
         self::assertRefused('#4 is closed: nothing to take.', static fn () => $backlog->take($blocker->number, 'me', null));
 

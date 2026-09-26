@@ -228,8 +228,8 @@ every refresh, with no `messenger:consume` alongside.
   `/continue [#n]` (one work ticket: taken, conducted with Mikado and TDD, judged, closed by its
   code), `/review [#n]` (the work judged by a verifier that did not make it). A command sends a short
   request as your message; the `skill` tool — whose description is the index — hands the agent the
-  procedure only then. Tickets are *taken* with a `pris` label (`ticket_take`, `ticket_release`), and
-  what waits on someone carries `attend:auteur`, `attend:tiers` or `attend:mesure` (`ticket_wait`,
+  procedure only then. Tickets are *taken* with a `taken` label (`ticket_take`, `ticket_release`), and
+  what waits on someone carries `waits:author`, `waits:third-party` or `waits:measure` (`ticket_wait`,
   with the reason in a comment): labels to create on the forge beforehand, like the family labels.
   Two seats, both sub-agents at the `plan` ceiling: the `planner` reads the tickets strangers wrote
   for `/status`, with only `ticket_list` and `ticket_read` — nothing to act on what a ticket says —;

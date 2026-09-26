@@ -68,7 +68,7 @@ final class BlockingGraphTest extends TestCase
         self::assertTrue($ticket->has(TicketMark::Taken));
         self::assertFalse((new Ticket(1, 'T', TicketState::Open))->has(TicketMark::Taken));
         self::assertSame([TicketMark::WaitsForAuthor, TicketMark::WaitsForThirdParty, TicketMark::WaitsForMeasure], $ticket->waits());
-        self::assertSame(['attend:auteur', 'attend:tiers', 'attend:mesure', 'pris'], array_column(TicketMark::cases(), 'value'), 'The labels on the forge.');
+        self::assertSame(['waits:author', 'waits:third-party', 'waits:measure', 'taken'], array_column(TicketMark::cases(), 'value'), 'The labels on the forge.');
     }
 
     public function testATicketNumberIsPositive(): void

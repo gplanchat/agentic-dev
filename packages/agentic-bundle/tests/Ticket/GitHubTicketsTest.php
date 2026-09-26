@@ -149,7 +149,7 @@ final class GitHubTicketsTest extends TestCase
     {
         $forge = new RecordingForge(new JsonMockResponse([
             ['number' => 8, 'title' => 'A PR', 'state' => 'open', 'pull_request' => ['url' => 'x']],
-            ['number' => 7, 'title' => 'T', 'state' => 'open', 'labels' => [['name' => 'p1'], ['name' => 'pris'], ['name' => 'attend:auteur']]],
+            ['number' => 7, 'title' => 'T', 'state' => 'open', 'labels' => [['name' => 'p1'], ['name' => 'taken'], ['name' => 'waits:author']]],
         ]));
 
         self::assertEquals([new Ticket(7, 'T', TicketState::Open, '', null, [TicketMark::Taken, TicketMark::WaitsForAuthor])], self::tickets($forge)->listOpen());
@@ -159,8 +159,8 @@ final class GitHubTicketsTest extends TestCase
     public function testAMarkIsALabelThatMustExist(): void
     {
         $forge = new RecordingForge(
-            new JsonMockResponse(['name' => 'pris']),
-            new JsonMockResponse([['name' => 'pris']]),
+            new JsonMockResponse(['name' => 'taken']),
+            new JsonMockResponse([['name' => 'taken']]),
             new JsonMockResponse([]),
             new JsonMockResponse(['message' => 'Not Found'], ['http_code' => 404]),
         );
@@ -170,11 +170,11 @@ final class GitHubTicketsTest extends TestCase
         $tickets->unmark(4, TicketMark::WaitsForAuthor);
 
         self::assertSame([
-            'GET https://api.github.com/repos/acme/app/labels/pris',
-            'POST https://api.github.com/repos/acme/app/issues/4/labels {"labels":["pris"]}',
-            'DELETE https://api.github.com/repos/acme/app/issues/4/labels/attend%3Aauteur',
+            'GET https://api.github.com/repos/acme/app/labels/taken',
+            'POST https://api.github.com/repos/acme/app/issues/4/labels {"labels":["taken"]}',
+            'DELETE https://api.github.com/repos/acme/app/issues/4/labels/waits%3Aauthor',
         ], $forge->requests);
-        $this->expectExceptionMessage('The forge has no label "attend:mesure" to mark tickets with: create it.');
+        $this->expectExceptionMessage('The forge has no label "waits:measure" to mark tickets with: create it.');
         $tickets->mark(4, TicketMark::WaitsForMeasure);
     }
 
