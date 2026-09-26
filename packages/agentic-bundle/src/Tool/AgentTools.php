@@ -59,8 +59,7 @@ final class AgentTools
             $this->byName = [];
             foreach ([$this->tools, $this->discovered] as $source) {
                 foreach ($source as $tool) {
-                    // A project with no check layer has nothing for run_checks to run.
-                    if ($tool instanceof RunChecksTool && !$tool->hasLayers()) {
+                    if ($tool instanceof OfferedTool && !$tool->isOffered()) {
                         continue;
                     }
                     $this->byName[$tool->definition()->name] = $tool;

@@ -543,6 +543,7 @@ use Symfony\Component\Config\Loader\ParamConfigurator as Param;
  * @psalm-type AgenticConfig = array{
  *     model?: scalar|Param|null, // Default: "mistral-small-latest"
  *     mistral_api_key?: scalar|Param|null, // Empty: a scripted client answers, with no network. // Default: ""
+ *     tickets_token?: scalar|Param|null, // The token of the forge a project names in its tickets setting. The installation's, never a project file's. // Default: ""
  *     system_prompt?: scalar|Param|null, // Default: "You are a concise assistant. Use the tools when they answer better than you do."
  *     human_timeout_seconds?: float|Param, // Deadline of every wait on a human: approval as well as question. // Default: 900.0
  *     idle_timeout_seconds?: float|Param, // Silence after which the conversation ends. // Default: 3600.0

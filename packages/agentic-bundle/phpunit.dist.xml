@@ -20,6 +20,8 @@
             <directory>tests/Check</directory>
             <directory>tests/Config</directory>
             <directory>tests/Tool</directory>
+            <directory>tests/Ticket</directory>
+            <directory>tests/Skill</directory>
             <directory>tests/Controller</directory>
             <directory>tests/Tui</directory>
         </testsuite>

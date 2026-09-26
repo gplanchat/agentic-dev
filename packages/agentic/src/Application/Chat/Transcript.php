@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Gplanchat\Agentic\Application\Chat;
 
+use Gplanchat\Agentic\Domain\Mikado\MikadoGraph;
+
 use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\PendingApproval;
 use Gplanchat\Agentic\Domain\Guard\ToolRule;
@@ -57,6 +59,8 @@ final readonly class Transcript implements \JsonSerializable
         public int $tokensSpent = 0,
         /** What it may spend; `0` = no ceiling, but the spend is counted all the same. */
         public int $tokenBudget = 0,
+        /** The Mikado graph of the task under way, as the journal last recorded it; `null` = none. */
+        public ?MikadoGraph $mikado = null,
     ) {
     }
 

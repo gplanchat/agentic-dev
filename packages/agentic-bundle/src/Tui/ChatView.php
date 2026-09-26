@@ -649,8 +649,7 @@ final class ChatView
             }
 
             $this->notice->setText('');
-            $this->outbox[] = ['text' => $event->getValue(), 'expected' => self::userMessages($this->transcript ?? $this->conversations->transcript($this->conversation)) + \count($this->outbox) + 1];
-            $this->act(fn () => $this->conversations->send($this->conversation, $event->getValue()));
+            $this->send($event->getValue());
         });
         $this->input = $input;
 
@@ -782,10 +781,20 @@ final class ChatView
         $this->notice->setText(\sprintf("\e[32m✓ %s\e[0m \e[2m— %s\e[0m\n", $what, self::clean($detail)));
     }
 
+    private function send(string $text): void
+    {
+        $this->outbox[] = ['text' => $text, 'expected' => self::userMessages($this->transcript ?? $this->conversations->transcript($this->conversation)) + \count($this->outbox) + 1];
+        $this->act(fn () => $this->conversations->send($this->conversation, $text));
+    }
+
     private function command(string $line): void
     {
         $outcome = $this->commands->run($this->conversation, $line);
         $this->notice->setText(($outcome->error ? "\e[31m" : "\e[2m").self::clean($outcome->notice)."\e[0m\n");
+
+        if (null !== $outcome->send) {
+            $this->send($outcome->send);
+        }
 
         if ([] !== $outcome->choices && null !== $outcome->choose) {
             $this->choice = ['choices' => $outcome->choices, 'choose' => $outcome->choose];

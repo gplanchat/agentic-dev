@@ -12,7 +12,7 @@ with Ctrl+C. No tmux needed, only Python 3 and `php8.4`.
 ```bash
 python3 .claude/skills/chat-driver/driver.py '[
   {"send": "/mode edition", "until": "mode edition", "timeout": 15},
-  {"send": "What is the weather in Paris?", "until": "Paris : ", "timeout": 60}
+  {"send": "What is the weather in Paris?", "until": "Paris: 22", "timeout": 60}
 ]'
 ```
 

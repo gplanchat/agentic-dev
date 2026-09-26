@@ -22,6 +22,8 @@ final readonly class SlashOutcome
         public ?string $choose = null,
         /** What to put back into the input — the message that was just undone. */
         public ?string $prefill = null,
+        /** A message to send in the user's name, as if typed: a skill's request. */
+        public ?string $send = null,
     ) {
     }
 }

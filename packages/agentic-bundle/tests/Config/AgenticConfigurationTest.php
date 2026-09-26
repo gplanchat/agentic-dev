@@ -13,10 +13,17 @@ use Gplanchat\AgenticBundle\Project\ProjectLoader;
 use Gplanchat\AgenticBundle\Project\TrustStore;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
+use Gplanchat\AgenticBundle\Skill\Skills;
+use Gplanchat\AgenticBundle\Skill\SkillTool;
+use Gplanchat\AgenticBundle\Ticket\TicketOperation;
+use Gplanchat\AgenticBundle\Ticket\TicketTool;
+use Gplanchat\AgenticBundle\Tool\CommitWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\EditFileTool;
 use Gplanchat\AgenticBundle\Tool\ReadFileTool;
+use Gplanchat\AgenticBundle\Tool\RevertWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\RunChecksTool;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
+use Gplanchat\AgenticBundle\Tool\WorktreeDiffTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -78,9 +85,80 @@ final class AgenticConfigurationTest extends TestCase
         self::assertTrue($sandbox->isLazy());
         self::assertSame([Project::class, 7.0, 'bw'], array_map(static fn (mixed $argument): mixed => $argument instanceof Reference ? (string) $argument : $argument, $sandbox->getArguments()));
         self::assertTrue($container->getDefinition(Workspaces::class)->isLazy());
-        foreach ([ReadFileTool::class, EditFileTool::class, RunCommandTool::class, RunChecksTool::class] as $tool) {
+        foreach ([ReadFileTool::class, EditFileTool::class, RunCommandTool::class, RunChecksTool::class, RevertWorktreeTool::class, CommitWorktreeTool::class, WorktreeDiffTool::class] as $tool) {
             self::assertArrayHasKey(AgenticBundle::TOOL_TAG, $container->getDefinition($tool)->getTags(), $tool);
         }
+    }
+
+    /**
+     * One tool per operation, whatever the sandbox: AgentTools offers them when the project names
+     * a tracker. The token is the installation's.
+     */
+    public function testEveryTicketOperationIsATool(): void
+    {
+        self::assertSame(array_map(static fn (TicketOperation $operation): array => [$operation, 's3cret'], TicketOperation::cases()), $this->ticketTools(['tickets_token' => 's3cret']));
+        self::assertSame('', $this->ticketTools([])[0][1] ?? null, 'No token by default.');
+    }
+
+    /**
+     * @param array<string, mixed> $config
+     *
+     * @return list<array{0: mixed, 1: mixed}> each ticket tool's operation and token
+     */
+    private function ticketTools(array $config): array
+    {
+        $container = $this->container($config);
+        $tools = [];
+        foreach (array_keys($container->findTaggedServiceIds(AgenticBundle::TOOL_TAG)) as $id) {
+            $definition = $container->getDefinition($id);
+            if (TicketTool::class === $definition->getClass()) {
+                $tools[] = [$definition->getArgument(0), $definition->getArgument(2)];
+            }
+        }
+
+        return $tools;
+    }
+
+    /**
+     * The seat the skills rely on is there by default, and the installation's own replaces it.
+     */
+    public function testTheVerifierSeatJudgesInPlanModeUnlessTheInstallationSaysOtherwise(): void
+    {
+        $agents = $this->conversationOptions([])['agents'];
+        $prompt = (string) ($agents['verifier']['prompt'] ?? '');
+        self::assertSame([
+            'description' => 'Judges finished work against its ticket, in a clean context — never the one who made it',
+            'prompt' => $prompt,
+            'model' => null,
+            'ceiling' => 'plan',
+            'tools' => ['ticket_read', 'worktree_diff', 'read_file'],
+            'max_turns' => 1,
+            'roles' => [],
+        ], $agents['verifier'] ?? null);
+        self::assertStringStartsWith('You judge work you did not make', $prompt);
+        self::assertStringEndsWith('a wrong PASS closes a ticket'."\n".'that is not done.', $prompt, 'Trimmed.');
+        $planner = (string) ($agents['planner']['prompt'] ?? '');
+        self::assertSame([
+            'description' => 'Reads the plan on the forge and reports what to take next — with no tool to act on what tickets say',
+            'prompt' => $planner,
+            'model' => null,
+            'ceiling' => 'plan',
+            'tools' => ['ticket_list', 'ticket_read'],
+            'max_turns' => 1,
+            'roles' => [],
+        ], $agents['planner'] ?? null);
+        self::assertStringStartsWith('You report the state of the project\'s plan.', $planner);
+        self::assertStringEndsWith('— to be closed with `ticket_close` once their checks say so.', $planner, 'Trimmed.');
+
+        $container = $this->container([]);
+        self::assertArrayHasKey(AgenticBundle::TOOL_TAG, $container->getDefinition(SkillTool::class)->getTags(), 'Offered whatever the sandbox, when the project names a tracker.');
+        self::assertSame([Skills::class, 'bundled'], $container->getDefinition(Skills::class)->getFactory());
+        self::assertSame([Skills::class, Project::class], array_map(static fn (mixed $argument): string => (string) $argument, $container->getDefinition(SkillTool::class)->getArguments()));
+
+        $own = ['description' => 'Mine', 'prompt' => 'P', 'model' => null, 'ceiling' => 'plan', 'tools' => ['read_file'], 'max_turns' => 2, 'roles' => []];
+        $agents = $this->conversationOptions(['agents' => ['verifier' => $own, 'scribe' => $own]])['agents'];
+        self::assertSame(['planner', 'verifier', 'scribe'], array_keys($agents));
+        self::assertSame('Mine', $agents['verifier']['description']);
     }
 
     /**

@@ -12,6 +12,7 @@ use Gplanchat\Agentic\Domain\Guard\PendingApproval;
 use Gplanchat\Agentic\Domain\Context\TokenLedger;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Domain\Identity\Principal;
+use Gplanchat\Agentic\Domain\Mikado\MikadoBoard;
 use Gplanchat\Agentic\Infrastructure\SymfonyAi\ChatCompletion;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
@@ -28,6 +29,7 @@ use Gplanchat\Durable\Event\ChildWorkflowCompleted;
 use Gplanchat\Durable\Event\ActivityScheduled;
 use Gplanchat\Durable\Event\ExecutionCompleted;
 use Gplanchat\Durable\Event\ExecutionStarted;
+use Gplanchat\Durable\Event\SideEffectRecorded;
 use Gplanchat\Durable\Event\TimerCancelled;
 use Gplanchat\Durable\Event\TimerCompleted;
 use Gplanchat\Durable\Event\TimerScheduled;
@@ -124,6 +126,8 @@ final class ChatTranscript
         // relay, whose thread is empty. Only the event of the current run says what this run
         // resumed.
         $startedFromStore = $this->metadataStore->get($executionId)['payload'] ?? [];
+        // The last state the run journaled wins over the one it was started with.
+        $mikado = null;
         $started = [];
 
         foreach ($this->eventStore->readStream($executionId) as $event) {
@@ -162,6 +166,15 @@ final class ChatTranscript
                         (array) ($call['arguments'] ?? []),
                         null,
                     );
+                }
+
+                continue;
+            }
+
+            if ($event instanceof SideEffectRecorded) {
+                $recorded = $event->result();
+                if (\is_array($recorded) && \is_array($recorded['mikado'] ?? null)) {
+                    $mikado = $recorded['mikado'];
                 }
 
                 continue;
@@ -363,6 +376,7 @@ final class ChatTranscript
             owner: Principal::fromWire($started['owner'] ?? null) ?? Principal::fromWire($fromCall),
             tokensSpent: $ledger->spent(),
             tokenBudget: (int) ($started['tokenBudget'] ?? 0),
+            mikado: MikadoBoard::fromWire($mikado ?? (\is_array($started['mikado'] ?? null) ? $started['mikado'] : []))->graph,
         );
     }
 }

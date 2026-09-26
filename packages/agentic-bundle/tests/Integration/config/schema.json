@@ -149,6 +149,11 @@
                         "default": "",
                         "description": "Empty: a scripted client answers, with no network."
                     },
+                    "tickets_token": {
+                        "$ref": "#/$defs/types/scalar",
+                        "default": "",
+                        "description": "The token of the forge a project names in its tickets setting. The installation's, never a project file's."
+                    },
                     "system_prompt": {
                         "$ref": "#/$defs/types/scalar",
                         "default": "You are a concise assistant. Use the tools when they answer better than you do."

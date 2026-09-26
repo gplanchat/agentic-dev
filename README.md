@@ -13,7 +13,9 @@ Monorepo:
 The decisions the code cannot state on its own — why, and what was turned down — are in
 [`docs/decisions/`](docs/decisions/README.md). Start with
 [ADR-001](docs/decisions/ADR-001-value-objects-and-enums.md): value objects over arrays, enums over
-magic strings, and where the journal boundary puts the limit on both.
+magic strings, and where the journal boundary puts the limit on both. [ADR-002](docs/decisions/ADR-002-plan-on-the-forge-task-in-the-journal.md)
+says where the plan, a task's Mikado graph and the specification each live, why the agent commits on
+its own branch, and why the maker never judges its own work.
 
 ```bash
 composer install
@@ -112,10 +114,12 @@ every refresh, with no `messenger:consume` alongside.
 - **A worktree per conversation.** A conversation that runs a command works in
   `.worktrees/agentic-<id>`, on branch `agentic/agentic-<id>`, cut from HEAD — the project's
   uncommitted changes are not in it. The agent cannot commit from inside the sandbox (the project's
-  `.git` is read-only there), so **all of its work sits uncommitted in the worktree** and `git diff`
-  alone hides the files it created. Review with `git -C .worktrees/agentic-<id> status`, then
+  `.git` is read-only there); it commits only through `commit_worktree`, on its own branch, as the
+  author `agentic`. So **its work is split between commits on `agentic/agentic-<id>` and
+  uncommitted changes in the worktree**, and `git diff` alone hides the files it created. Review with
+  `git log -p main..agentic/agentic-<id>`, then `git -C .worktrees/agentic-<id> status` and
   `git -C .worktrees/agentic-<id> add -A && git -C .worktrees/agentic-<id> diff --cached`; take the
-  work by committing in the worktree. Discard it with
+  work by merging the branch, or by committing in the worktree. Discard it with
   `git worktree remove .worktrees/agentic-<id> && git branch -D agentic/agentic-<id>`.
   **Do not run anything on the host inside a worktree** — `bin/console`, `bin/agentic`, `composer`,
   a test suite, an agent session — before you have reviewed it: ignored files the agent created are
@@ -198,3 +202,59 @@ every refresh, with no `messenger:consume` alongside.
   the projection recovers the owner from the journal, where every tool call carries it. A run that
   failed before calling a single tool leaves nothing to recover; it is refused as *unknown owner*,
   not as somebody else's, and the chat says so in its header rather than dying on it.
+- **Tickets: the project's plan** (EWA-002). A project names its forge in its `.agentic/config.*` —
+  `tickets: {forge: github, repository: owner/name}`, or `{forge: forgejo, repository: owner/name,
+  url: 'https://codeberg.org'}` — and the installation holds the token (`AGENTIC_TICKETS_TOKEN`,
+  `tickets_token` in `config/packages/agentic.php`), never the project. **The forge is the source of
+  truth of the plan.** A **head** ticket is what matters to whoever pays — an OpenSpec change, of a
+  family chosen by what it changes: `defect`, `debt`, `groundwork`, `capability`, `investigation`
+  (an investigation must say its time box and the decision it enables). Its label is the project's
+  word for it (`tickets.labels`, e.g. `{debt: 'dette technique'}`), and must exist on the forge:
+  none is created. A **work** ticket is one task `N.M` a person finishes in a day, with its proof;
+  it hangs under an open head — a sub-issue on GitHub; on Forgejo, which has none, a `Head: #12` line
+  in its body plus a dependency, so Forgejo itself refuses to close a head over open work. It closes
+  with its code: `commit_worktree` with `closes` writes `Closes #n`, and the forge closes it at the
+  merge. An OpenSpec `⛔ attend:` is a "blocked by" link between tickets; a cycle is refused, and a
+  ticket closed as *not planned* or *duplicate* (GitHub) does not unblock. A link to another
+  repository is refused, never read as the local ticket of the same number. Tools: `ticket_read`
+  (read), `ticket_open_head`, `ticket_open_work`, `ticket_block`, `ticket_unblock`, `ticket_close`
+  (heads only, once their work is closed), `ticket_comment` — all `external`: `plan` refuses them,
+  `standard` asks. A
+  rule allowing them holds in every mode unless it says `modes`. Opening survives a retry: the call's
+  id is written in the body and looked for before opening again. Forgejo needs issue dependencies
+  enabled in the repository's settings.
+- **Skills: the work, as procedures.** With a ticket tracker, four skills, drawn from Épopée and
+  rewritten for the forge, Mikado and the git tools: `/status` (the plan at a glance and at most five
+  tickets worth taking, read-only), `/scope <need>` (a head of the right family, its OpenSpec change
+  in `openspec/changes/` when a specified behaviour moves, its work tickets with their proofs),
+  `/continue [#n]` (one work ticket: taken, conducted with Mikado and TDD, judged, closed by its
+  code), `/review [#n]` (the work judged by a verifier that did not make it). A command sends a short
+  request as your message; the `skill` tool — whose description is the index — hands the agent the
+  procedure only then. Tickets are *taken* with a `taken` label (`ticket_take`, `ticket_release`), and
+  what waits on someone carries `waits:author`, `waits:third-party` or `waits:measure` (`ticket_wait`,
+  with the reason in a comment): labels to create on the forge beforehand, like the family labels.
+  Two seats, both sub-agents at the `plan` ceiling: the `planner` reads the tickets strangers wrote
+  for `/status`, with only `ticket_list` and `ticket_read` — nothing to act on what a ticket says —;
+  the `verifier` judges the ticket against the diff with `ticket_read`, `worktree_diff` and
+  `read_file`, and changes nothing: the maker never grades its own work, and `continue` commits each
+  TDD phase (`test(…)` red, then `feat(…)`/`fix(…)`) so that it can check the order. An
+  installation's own profile of the same name replaces a seat. `continue` still reads its own ticket
+  in the working conversation: there, the rule that a ticket is data, the worktree and the guard are
+  the defence. In Linas's terms
+  (*agentic OS*), these are the employees; the constitution (`AGENTS.md`), the walls (modes, sandbox,
+  worktree, rules), the gate (`run_checks`) and the budget are in place, while the trust ledger per
+  skill, the standing goals and the unattended heartbeat (`/dev:go`'s counterpart) are not yet.
+- **Mikado: the conduct of one task.** Inside a work ticket, the agent keeps the task's graph with
+  `mikado_start` (the goal, M1, and optionally its work ticket), `mikado_note`, `mikado_done` and
+  `mikado_show`: it tries the change naively, `run_checks` goes red, it notes each prerequisite,
+  `revert_worktree` back to its last commit, does a READY node, `commit_worktree` once green,
+  `mikado_done` — up to the goal, then posts the graph on the work ticket (`ticket_comment`, posted
+  once however often the call is retried). The prerequisites are not tickets — they would be leaves
+  with no time and no proof; one too big for the task becomes a new work ticket. The graph is
+  workflow state, changed by tools the workflow runs itself (classed `read`: `plan` may keep it),
+  journaled at each change, and carried to the next run by the relay, `/resume`, `/compact` and
+  `/rewind` — its **latest** state even on `/rewind`: it describes the code in the worktree, which
+  is not rewound either. A run that carries one is told of it in its system prompt. A delegate
+  starts without its caller's graph. A conversation begun before these tools replays without them
+  (a Durable change point, `mikado-tools`). Both git tools run on the host, in the conversation's
+  worktree only, with hooks and fsmonitor off; they are `write`.

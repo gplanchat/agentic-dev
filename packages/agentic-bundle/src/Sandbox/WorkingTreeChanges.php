@@ -20,6 +20,13 @@ final class WorkingTreeChanges
     /** Lines of diff kept: it goes to the model, and a formatter run on the whole tree is long. */
     public const MAX_LINES = 400;
 
+    /**
+     * Git runs here on the host, in the worktree the agent writes: no hook, no fsmonitor. A relative
+     * core.hooksPath (Husky's) or fsmonitor command resolves inside the worktree, and `git add`
+     * would run the agent's own code outside the sandbox.
+     */
+    private const SAFE = ['-c', 'core.hooksPath=/dev/null', '-c', 'core.fsmonitor=false'];
+
     private function __construct(
         private readonly string $root,
         private readonly string $scratch,
@@ -67,15 +74,22 @@ final class WorkingTreeChanges
                 return '';
             }
 
-            $diff = $this->git(['diff', '--no-color', '--no-ext-diff', '--relative', $this->before, $after]);
-            $lines = explode("\n", rtrim($diff ?? '', "\n"));
-
-            return \count($lines) <= self::MAX_LINES
-                ? implode("\n", $lines)
-                : implode("\n", \array_slice($lines, 0, self::MAX_LINES))."\n[… ".(\count($lines) - self::MAX_LINES).' more lines of diff …]';
+            return self::cut($this->git(['diff', '--no-color', '--no-ext-diff', '--relative', $this->before, $after]) ?? '');
         } finally {
             $this->discard();
         }
+    }
+
+    /**
+     * A diff as the model reads it: its first {@see MAX_LINES} lines, and how many were left out.
+     */
+    public static function cut(string $diff): string
+    {
+        $lines = explode("\n", rtrim($diff, "\n"));
+
+        return \count($lines) <= self::MAX_LINES
+            ? implode("\n", $lines)
+            : implode("\n", \array_slice($lines, 0, self::MAX_LINES))."\n[… ".(\count($lines) - self::MAX_LINES).' more lines of diff …]';
     }
 
     /**
@@ -95,7 +109,7 @@ final class WorkingTreeChanges
      */
     private function git(array $arguments): ?string
     {
-        $git = new Process(['git', '-C', $this->root, ...$arguments], null, [
+        $git = new Process(['git', '-C', $this->root, ...self::SAFE, ...$arguments], null, [
             'GIT_INDEX_FILE' => $this->scratch.'/index',
             'GIT_OBJECT_DIRECTORY' => $this->scratch.'/objects',
             'GIT_ALTERNATE_OBJECT_DIRECTORIES' => $this->objects,

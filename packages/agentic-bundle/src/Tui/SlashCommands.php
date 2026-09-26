@@ -9,12 +9,14 @@ use Gplanchat\Agentic\Domain\Guard\AgentMode;
 use Gplanchat\Agentic\Domain\Guard\ModeToolGuard;
 use Gplanchat\Agentic\Domain\Guard\RuleBasedToolGuard;
 use Gplanchat\Agentic\Domain\Guard\ToolRule;
+use Gplanchat\Agentic\Domain\Mikado\MikadoTool;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Team\DelegateTool;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\Agentic\Domain\Tool\ToolInvocation;
 use Gplanchat\Agentic\Domain\Watch\WatchTool;
 use Gplanchat\AgenticBundle\Mcp\McpCatalog;
+use Gplanchat\AgenticBundle\Skill\SkillTool;
 
 /**
  * The chat commands, typed after a `/` instead of a message. They never go to the model: each one
@@ -23,6 +25,9 @@ use Gplanchat\AgenticBundle\Mcp\McpCatalog;
 final readonly class SlashCommands
 {
     /** @var array<string, string> command → what it does */
+    /** The commands that run a skill of the same name ({@see \Gplanchat\AgenticBundle\Skill\Skills}). */
+    public const SKILLS = ['/status', '/scope', '/continue', '/review'];
+
     public const COMMANDS = [
         '/help' => 'lists the commands',
         '/mode' => 'shows or changes the mode: /mode standard|edition|auto',
@@ -34,6 +39,10 @@ final readonly class SlashCommands
         '/resume' => 'resumes a past conversation: /resume [identifier]',
         '/mcp' => 'lists the MCP servers and the tools they offer',
         '/agents' => 'lists the sub-agents delegate can hand a mission to: /agents [name]',
+        '/status' => 'the plan at a glance, and what to take next',
+        '/scope' => 'scopes a need into tickets: /scope <the need>',
+        '/continue' => 'delivers one work ticket, Mikado and TDD: /continue [#ticket]',
+        '/review' => 'has a fresh verifier judge the work: /review [#ticket]',
     ];
 
     public function __construct(
@@ -79,8 +88,22 @@ final readonly class SlashCommands
             '/resume' => $this->resume($conversation, $argument),
             '/mcp' => new SlashOutcome($this->mcp($conversation), error: null === $this->mcp),
             '/agents' => $this->agents($conversation, $argument),
+            '/status', '/scope', '/continue', '/review' => $this->skill($conversation, substr($name, 1), implode(' ', $words)),
             default => new SlashOutcome(\sprintf('Unknown command: %s. /help for the list.', $name), error: true),
         };
+    }
+
+    /**
+     * A skill's request, sent as the user's message: short, journaled like any other — the procedure
+     * is fetched by the `skill` tool, not pasted into the thread.
+     */
+    private function skill(string $conversation, string $skill, string $argument): SlashOutcome
+    {
+        $tools = array_map(static fn (ToolDefinition $tool): string => $tool->name, iterator_to_array($this->conversations->transcript($conversation)->tools, false));
+        if (!\in_array(SkillTool::TOOL, $tools, true)) {
+            return new SlashOutcome('The skills work on the project\'s tickets, and this conversation has none: name a ticket tracker in .agentic/config.* (tickets), then open a new conversation.', error: true);
+        }
+        return new SlashOutcome('', send: \sprintf('Use the skill `%s`%s.', $skill, '' === $argument ? '' : ': '.$argument));
     }
 
     private function help(): string
@@ -171,7 +194,7 @@ final readonly class SlashCommands
         return implode("\n", [
             ...([] === $lines ? ['No tool declared by the application.'] : $lines),
             '',
-            \sprintf('Mode %s. Always offered: %s.', $transcript->mode->value, implode(', ', [AskUserQuestion::TOOL, WatchTool::TOOL, DelegateTool::TOOL])),
+            \sprintf('Mode %s. Always offered: %s.', $transcript->mode->value, implode(', ', [AskUserQuestion::TOOL, WatchTool::TOOL, DelegateTool::TOOL, ...array_map(static fn (ToolDefinition $tool): string => $tool->name, MikadoTool::definitions())])),
             ...(null === $transcript->workspace ? [] : [\sprintf('Workspace: %s%s', $transcript->workspace, is_dir($transcript->workspace) ? '' : ' (created by the first command)')]),
             ...([] === $rules ? [] : ['Project rules (deny > ask > allow, before the mode):', ...$rules]),
         ]);

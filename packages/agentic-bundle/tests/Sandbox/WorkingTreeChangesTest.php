@@ -114,6 +114,25 @@ final class WorkingTreeChangesTest extends TestCase
         self::assertSame("?? .env.local\n?? src/Copy.php\n", (new Process(['git', '-C', $this->path, 'status', '--short']))->mustRun()->getOutput(), 'Still untracked.');
     }
 
+    /**
+     * The snapshots run git on the host, in the worktree the agent writes. A relative hooks path —
+     * Husky's — or fsmonitor command resolves there: what the agent put there must not run.
+     */
+    public function testNoHookTheAgentWroteRunsOnTheHost(): void
+    {
+        $this->git('config', 'core.hooksPath', '.hooks');
+        $this->git('config', 'core.fsmonitor', '.hooks/fsmonitor');
+        foreach (['post-index-change', 'fsmonitor'] as $hook) {
+            (new Filesystem())->dumpFile($this->path.'/.hooks/'.$hook, "#!/bin/sh\ntouch ".escapeshellarg($this->project.'/pwned-'.$hook)."\n");
+            chmod($this->path.'/.hooks/'.$hook, 0o755);
+        }
+
+        $this->command('cp src/Code.php src/Copy.php');
+
+        self::assertFileDoesNotExist($this->project.'/pwned-post-index-change');
+        self::assertFileDoesNotExist($this->project.'/pwned-fsmonitor');
+    }
+
     public function testOutsideAGitRepositoryTheOutputAlone(): void
     {
         $plain = sys_get_temp_dir().'/agentic-changes-plain-'.getmypid();

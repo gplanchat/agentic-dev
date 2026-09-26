@@ -13,6 +13,8 @@ use Gplanchat\Agentic\Domain\Guard\ToolRule;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
 use Gplanchat\Agentic\Domain\Identity\Principal;
+use Gplanchat\Agentic\Domain\Mikado\MikadoBoard;
+use Gplanchat\Agentic\Domain\Mikado\MikadoTool;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\HumanQuestionDesk;
 use Gplanchat\Agentic\Domain\Team\AgentProfiles;
@@ -70,6 +72,8 @@ final class DurableAgentFactory
         ?TokenLedger $ledger = null,
         int $depth = 0,
         int $maxDepth = 2,
+        /** The run's Mikado board; `null`: the Mikado tools are not offered (a run from before them). */
+        ?MikadoBoard $mikado = null,
     ): Agent {
         // Always offered: an agent that cannot ask makes things up, and an agent that cannot wait
         // botches the job.
@@ -80,6 +84,9 @@ final class DurableAgentFactory
         $tools = $depth < $maxDepth
             ? $tools->with(AskUserQuestion::definition(), WatchTool::definition($subjects), DelegateTool::definition($profiles))
             : $tools->with(AskUserQuestion::definition(), WatchTool::definition($subjects));
+        if (null !== $mikado) {
+            $tools = $tools->with(...MikadoTool::definitions());
+        }
 
         // The Mistral bridge provides everything that is **pure** — the normalisation of the
         // conversation, the catalogue, the conversion of the JSON into a result — and that is what
@@ -118,6 +125,7 @@ final class DurableAgentFactory
                 ledger: $ledger,
                 depth: $depth,
                 maxDepth: $maxDepth,
+                mikado: $mikado,
             ),
             maxToolCalls: $maxToolCalls,
         );

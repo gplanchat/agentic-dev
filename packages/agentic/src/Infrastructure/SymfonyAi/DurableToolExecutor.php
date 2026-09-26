@@ -12,6 +12,9 @@ use Gplanchat\Agentic\Domain\Guard\ApprovalOutcome;
 use Gplanchat\Agentic\Domain\Guard\ToolApprovalGate;
 use Gplanchat\Agentic\Domain\Guard\ToolGuardInterface;
 use Gplanchat\Agentic\Domain\Identity\Principal;
+use Gplanchat\Agentic\Domain\Mikado\MikadoBoard;
+use Gplanchat\Agentic\Domain\Mikado\MikadoGraph;
+use Gplanchat\Agentic\Domain\Mikado\MikadoTool;
 use Gplanchat\Agentic\Domain\Question\AskUserQuestion;
 use Gplanchat\Agentic\Domain\Question\HumanQuestionDesk;
 use Gplanchat\Agentic\Domain\Question\PendingQuestion;
@@ -79,6 +82,8 @@ final class DurableToolExecutor implements ToolExecutorInterface
         private readonly ?TokenLedger $ledger = null,
         private readonly int $depth = 0,
         private readonly int $maxDepth = 2,
+        /** The run's Mikado board: its tools change it here, in workflow code. */
+        private readonly ?MikadoBoard $mikado = null,
     ) {
         $this->stub = $environment->activityStub(AgentToolActivityInterface::class, $options);
     }
@@ -138,6 +143,23 @@ final class DurableToolExecutor implements ToolExecutorInterface
             // on any other `await`.
             if (DelegateTool::TOOL === $toolCall->getName()) {
                 $results[] = new ToolResult($toolCall, yield from $this->delegate($toolCall));
+
+                continue;
+            }
+
+            // Not a suspension, not an activity: the graph is workflow state, changed by pure code the
+            // replay runs again. Each new state is also journaled, as a side effect, so the thread
+            // can hand it to the next run — the board is rebuilt from what the journal gives back,
+            // never left to depend on the closure having run.
+            if (null !== $this->mikado && MikadoTool::handles($toolCall->getName())) {
+                $before = $this->mikado->graph;
+                $result = MikadoTool::apply($this->mikado, $toolCall->getName(), $toolCall->getArguments());
+                if (null !== $this->mikado->graph && $before !== $this->mikado->graph) {
+                    $now = $this->mikado->graph->toWire();
+                    $recorded = $this->environment->sideEffect(static fn (): array => ['mikado' => $now]);
+                    $this->mikado->graph = MikadoGraph::fromWire(\is_array($recorded['mikado'] ?? null) ? $recorded['mikado'] : []);
+                }
+                $results[] = new ToolResult($toolCall, $result);
 
                 continue;
             }
@@ -278,6 +300,8 @@ final class DurableToolExecutor implements ToolExecutorInterface
                     : max(1, $this->ledger->maxTokens() - $this->ledger->spent()),  // tokenBudget
                 $this->depth + 1,                     // depth
                 $this->maxDepth,                      // maxDepth
+                // The caller's graph is its own task's: a delegate conducts its mission from scratch.
+                [],                                   // mikado
             ),
         );
 
