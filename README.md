@@ -13,7 +13,9 @@ Monorepo:
 The decisions the code cannot state on its own — why, and what was turned down — are in
 [`docs/decisions/`](docs/decisions/README.md). Start with
 [ADR-001](docs/decisions/ADR-001-value-objects-and-enums.md): value objects over arrays, enums over
-magic strings, and where the journal boundary puts the limit on both.
+magic strings, and where the journal boundary puts the limit on both. [ADR-002](docs/decisions/ADR-002-plan-on-the-forge-task-in-the-journal.md)
+says where the plan, a task's Mikado graph and the specification each live, why the agent commits on
+its own branch, and why the maker never judges its own work.
 
 ```bash
 composer install
