@@ -30,8 +30,8 @@ Rank **at most five**. A list of twenty decides nothing.
   author can answer in a sentence. You report them; you do not ask them here.
 - **Waiting on someone else** (`attend:tiers`, `attend:mesure`, or another ticket): who must deliver
   what, and what it would unblock.
-- **Out of order**: work under no open head (EWA-002 forbids it), capabilities not framed yet —
-  `/frame` is for those.
+- **Out of order**: work under no open head (EWA-002 forbids it), capabilities not scoped yet —
+  `/scope` is for those.
 
 ## 4. Report
 

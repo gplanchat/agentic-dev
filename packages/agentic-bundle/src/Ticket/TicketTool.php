@@ -175,7 +175,7 @@ final readonly class TicketTool implements ContextualTool, OfferedTool
             'Waiting on someone' => array_map(static fn (Ticket $ticket): string => \sprintf('%s (%s)', self::line($ticket), implode(', ', array_map(static fn (TicketMark $mark): string => $mark->value, $ticket->waits()))), $plan->waiting),
             'Waiting on other tickets' => array_map(static fn (int $number, array $on): string => \sprintf('#%d waits on %s', $number, implode(', ', array_map(static fn (int $blocker): string => '#'.$blocker, $on))), array_keys($plan->blocked), $plan->blocked),
             'Work under no open head (EWA-002 § 3)' => array_map(self::line(...), $plan->orphans),
-            'Capabilities to frame: no work ticket yet' => array_map(self::line(...), $plan->toSplit),
+            'Capabilities to scope: no work ticket yet' => array_map(self::line(...), $plan->toSplit),
         ];
         $lines = [];
         foreach (array_filter($sections) as $title => $entries) {

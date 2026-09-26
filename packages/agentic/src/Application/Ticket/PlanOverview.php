@@ -20,7 +20,7 @@ final readonly class PlanOverview
      * @param list<Ticket>          $waiting  on the author, a third party, a measure
      * @param array<int, list<int>> $blocked  ticket number → the open tickets it waits on
      * @param list<Ticket>          $orphans  work under no open head
-     * @param list<Ticket>          $toSplit  capabilities with no work ticket yet: to frame
+     * @param list<Ticket>          $toSplit  capabilities with no work ticket yet: to scope
      */
     public function __construct(
         public array $heads,

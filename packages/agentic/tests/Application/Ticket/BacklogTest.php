@@ -213,7 +213,7 @@ final class BacklogTest extends TestCase
         $blocker = $backlog->openWork($capability->number, 'Blocker', '', null);
         $forge->link($work->number, $blocker->number);
 
-        self::assertRefused('#1 is a head: take one of its work tickets — a capability without any is to be framed first.', static fn () => $backlog->take($capability->number, 'me', null));
+        self::assertRefused('#1 is a head: take one of its work tickets — a capability without any is to be scoped first.', static fn () => $backlog->take($capability->number, 'me', null));
         self::assertRefused('#3 waits on #4: take that first.', static fn () => $backlog->take($work->number, 'me', null));
         $forge->mark($blocker->number, TicketMark::WaitsForAuthor);
         $forge->mark($blocker->number, TicketMark::WaitsForMeasure);
@@ -227,7 +227,7 @@ final class BacklogTest extends TestCase
 
         $backlog->openWork($debt->number, 'Split after all', '', null);
         $forge->unmark($debt->number, TicketMark::Taken);
-        self::assertRefused('#2 is a head: take one of its work tickets — a capability without any is to be framed first.', static fn () => $backlog->take($debt->number, 'me', null));
+        self::assertRefused('#2 is a head: take one of its work tickets — a capability without any is to be scoped first.', static fn () => $backlog->take($debt->number, 'me', null));
     }
 
     public function testThePlanAtAGlance(): void
@@ -235,7 +235,7 @@ final class BacklogTest extends TestCase
         $forge = new InMemoryTickets();
         $backlog = new Backlog($forge);
         $capability = $backlog->openHead(HeadKind::Capability, 'Cap', '', null);     // #1
-        $empty = $backlog->openHead(HeadKind::Capability, 'Unframed', '', null);     // #2
+        $empty = $backlog->openHead(HeadKind::Capability, 'Unscoped', '', null);     // #2
         $defect = $backlog->openHead(HeadKind::Defect, 'Bug', '', null);             // #3
         $done = $backlog->openWork($capability->number, 'Done', '', null);           // #4
         $ready = $backlog->openWork($capability->number, 'Ready', '', null);         // #5
@@ -252,7 +252,7 @@ final class BacklogTest extends TestCase
         $plan = $backlog->overview();
 
         self::assertSame([[1, HeadKind::Capability, 1, 5], [2, HeadKind::Capability, 0, 0], [3, HeadKind::Defect, 0, 0]], array_map(static fn (HeadProgress $progress): array => [$progress->head->number, $progress->kind, $progress->closed, $progress->total], array_reverse($plan->heads)));
-        self::assertSame([9, 5, 3], self::numbers($plan->ready), 'The defect with no work is its own leaf; the unframed capability is not.');
+        self::assertSame([9, 5, 3], self::numbers($plan->ready), 'The defect with no work is its own leaf; the unscoped capability is not.');
         self::assertSame([6], self::numbers($plan->taken));
         self::assertSame([7], self::numbers($plan->waiting));
         self::assertSame([8 => [5]], $plan->blocked, 'Only the blockers still open.');

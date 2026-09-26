@@ -26,7 +26,7 @@ final readonly class SlashCommands
 {
     /** @var array<string, string> command → what it does */
     /** The commands that run a skill of the same name ({@see \Gplanchat\AgenticBundle\Skill\Skills}). */
-    public const SKILLS = ['/status', '/frame', '/continue', '/review'];
+    public const SKILLS = ['/status', '/scope', '/continue', '/review'];
 
     public const COMMANDS = [
         '/help' => 'lists the commands',
@@ -40,7 +40,7 @@ final readonly class SlashCommands
         '/mcp' => 'lists the MCP servers and the tools they offer',
         '/agents' => 'lists the sub-agents delegate can hand a mission to: /agents [name]',
         '/status' => 'the plan at a glance, and what to take next',
-        '/frame' => 'frames a need into tickets: /frame <the need>',
+        '/scope' => 'scopes a need into tickets: /scope <the need>',
         '/continue' => 'delivers one work ticket, Mikado and TDD: /continue [#ticket]',
         '/review' => 'has a fresh verifier judge the work: /review [#ticket]',
     ];
@@ -88,7 +88,7 @@ final readonly class SlashCommands
             '/resume' => $this->resume($conversation, $argument),
             '/mcp' => new SlashOutcome($this->mcp($conversation), error: null === $this->mcp),
             '/agents' => $this->agents($conversation, $argument),
-            '/status', '/frame', '/continue', '/review' => $this->skill($conversation, substr($name, 1), implode(' ', $words)),
+            '/status', '/scope', '/continue', '/review' => $this->skill($conversation, substr($name, 1), implode(' ', $words)),
             default => new SlashOutcome(\sprintf('Unknown command: %s. /help for the list.', $name), error: true),
         };
     }

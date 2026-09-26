@@ -152,7 +152,7 @@ final readonly class Backlog
             throw new \DomainException(\sprintf('#%d is closed: nothing to take.', $number));
         }
         if (HeadKind::Capability === $ticket->head || ($ticket->isHead() && [] !== $this->tickets->children($number))) {
-            throw new \DomainException(\sprintf('#%d is a head: take one of its work tickets — a capability without any is to be framed first.', $number));
+            throw new \DomainException(\sprintf('#%d is a head: take one of its work tickets — a capability without any is to be scoped first.', $number));
         }
         if ([] !== $waits = $ticket->waits()) {
             throw new \DomainException(\sprintf('#%d waits (%s): that must be lifted before anyone takes it.', $number, implode(', ', array_map(static fn (TicketMark $mark): string => $mark->value, $waits))));

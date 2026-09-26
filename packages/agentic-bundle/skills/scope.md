@@ -2,7 +2,7 @@
 description: Frames a new need into the plan — a head ticket of the right family, its OpenSpec change in the repository when a specified behaviour moves, and its work tickets with their proofs and waits. Writes no production code.
 argument: '<the need, in a sentence or a paragraph>'
 ---
-# frame — from a need to work that can be taken
+# scope — from a need to work that can be taken
 
 You write no production code. Every question you leave open becomes a session that turns in vain
 later: ask it now with `ask_user`, or say plainly that it is left to the author.

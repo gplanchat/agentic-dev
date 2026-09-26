@@ -212,7 +212,7 @@ final class TicketToolTest extends TestCase
                 ['number' => 7, 'title' => 'Waiting', 'state' => 'open', 'labels' => [['name' => 'attend:auteur']]],
                 ['number' => 6, 'title' => 'Taken', 'state' => 'open', 'labels' => [['name' => 'pris']]],
                 ['number' => 5, 'title' => 'Blocked', 'state' => 'open'],
-                ['number' => 2, 'title' => 'Unframed', 'state' => 'open', 'labels' => [['name' => 'capability']]],
+                ['number' => 2, 'title' => 'Unscoped', 'state' => 'open', 'labels' => [['name' => 'capability']]],
                 self::HEAD,
             ]),
             new JsonMockResponse([]), // #2 has no work
@@ -223,7 +223,7 @@ final class TicketToolTest extends TestCase
 
         self::assertSame(implode("\n", [
             'Heads:',
-            '  #2 Unframed [open] — capability, 0/0 work closed',
+            '  #2 Unscoped [open] — capability, 0/0 work closed',
             '  #1 Tickets [open] — capability, 1/4 work closed',
             'Ready to take:',
             '  #9 Orphan [open]',
@@ -235,8 +235,8 @@ final class TicketToolTest extends TestCase
             '  #5 waits on #3',
             'Work under no open head (EWA-002 § 3):',
             '  #9 Orphan [open]',
-            'Capabilities to frame: no work ticket yet:',
-            '  #2 Unframed [open]',
+            'Capabilities to scope: no work ticket yet:',
+            '  #2 Unscoped [open]',
         ]), self::tool(TicketOperation::List, $forge)([]));
         self::assertSame('No open ticket.', self::tool(TicketOperation::List, new RecordingForge(new JsonMockResponse([])))([]));
     }

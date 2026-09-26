@@ -60,7 +60,7 @@ final class SkillCommandsTest extends KernelTestCase
         self::assertSame(['ticket_list', 'ticket_read'], $planner->tools, 'It reads what strangers wrote, with no tool to act on it.');
 
         self::assertSame('Use the skill `status`.', $commands->run($id, '/status')->send);
-        self::assertSame('Use the skill `frame`: tickets in the chat, for everyone.', $commands->run($id, '/frame  tickets in the chat, for everyone ')->send);
+        self::assertSame('Use the skill `scope`: tickets in the chat, for everyone.', $commands->run($id, '/scope  tickets in the chat, for everyone ')->send);
         self::assertSame('Use the skill `continue`: #45.', $commands->run($id, '/continue #45')->send);
         self::assertSame('Use the skill `review`.', $commands->run($id, '/review')->send);
         self::assertSame('', $commands->run($id, '/review')->notice);

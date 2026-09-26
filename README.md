@@ -223,7 +223,7 @@ every refresh, with no `messenger:consume` alongside.
   enabled in the repository's settings.
 - **Skills: the work, as procedures.** With a ticket tracker, four skills, drawn from Épopée and
   rewritten for the forge, Mikado and the git tools: `/status` (the plan at a glance and at most five
-  tickets worth taking, read-only), `/frame <need>` (a head of the right family, its OpenSpec change
+  tickets worth taking, read-only), `/scope <need>` (a head of the right family, its OpenSpec change
   in `openspec/changes/` when a specified behaviour moves, its work tickets with their proofs),
   `/continue [#n]` (one work ticket: taken, conducted with Mikado and TDD, judged, closed by its
   code), `/review [#n]` (the work judged by a verifier that did not make it). A command sends a short
