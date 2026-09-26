@@ -59,13 +59,13 @@ final class SkillCommandsTest extends KernelTestCase
         self::assertSame(AgentMode::Plan, $planner?->ceiling);
         self::assertSame(['ticket_list', 'ticket_read'], $planner->tools, 'It reads what strangers wrote, with no tool to act on it.');
 
-        self::assertSame('Use the skill `statut`.', $commands->run($id, '/statut')->send);
-        self::assertSame('Use the skill `cadrer`: tickets in the chat, for everyone.', $commands->run($id, '/cadrer  tickets in the chat, for everyone ')->send);
-        self::assertSame('Use the skill `continuer`: #45.', $commands->run($id, '/continuer #45')->send);
-        self::assertSame('Use the skill `revue`.', $commands->run($id, '/revue')->send);
-        self::assertSame('', $commands->run($id, '/revue')->notice);
-        self::assertSame('Unknown command: /statuts. /help for the list.', $commands->run($id, '/statuts')->notice);
-        self::assertStringContainsString('/continuer  delivers one work ticket, Mikado and TDD: /continuer [#ticket]', $commands->run($id, '/help')->notice);
+        self::assertSame('Use the skill `status`.', $commands->run($id, '/status')->send);
+        self::assertSame('Use the skill `frame`: tickets in the chat, for everyone.', $commands->run($id, '/frame  tickets in the chat, for everyone ')->send);
+        self::assertSame('Use the skill `continue`: #45.', $commands->run($id, '/continue #45')->send);
+        self::assertSame('Use the skill `review`.', $commands->run($id, '/review')->send);
+        self::assertSame('', $commands->run($id, '/review')->notice);
+        self::assertSame('Unknown command: /stat. /help for the list.', $commands->run($id, '/stat')->notice);
+        self::assertStringContainsString('/continue  delivers one work ticket, Mikado and TDD: /continue [#ticket]', $commands->run($id, '/help')->notice);
     }
 
     public function testTypedInTheScreenTheRequestGoesOutAsAMessage(): void
@@ -80,13 +80,13 @@ final class SkillCommandsTest extends KernelTestCase
         $view->refresh();
         $view->tui->tick();
 
-        foreach (mb_str_split("/statut\r") as $key) {
+        foreach (mb_str_split("/status\r") as $key) {
             $terminal->simulateInput($key);
         }
         $view->refresh();
         $view->tui->tick();
 
-        self::assertSame('Use the skill `statut`.', $this->conversations()->transcript($view->conversation)->userMessages()[0] ?? null);
+        self::assertSame('Use the skill `status`.', $this->conversations()->transcript($view->conversation)->userMessages()[0] ?? null);
     }
 
     public function testWithoutATrackerTheCommandSaysWhy(): void
@@ -94,7 +94,7 @@ final class SkillCommandsTest extends KernelTestCase
         $conversations = $this->conversations();
         $id = $conversations->start();
 
-        $outcome = (new SlashCommands($conversations))->run($id, '/continuer');
+        $outcome = (new SlashCommands($conversations))->run($id, '/continue');
 
         self::assertTrue($outcome->error);
         self::assertNull($outcome->send);

@@ -7,7 +7,7 @@ namespace Gplanchat\Agentic\Application\Ticket;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
 
 /**
- * The plan at a glance, as `statut` reads it: the heads and how far along they are, what can be
+ * The plan at a glance, as `status` reads it: the heads and how far along they are, what can be
  * taken now, what is taken, what waits on someone, what waits on another ticket, and the work that
  * hangs under no open head — an orphan EWA-002 § 3 forbids.
  */

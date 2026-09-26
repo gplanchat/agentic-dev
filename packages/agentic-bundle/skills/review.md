@@ -2,7 +2,7 @@
 description: Has the work of this conversation judged against its ticket by a fresh verifier that did not make it. Changes nothing.
 argument: '[#work ticket]'
 ---
-# revue — have the work refuted
+# review — have the work refuted
 
 You judge nothing yourself: you made the work, or you watched it being made. The verdict belongs to
 a party that saw neither the plan nor the reasoning — the `verifier` sub-agent. And you fix

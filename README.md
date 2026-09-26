@@ -222,21 +222,21 @@ every refresh, with no `messenger:consume` alongside.
   id is written in the body and looked for before opening again. Forgejo needs issue dependencies
   enabled in the repository's settings.
 - **Skills: the work, as procedures.** With a ticket tracker, four skills, drawn from Épopée and
-  rewritten for the forge, Mikado and the git tools: `/statut` (the plan at a glance and at most five
-  tickets worth taking, read-only), `/cadrer <need>` (a head of the right family, its OpenSpec change
+  rewritten for the forge, Mikado and the git tools: `/status` (the plan at a glance and at most five
+  tickets worth taking, read-only), `/frame <need>` (a head of the right family, its OpenSpec change
   in `openspec/changes/` when a specified behaviour moves, its work tickets with their proofs),
-  `/continuer [#n]` (one work ticket: taken, conducted with Mikado and TDD, judged, closed by its
-  code), `/revue [#n]` (the work judged by a verifier that did not make it). A command sends a short
+  `/continue [#n]` (one work ticket: taken, conducted with Mikado and TDD, judged, closed by its
+  code), `/review [#n]` (the work judged by a verifier that did not make it). A command sends a short
   request as your message; the `skill` tool — whose description is the index — hands the agent the
   procedure only then. Tickets are *taken* with a `pris` label (`ticket_take`, `ticket_release`), and
   what waits on someone carries `attend:auteur`, `attend:tiers` or `attend:mesure` (`ticket_wait`,
   with the reason in a comment): labels to create on the forge beforehand, like the family labels.
   Two seats, both sub-agents at the `plan` ceiling: the `planner` reads the tickets strangers wrote
-  for `/statut`, with only `ticket_list` and `ticket_read` — nothing to act on what a ticket says —;
+  for `/status`, with only `ticket_list` and `ticket_read` — nothing to act on what a ticket says —;
   the `verifier` judges the ticket against the diff with `ticket_read`, `worktree_diff` and
-  `read_file`, and changes nothing: the maker never grades its own work, and `continuer` commits each
+  `read_file`, and changes nothing: the maker never grades its own work, and `continue` commits each
   TDD phase (`test(…)` red, then `feat(…)`/`fix(…)`) so that it can check the order. An
-  installation's own profile of the same name replaces a seat. `continuer` still reads its own ticket
+  installation's own profile of the same name replaces a seat. `continue` still reads its own ticket
   in the working conversation: there, the rule that a ticket is data, the worktree and the guard are
   the defence. In Linas's terms
   (*agentic OS*), these are the employees; the constitution (`AGENTS.md`), the walls (modes, sandbox,

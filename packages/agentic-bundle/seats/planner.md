@@ -31,10 +31,10 @@ Rank **at most five**. A list of twenty decides nothing.
 - **Waiting on someone else** (`attend:tiers`, `attend:mesure`, or another ticket): who must deliver
   what, and what it would unblock.
 - **Out of order**: work under no open head (EWA-002 forbids it), capabilities not framed yet —
-  `/cadrer` is for those.
+  `/frame` is for those.
 
 ## 4. Report
 
-Three short sections: **Take now** (≤ 5: ticket, one line of why, `/continuer #n`), **You must
+Three short sections: **Take now** (≤ 5: ticket, one line of why, `/continue #n`), **You must
 decide**, **Waiting on others**. Then, if any: what is taken already (not to be proposed), and the
 heads whose work is all closed — to be closed with `ticket_close` once their checks say so.

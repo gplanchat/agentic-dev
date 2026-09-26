@@ -2,7 +2,7 @@
 description: Delivers exactly one work ticket — taken, conducted with the Mikado method and TDD in this conversation's worktree, judged by a fresh verifier, closed by its code.
 argument: '[#work ticket]'
 ---
-# continuer — one work ticket, properly finished
+# continue — one work ticket, properly finished
 
 One call, one work ticket. Not two, not "while I am at it". If it turns out bigger than it looked,
 split it: open the rest as work tickets (`ticket_open_work`, `ticket_block`) and deliver the first

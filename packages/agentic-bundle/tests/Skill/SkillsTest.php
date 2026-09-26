@@ -39,13 +39,13 @@ final class SkillsTest extends TestCase
     {
         $skills = Skills::bundled();
 
-        self::assertSame(['cadrer', 'continuer', 'revue', 'statut'], $skills->names());
+        self::assertSame(['continue', 'frame', 'review', 'status'], $skills->names());
         self::assertSame(SlashCommands::SKILLS, array_values(array_filter(array_keys(SlashCommands::COMMANDS), static fn (string $command): bool => null !== $skills->get(substr($command, 1)))));
         foreach ($skills as $skill) {
             self::assertStringStartsWith('# '.$skill->name.' — ', $skill->procedure, 'The procedure is the body, the front matter left out.');
         }
-        self::assertSame('<the need, in a sentence or a paragraph>', $skills->get('cadrer')?->argument);
-        self::assertSame('', $skills->get('statut')?->argument);
+        self::assertSame('<the need, in a sentence or a paragraph>', $skills->get('frame')?->argument);
+        self::assertSame('', $skills->get('status')?->argument);
     }
 
     public function testASkillIsReadFromItsFile(): void
@@ -87,7 +87,7 @@ final class SkillsTest extends TestCase
 
     public function testASkillIsNamedInLowercaseAndDashes(): void
     {
-        foreach (['Cadrer', 'cadrer2', '-cadrer', 'ca drer'] as $name) {
+        foreach (['Frame', 'frame2', '-frame', 'ca drer'] as $name) {
             try {
                 new Skill($name, 'D', '', 'P');
                 self::fail('Accepted: '.$name);
