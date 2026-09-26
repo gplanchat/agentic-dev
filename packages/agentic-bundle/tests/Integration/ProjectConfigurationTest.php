@@ -69,6 +69,7 @@ final class ProjectConfigurationTest extends KernelTestCase
         self::assertSame([], array_intersect(self::TICKET_TOOLS, self::tools($transcript)), 'No tracker named: no ticket tools.');
         self::assertContains('revert_worktree', self::tools($transcript));
         self::assertContains('commit_worktree', self::tools($transcript));
+        self::assertContains('worktree_diff', self::tools($transcript));
         self::assertSame([], array_filter($transcript->rules, static fn ($rule): bool => 'The project says no.' === $rule->reason));
         // Launched from a directory inside this repository: the worktree is the repository's, and the
         // workspace the launch directory within it.

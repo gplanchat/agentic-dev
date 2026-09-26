@@ -21,6 +21,7 @@ use Gplanchat\AgenticBundle\Tool\ReadFileTool;
 use Gplanchat\AgenticBundle\Tool\RevertWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\RunChecksTool;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
+use Gplanchat\AgenticBundle\Tool\WorktreeDiffTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Config\Definition\Exception\InvalidConfigurationException;
@@ -82,7 +83,7 @@ final class AgenticConfigurationTest extends TestCase
         self::assertTrue($sandbox->isLazy());
         self::assertSame([Project::class, 7.0, 'bw'], array_map(static fn (mixed $argument): mixed => $argument instanceof Reference ? (string) $argument : $argument, $sandbox->getArguments()));
         self::assertTrue($container->getDefinition(Workspaces::class)->isLazy());
-        foreach ([ReadFileTool::class, EditFileTool::class, RunCommandTool::class, RunChecksTool::class, RevertWorktreeTool::class, CommitWorktreeTool::class] as $tool) {
+        foreach ([ReadFileTool::class, EditFileTool::class, RunCommandTool::class, RunChecksTool::class, RevertWorktreeTool::class, CommitWorktreeTool::class, WorktreeDiffTool::class] as $tool) {
             self::assertArrayHasKey(AgenticBundle::TOOL_TAG, $container->getDefinition($tool)->getTags(), $tool);
         }
     }

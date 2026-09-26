@@ -47,7 +47,7 @@ final readonly class RevertWorktreeTool implements ContextualTool
 
     private function revert(?string $workspace): string
     {
-        if (null !== $refusal = HostGit::refusal($this->workspaces, $workspace)) {
+        if (\is_string($refusal = HostGit::worktrees($this->workspaces, $workspace))) {
             return $refusal;
         }
 

@@ -11,6 +11,8 @@ use Gplanchat\AgenticBundle\Sandbox\Workspaces;
 use Gplanchat\AgenticBundle\Sandbox\Worktrees;
 use Gplanchat\AgenticBundle\Tool\CommitWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\RevertWorktreeTool;
+use Gplanchat\AgenticBundle\Tool\WorktreeDiffTool;
+use Gplanchat\AgenticBundle\Sandbox\WorkingTreeChanges;
 use PHPUnit\Framework\Attributes\CoversClass;
 use PHPUnit\Framework\TestCase;
 use Symfony\Component\Filesystem\Filesystem;
@@ -19,6 +21,7 @@ use Symfony\Component\Process\Process;
 #[CoversClass(RevertWorktreeTool::class)]
 #[CoversClass(CommitWorktreeTool::class)]
 #[CoversClass(HostGit::class)]
+#[CoversClass(WorktreeDiffTool::class)]
 final class WorktreeGitToolsTest extends TestCase
 {
     private string $project;
@@ -193,6 +196,59 @@ final class WorktreeGitToolsTest extends TestCase
         (new CommitWorktreeTool(new Workspaces(new Bubblewrap($this->project), $worktrees)))->inContext(['message' => 'M'], new ToolContext('c1', $path));
 
         self::assertFileDoesNotExist($this->project.'/pwned');
+    }
+
+    public function testTheVerifierSeesWhatTheWorktreeChangedSinceItLeftTheProject(): void
+    {
+        $worktrees = new Worktrees($this->project);
+        $path = $worktrees->pathFor('3f2a9c1e');
+        $worktrees->ensure($path);
+        $workspaces = new Workspaces(new Bubblewrap($this->project), $worktrees);
+        file_put_contents($path.'/src/Code.php', '<?php // the leaf');
+        (new CommitWorktreeTool($workspaces))->inContext(['message' => 'feat: the leaf', 'closes' => 7], new ToolContext('c1', $path));
+        file_put_contents($path.'/src/Code.php', '<?php // not committed yet');
+        (new Filesystem())->dumpFile($path.'/src/New.php', '<?php // new');
+        // The project moves on after the worktree left it: that is not the worktree's work.
+        (new Filesystem())->dumpFile($this->project.'/src/Later.php', '<?php // later');
+        $this->git($this->project, 'add', '.');
+        $this->git($this->project, '-c', 'user.name=Test', '-c', 'user.email=test@example.test', 'commit', '-q', '-m', 'later');
+
+        $seen = (new WorktreeDiffTool($workspaces))->inContext([], new ToolContext('c2', $path));
+
+        self::assertMatchesRegularExpression("#^Since [0-9a-f]{7}:\n\nCommits:\n[0-9a-f]{7,} feat: the leaf\n\nCloses \#7\n\nDiff:\ndiff --git a/src/Code.php b/src/Code.php\n#", $seen);
+        self::assertStringContainsString("-<?php // committed\n\\ No newline at end of file\n+<?php // not committed yet", $seen, 'Since the project, committed and not: the leaf is in neither side.');
+        self::assertStringEndsWith("yet\n\\ No newline at end of file\n\nNew files, not committed:\nsrc/New.php", $seen, 'Not the sandbox\'s placeholder.');
+        self::assertStringNotContainsString('Later.php', $seen);
+        self::assertStringStartsWith('Nothing done: this conversation works in the project itself', (new WorktreeDiffTool($workspaces))([]));
+        self::assertEquals(['type' => 'object', 'properties' => new \stdClass()], (new WorktreeDiffTool($workspaces))->definition()->parameters);
+    }
+
+    public function testNothingChangedSaysSo(): void
+    {
+        $worktrees = new Worktrees($this->project);
+        $path = $worktrees->pathFor('3f2a9c1e');
+        $worktrees->ensure($path);
+
+        self::assertStringStartsWith(\sprintf('Since %s:', substr(trim($this->git($this->project, 'rev-parse', 'HEAD')), 0, 7)), (new WorktreeDiffTool(new Workspaces(new Bubblewrap($this->project), $worktrees)))->inContext([], new ToolContext('c1', $path)));
+        self::assertMatchesRegularExpression("#^Since [0-9a-f]{7}:\n\nCommits:\n\(none\)\n\nDiff:\n\(none\)\n\nNew files, not committed:\n\(none\)$#", (new WorktreeDiffTool(new Workspaces(new Bubblewrap($this->project), $worktrees)))->inContext([], new ToolContext('c1', $path)));
+    }
+
+    public function testALongDiffIsCutAndNoDriverTheAgentChoseRuns(): void
+    {
+        $this->git($this->project, 'config', 'diff.evil.command', 'touch '.$this->project.'/pwned-command');
+        $this->git($this->project, 'config', 'diff.evil.textconv', 'touch '.$this->project.'/pwned-textconv; cat');
+        $worktrees = new Worktrees($this->project);
+        $path = $worktrees->pathFor('3f2a9c1e');
+        $worktrees->ensure($path);
+        file_put_contents($path.'/.gitattributes', "*.php diff=evil\n");
+        file_put_contents($path.'/src/Code.php', implode("\n", range(1, 500)));
+
+        $seen = (new WorktreeDiffTool(new Workspaces(new Bubblewrap($this->project), $worktrees)))->inContext([], new ToolContext('c1', $path));
+
+        self::assertFileDoesNotExist($this->project.'/pwned-command');
+        self::assertFileDoesNotExist($this->project.'/pwned-textconv');
+        self::assertMatchesRegularExpression('#\n\[… \d+ more lines of diff …\]\n\nNew files, not committed:#', $seen);
+        self::assertCount(WorkingTreeChanges::MAX_LINES + 1, explode("\n", explode("\n\nNew files", explode("Diff:\n", $seen)[1])[0]));
     }
 
     private function git(string $cwd, string ...$arguments): string

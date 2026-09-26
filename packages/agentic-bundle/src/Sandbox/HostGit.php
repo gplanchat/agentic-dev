@@ -39,17 +39,17 @@ final class HostGit
     }
 
     /**
-     * The conversation's own worktree, cut already — or why there is none to act on.
+     * The worktrees the workspace is one of, cut already — or why there is none to act on.
      *
-     * @return string|null `null` when the workspace is one: the reason otherwise
+     * @return Worktrees|string the reason, when the workspace is not a worktree of this project
      */
-    public static function refusal(Workspaces $workspaces, ?string $workspace): ?string
+    public static function worktrees(Workspaces $workspaces, ?string $workspace): Worktrees|string
     {
         $worktrees = $workspaces->worktrees();
         if (null === $workspace || null === $worktrees || !$worktrees->owns($workspace)) {
             return 'Nothing done: this conversation works in the project itself, not in a worktree of its own — that is the human\'s work.';
         }
 
-        return is_dir($workspace) ? null : 'Nothing done: the worktree does not exist yet.';
+        return is_dir($workspace) ? $worktrees : 'Nothing done: the worktree does not exist yet.';
     }
 }

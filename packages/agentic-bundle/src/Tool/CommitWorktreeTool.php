@@ -69,7 +69,7 @@ final readonly class CommitWorktreeTool implements ContextualTool
             // The keyword both forges read, on a line of its own.
             $message .= "\n\nCloses #".$ticket;
         }
-        if (null !== $refusal = HostGit::refusal($this->workspaces, $workspace)) {
+        if (\is_string($refusal = HostGit::worktrees($this->workspaces, $workspace))) {
             return $refusal;
         }
 

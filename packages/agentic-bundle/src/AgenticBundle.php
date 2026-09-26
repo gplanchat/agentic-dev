@@ -40,6 +40,7 @@ use Gplanchat\AgenticBundle\Tool\ReadFileTool;
 use Gplanchat\AgenticBundle\Tool\RevertWorktreeTool;
 use Gplanchat\AgenticBundle\Tool\RunChecksTool;
 use Gplanchat\AgenticBundle\Tool\RunCommandTool;
+use Gplanchat\AgenticBundle\Tool\WorktreeDiffTool;
 use Gplanchat\AgenticBundle\Tui\ChatScreen;
 use Gplanchat\AgenticBundle\Worker\InProcessWorker;
 use Gplanchat\Durable\Port\WorkflowResumeDispatcher;
@@ -243,6 +244,9 @@ final class AgenticBundle extends AbstractBundle
                 ->args([service(Workspaces::class)])
                 ->tag(self::TOOL_TAG);
             $services->set(CommitWorktreeTool::class)
+                ->args([service(Workspaces::class)])
+                ->tag(self::TOOL_TAG);
+            $services->set(WorktreeDiffTool::class)
                 ->args([service(Workspaces::class)])
                 ->tag(self::TOOL_TAG);
         }

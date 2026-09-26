@@ -74,15 +74,22 @@ final class WorkingTreeChanges
                 return '';
             }
 
-            $diff = $this->git(['diff', '--no-color', '--no-ext-diff', '--relative', $this->before, $after]);
-            $lines = explode("\n", rtrim($diff ?? '', "\n"));
-
-            return \count($lines) <= self::MAX_LINES
-                ? implode("\n", $lines)
-                : implode("\n", \array_slice($lines, 0, self::MAX_LINES))."\n[… ".(\count($lines) - self::MAX_LINES).' more lines of diff …]';
+            return self::cut($this->git(['diff', '--no-color', '--no-ext-diff', '--relative', $this->before, $after]) ?? '');
         } finally {
             $this->discard();
         }
+    }
+
+    /**
+     * A diff as the model reads it: its first {@see MAX_LINES} lines, and how many were left out.
+     */
+    public static function cut(string $diff): string
+    {
+        $lines = explode("\n", rtrim($diff, "\n"));
+
+        return \count($lines) <= self::MAX_LINES
+            ? implode("\n", $lines)
+            : implode("\n", \array_slice($lines, 0, self::MAX_LINES))."\n[… ".(\count($lines) - self::MAX_LINES).' more lines of diff …]';
     }
 
     /**
