@@ -7,6 +7,7 @@ namespace Gplanchat\Agentic\Tests\Domain\Ticket;
 use Gplanchat\Agentic\Domain\Ticket\BlockingGraph;
 use Gplanchat\Agentic\Domain\Ticket\HeadKind;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
+use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 use Gplanchat\Agentic\Domain\Ticket\TicketState;
 use PHPUnit\Framework\TestCase;
 
@@ -58,6 +59,16 @@ final class BlockingGraphTest extends TestCase
     {
         self::assertTrue((new Ticket(1, 'T', TicketState::Open, '', HeadKind::Debt))->isHead());
         self::assertFalse((new Ticket(1, 'T', TicketState::Open))->isHead());
+    }
+
+    public function testATicketSaysWhatItWaitsOnAndWhetherItIsTaken(): void
+    {
+        $ticket = new Ticket(1, 'T', TicketState::Open, '', null, [TicketMark::Taken, TicketMark::WaitsForAuthor, TicketMark::WaitsForThirdParty, TicketMark::WaitsForMeasure]);
+
+        self::assertTrue($ticket->has(TicketMark::Taken));
+        self::assertFalse((new Ticket(1, 'T', TicketState::Open))->has(TicketMark::Taken));
+        self::assertSame([TicketMark::WaitsForAuthor, TicketMark::WaitsForThirdParty, TicketMark::WaitsForMeasure], $ticket->waits());
+        self::assertSame(['attend:auteur', 'attend:tiers', 'attend:mesure', 'pris'], array_column(TicketMark::cases(), 'value'), 'The labels on the forge.');
     }
 
     public function testATicketNumberIsPositive(): void

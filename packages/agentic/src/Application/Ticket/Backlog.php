@@ -7,6 +7,7 @@ namespace Gplanchat\Agentic\Application\Ticket;
 use Gplanchat\Agentic\Domain\Ticket\BlockingGraph;
 use Gplanchat\Agentic\Domain\Ticket\HeadKind;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
+use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 use Gplanchat\Agentic\Domain\Ticket\TicketState;
 
 /**
@@ -131,13 +132,110 @@ final readonly class Backlog
             return;
         }
 
-        $marker = \sprintf('<!-- agentic:%s -->', $key);
-        foreach ($this->tickets->comments($ticket) as $posted) {
-            if (str_contains($posted, $marker)) {
-                return;
+        if (!$this->posted($ticket, $key)) {
+            $this->tickets->comment($ticket, rtrim($body)."\n\n".\sprintf('<!-- agentic:%s -->', $key));
+        }
+    }
+
+    /**
+     * A conversation takes a ticket — Épopée's PRISES, on the forge: a `pris` label, and a comment
+     * saying by whom. Only what can really be worked on now: open, a leaf (or a head simple enough to
+     * be its own leaf, EWA-002 § 4), waiting on nobody, not taken, every blocker done.
+     *
+     * @param string      $by  who takes it, as the comment says: the conversation's worktree
+     * @param string|null $key the journal's call id: a retry finds its own comment and goes on
+     */
+    public function take(int $number, string $by, ?string $key): void
+    {
+        $ticket = $this->tickets->get($number);
+        if (TicketState::Open !== $ticket->state) {
+            throw new \DomainException(\sprintf('#%d is closed: nothing to take.', $number));
+        }
+        if (HeadKind::Capability === $ticket->head || ($ticket->isHead() && [] !== $this->tickets->children($number))) {
+            throw new \DomainException(\sprintf('#%d is a head: take one of its work tickets — a capability without any is to be framed first.', $number));
+        }
+        if ([] !== $waits = $ticket->waits()) {
+            throw new \DomainException(\sprintf('#%d waits (%s): that must be lifted before anyone takes it.', $number, implode(', ', array_map(static fn (TicketMark $mark): string => $mark->value, $waits))));
+        }
+        if ($ticket->has(TicketMark::Taken) && (null === $key || !$this->posted($number, $key))) {
+            throw new \DomainException(\sprintf('#%d is taken already: its comments say by whom.', $number));
+        }
+        $blockers = array_filter($this->tickets->blockers($number), static fn (Ticket $blocker): bool => !$blocker->state->unblocks());
+        if ([] !== $blockers) {
+            throw new \DomainException(\sprintf('#%d waits on %s: take that first.', $number, implode(', ', array_map(static fn (Ticket $blocker): string => '#'.$blocker->number, $blockers))));
+        }
+
+        $this->comment($number, \sprintf('Taken by %s.', $by), $key);
+        $this->tickets->mark($number, TicketMark::Taken);
+    }
+
+    public function release(int $number): void
+    {
+        if ($this->tickets->get($number)->has(TicketMark::Taken)) {
+            $this->tickets->unmark($number, TicketMark::Taken);
+        }
+    }
+
+    /**
+     * The plan at a glance. Bounded by what the forge lists in one page of open tickets.
+     */
+    public function overview(): PlanOverview
+    {
+        $open = $this->tickets->listOpen();
+        $heads = [];
+        $toSplit = [];
+        $underAHead = [];
+        $candidates = [];
+        foreach ($open as $ticket) {
+            if (null === $ticket->head) {
+                $candidates[] = $ticket;
+
+                continue;
+            }
+            $children = $this->tickets->children($ticket->number);
+            foreach ($children as $child) {
+                $underAHead[] = $child->number;
+            }
+            $heads[] = new HeadProgress($ticket, $ticket->head, \count(array_filter($children, static fn (Ticket $child): bool => TicketState::Open !== $child->state)), \count($children));
+            if ([] === $children) {
+                // A capability is split before it is worked; a simpler head is its own leaf.
+                if (HeadKind::Capability === $ticket->head) {
+                    $toSplit[] = $ticket;
+                } else {
+                    $candidates[] = $ticket;
+                }
             }
         }
-        $this->tickets->comment($ticket, rtrim($body)."\n\n".$marker);
+
+        $ready = $taken = $waiting = $orphans = [];
+        $blocked = [];
+        foreach ($candidates as $ticket) {
+            if (!$ticket->isHead() && !\in_array($ticket->number, $underAHead, true)) {
+                $orphans[] = $ticket;
+            }
+            if ($ticket->has(TicketMark::Taken)) {
+                $taken[] = $ticket;
+            } elseif ([] !== $ticket->waits()) {
+                $waiting[] = $ticket;
+            } elseif ([] !== $open = array_filter($this->tickets->blockers($ticket->number), static fn (Ticket $blocker): bool => !$blocker->state->unblocks())) {
+                $blocked[$ticket->number] = array_values(array_map(static fn (Ticket $blocker): int => $blocker->number, $open));
+            } else {
+                $ready[] = $ticket;
+            }
+        }
+
+        return new PlanOverview($heads, $ready, $taken, $waiting, $blocked, $orphans, $toSplit);
+    }
+
+    private function posted(int $number, string $key): bool
+    {
+        foreach ($this->tickets->comments($number) as $comment) {
+            if (str_contains($comment, \sprintf('<!-- agentic:%s -->', $key))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**

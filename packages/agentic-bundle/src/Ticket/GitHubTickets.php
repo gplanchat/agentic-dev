@@ -7,6 +7,7 @@ namespace Gplanchat\AgenticBundle\Ticket;
 use Gplanchat\Agentic\Application\Ticket\Tickets;
 use Gplanchat\Agentic\Domain\Ticket\HeadKind;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
+use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 use Gplanchat\Agentic\Domain\Ticket\TicketState;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 use Symfony\Contracts\HttpClient\ResponseInterface;
@@ -51,10 +52,7 @@ final readonly class GitHubTickets implements Tickets
     public function openHead(HeadKind $kind, string $title, string $body): Ticket
     {
         $label = $this->labels->of($kind);
-        // An unknown label would be created by the issue itself: a typo would invent a family.
-        if (200 !== $this->response('GET', '/labels/'.rawurlencode($label))->getStatusCode()) {
-            throw new \DomainException(\sprintf('The forge has no label "%s" for the %s family: create it, or name another in tickets.labels.', $label, $kind->value));
-        }
+        $this->requireLabel($label, \sprintf('for the %s family: create it, or name another in tickets.labels', $kind->value));
 
         return $this->ticket($this->request('POST', '/issues', ['title' => $title, 'body' => $body, 'labels' => [$label]]));
     }
@@ -93,6 +91,33 @@ final readonly class GitHubTickets implements Tickets
     public function unblock(int $number, int $by): void
     {
         $this->request('DELETE', '/issues/'.$number.'/dependencies/blocked_by/'.$this->idOf($by));
+    }
+
+    public function listOpen(): array
+    {
+        // ponytail: one page of 100. A plan with more open tickets than that is read in two looks.
+        return $this->tickets($this->request('GET', '/issues?state=open&sort=created&direction=desc&per_page=100'));
+    }
+
+    public function mark(int $number, TicketMark $mark): void
+    {
+        $this->requireLabel($mark->value, 'to mark tickets with: create it');
+        $this->request('POST', '/issues/'.$number.'/labels', ['labels' => [$mark->value]]);
+    }
+
+    public function unmark(int $number, TicketMark $mark): void
+    {
+        $this->request('DELETE', '/issues/'.$number.'/labels/'.rawurlencode($mark->value));
+    }
+
+    /**
+     * An unknown label would be created by the issue itself: a typo would invent a family, or a mark.
+     */
+    private function requireLabel(string $label, string $why): void
+    {
+        if (200 !== $this->response('GET', '/labels/'.rawurlencode($label))->getStatusCode()) {
+            throw new \DomainException(\sprintf('The forge has no label "%s" %s.', $label, $why));
+        }
     }
 
     public function comments(int $number): array
@@ -197,7 +222,19 @@ final readonly class GitHubTickets implements Tickets
             throw new \UnexpectedValueException('An issue without its number or title.');
         }
 
-        return new Ticket($issue['number'], $issue['title'], $state, \is_string($issue['body'] ?? null) ? $issue['body'] : '', $this->labels->kindOf(self::labelNames($issue)));
+        $labels = self::labelNames($issue);
+
+        return new Ticket($issue['number'], $issue['title'], $state, \is_string($issue['body'] ?? null) ? $issue['body'] : '', $this->labels->kindOf($labels), self::marks($labels));
+    }
+
+    /**
+     * @param list<string> $labels
+     *
+     * @return list<TicketMark>
+     */
+    private static function marks(array $labels): array
+    {
+        return array_values(array_filter(array_map(TicketMark::tryFrom(...), $labels)));
     }
 
     /**

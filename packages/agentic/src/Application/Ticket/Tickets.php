@@ -6,6 +6,7 @@ namespace Gplanchat\Agentic\Application\Ticket;
 
 use Gplanchat\Agentic\Domain\Ticket\HeadKind;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
+use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 
 /**
  * Port: the tickets of the project's forge — GitHub, Forgejo, whatever an adapter speaks. The forge
@@ -79,4 +80,18 @@ interface Tickets
     public function comments(int $number): array;
 
     public function comment(int $number, string $body): void;
+
+    /**
+     * The open tickets, newest first — one bounded page, marks and family included.
+     *
+     * @return list<Ticket>
+     */
+    public function listOpen(): array;
+
+    /**
+     * @throws \DomainException when the forge has no label for this mark
+     */
+    public function mark(int $number, TicketMark $mark): void;
+
+    public function unmark(int $number, TicketMark $mark): void;
 }

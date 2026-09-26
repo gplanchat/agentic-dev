@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Gplanchat\AgenticBundle\Ticket;
 
 use Gplanchat\Agentic\Application\Ticket\Backlog;
+use Gplanchat\Agentic\Application\Ticket\HeadProgress;
 use Gplanchat\Agentic\Application\Ticket\Tickets;
 use Gplanchat\Agentic\Application\Tool\ContextualTool;
 use Gplanchat\Agentic\Application\Tool\ToolContext;
 use Gplanchat\Agentic\Domain\Ticket\HeadKind;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
+use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\AgenticBundle\Project\Project;
 use Symfony\Component\HttpClient\HttpClient;
@@ -42,19 +44,20 @@ final readonly class TicketTool implements ContextualTool
 
     public function __invoke(array $arguments): string
     {
-        return $this->act($arguments, null);
+        return $this->act($arguments, null, null);
     }
 
     public function inContext(array $arguments, ToolContext $context): string
     {
-        return $this->act($arguments, $context->callId);
+        return $this->act($arguments, $context->callId, $context->workspace);
     }
 
     /**
      * @param array<string, mixed> $arguments
      * @param string|null          $callId    what makes opening a ticket survive a retry
+     * @param string|null          $workspace the conversation's worktree: who takes a ticket
      */
-    private function act(array $arguments, ?string $callId): string
+    private function act(array $arguments, ?string $callId, ?string $workspace): string
     {
         $tracker = $this->project->tickets;
         if (null === $tracker) {
@@ -72,6 +75,9 @@ final readonly class TicketTool implements ContextualTool
                 TicketOperation::Unblock => self::unblock($tickets, self::number($arguments, 'ticket'), self::number($arguments, 'blocker')),
                 TicketOperation::Close => self::close($backlog, self::number($arguments, 'head')),
                 TicketOperation::Comment => self::comment($backlog, self::number($arguments, 'ticket'), (string) ($arguments['body'] ?? ''), $callId),
+                TicketOperation::List => self::overview($backlog),
+                TicketOperation::Take => self::take($backlog, self::number($arguments, 'ticket'), null === $workspace ? 'a conversation in the project itself' : 'the conversation of '.basename($workspace), $callId),
+                TicketOperation::Release => self::release($backlog, self::number($arguments, 'ticket')),
             };
         } catch (\DomainException $e) {
             // The model's request, or the forge refusing it: handed back, not retried.
@@ -155,6 +161,43 @@ final readonly class TicketTool implements ContextualTool
         $backlog->comment($ticket, $body, $callId);
 
         return \sprintf('Commented on #%d.', $ticket);
+    }
+
+    private static function overview(Backlog $backlog): string
+    {
+        $plan = $backlog->overview();
+        $sections = [
+            'Heads' => array_map(static fn (HeadProgress $progress): string => \sprintf('%s — %s, %d/%d work closed', self::line($progress->head), $progress->kind->value, $progress->closed, $progress->total), $plan->heads),
+            'Ready to take' => array_map(self::line(...), $plan->ready),
+            'Taken' => array_map(self::line(...), $plan->taken),
+            'Waiting on someone' => array_map(static fn (Ticket $ticket): string => \sprintf('%s (%s)', self::line($ticket), implode(', ', array_map(static fn (TicketMark $mark): string => $mark->value, $ticket->waits()))), $plan->waiting),
+            'Waiting on other tickets' => array_map(static fn (int $number, array $on): string => \sprintf('#%d waits on %s', $number, implode(', ', array_map(static fn (int $blocker): string => '#'.$blocker, $on))), array_keys($plan->blocked), $plan->blocked),
+            'Work under no open head (EWA-002 § 3)' => array_map(self::line(...), $plan->orphans),
+            'Capabilities to frame: no work ticket yet' => array_map(self::line(...), $plan->toSplit),
+        ];
+        $lines = [];
+        foreach (array_filter($sections) as $title => $entries) {
+            $lines[] = $title.':';
+            foreach ($entries as $entry) {
+                $lines[] = '  '.$entry;
+            }
+        }
+
+        return [] === $lines ? 'No open ticket.' : implode("\n", $lines);
+    }
+
+    private static function take(Backlog $backlog, int $ticket, string $by, ?string $callId): string
+    {
+        $backlog->take($ticket, $by, $callId);
+
+        return \sprintf('#%d is yours.', $ticket);
+    }
+
+    private static function release(Backlog $backlog, int $ticket): string
+    {
+        $backlog->release($ticket);
+
+        return \sprintf('#%d is free again.', $ticket);
     }
 
     private static function line(Ticket $ticket): string

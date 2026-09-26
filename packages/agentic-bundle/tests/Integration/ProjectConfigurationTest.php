@@ -25,7 +25,7 @@ use Symfony\Component\Uid\Uuid;
  */
 final class ProjectConfigurationTest extends KernelTestCase
 {
-    private const TICKET_TOOLS = ['ticket_read', 'ticket_open_head', 'ticket_open_work', 'ticket_block', 'ticket_unblock', 'ticket_close', 'ticket_comment'];
+    private const TICKET_TOOLS = ['ticket_read', 'ticket_open_head', 'ticket_open_work', 'ticket_block', 'ticket_unblock', 'ticket_close', 'ticket_comment', 'ticket_list', 'ticket_take', 'ticket_release'];
 
     private string $project;
 

@@ -7,7 +7,9 @@ namespace Gplanchat\Agentic\Tests\Application\Ticket;
 use Gplanchat\Agentic\Application\Ticket\Backlog;
 use Gplanchat\Agentic\Application\Ticket\Tickets;
 use Gplanchat\Agentic\Domain\Ticket\HeadKind;
+use Gplanchat\Agentic\Application\Ticket\HeadProgress;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
+use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 use Gplanchat\Agentic\Domain\Ticket\TicketState;
 use PHPUnit\Framework\TestCase;
 
@@ -163,6 +165,83 @@ final class BacklogTest extends TestCase
         self::assertRefused('A comment needs a body.', static fn () => $backlog->comment(1, ' ', 'call-4'));
     }
 
+    public function testATicketIsTakenOnceAndSaysByWhom(): void
+    {
+        $forge = new InMemoryTickets();
+        $backlog = new Backlog($forge);
+        $head = $backlog->openHead(HeadKind::Capability, 'H', '', null);
+        $work = $backlog->openWork($head->number, 'W', '', null);
+
+        $backlog->take($work->number, 'agentic-3f2a9c1e', 'call-1');
+        $backlog->take($work->number, 'agentic-3f2a9c1e', 'call-1');
+
+        self::assertTrue($forge->get($work->number)->has(TicketMark::Taken));
+        self::assertSame(["Taken by agentic-3f2a9c1e.\n\n<!-- agentic:call-1 -->"], $forge->comments($work->number), 'The retry found its own comment.');
+        self::assertRefused('#2 is taken already: its comments say by whom.', static fn () => $backlog->take($work->number, 'agentic-other', 'call-2'));
+        self::assertRefused('#2 is taken already: its comments say by whom.', static fn () => $backlog->take($work->number, 'agentic-other', null));
+
+        $backlog->release($work->number);
+        $backlog->release($work->number);
+        self::assertSame([], $forge->get($work->number)->marks);
+    }
+
+    public function testOnlyWhatCanBeWorkedOnNowIsTaken(): void
+    {
+        $forge = new InMemoryTickets();
+        $backlog = new Backlog($forge);
+        $capability = $backlog->openHead(HeadKind::Capability, 'Cap', '', null);
+        $debt = $backlog->openHead(HeadKind::Debt, 'Debt', '', null);
+        $work = $backlog->openWork($capability->number, 'W', '', null);
+        $blocker = $backlog->openWork($capability->number, 'Blocker', '', null);
+        $forge->link($work->number, $blocker->number);
+
+        self::assertRefused('#1 is a head: take one of its work tickets — a capability without any is to be framed first.', static fn () => $backlog->take($capability->number, 'me', null));
+        self::assertRefused('#3 waits on #4: take that first.', static fn () => $backlog->take($work->number, 'me', null));
+        $forge->mark($blocker->number, TicketMark::WaitsForAuthor);
+        $forge->mark($blocker->number, TicketMark::WaitsForMeasure);
+        self::assertRefused('#4 waits (attend:auteur, attend:mesure): that must be lifted before anyone takes it.', static fn () => $backlog->take($blocker->number, 'me', null));
+        $forge->close($blocker->number);
+        self::assertRefused('#4 is closed: nothing to take.', static fn () => $backlog->take($blocker->number, 'me', null));
+
+        $backlog->take($work->number, 'me', null);
+        $backlog->take($debt->number, 'me', null);
+        self::assertTrue($forge->get($debt->number)->has(TicketMark::Taken), 'A debt with no work ticket is its own leaf (EWA-002 § 4).');
+
+        $backlog->openWork($debt->number, 'Split after all', '', null);
+        $forge->unmark($debt->number, TicketMark::Taken);
+        self::assertRefused('#2 is a head: take one of its work tickets — a capability without any is to be framed first.', static fn () => $backlog->take($debt->number, 'me', null));
+    }
+
+    public function testThePlanAtAGlance(): void
+    {
+        $forge = new InMemoryTickets();
+        $backlog = new Backlog($forge);
+        $capability = $backlog->openHead(HeadKind::Capability, 'Cap', '', null);     // #1
+        $empty = $backlog->openHead(HeadKind::Capability, 'Unframed', '', null);     // #2
+        $defect = $backlog->openHead(HeadKind::Defect, 'Bug', '', null);             // #3
+        $done = $backlog->openWork($capability->number, 'Done', '', null);           // #4
+        $ready = $backlog->openWork($capability->number, 'Ready', '', null);         // #5
+        $taken = $backlog->openWork($capability->number, 'Taken', '', null);         // #6
+        $waiting = $backlog->openWork($capability->number, 'Waiting', '', null);     // #7
+        $blocked = $backlog->openWork($capability->number, 'Blocked', '', null);     // #8
+        $forge->add(9);                                                              // an orphan
+        $forge->close($done->number);
+        $forge->mark($taken->number, TicketMark::Taken);
+        $forge->mark($waiting->number, TicketMark::WaitsForThirdParty);
+        $forge->link($blocked->number, $done->number);
+        $forge->link($blocked->number, $ready->number);
+
+        $plan = $backlog->overview();
+
+        self::assertSame([[1, HeadKind::Capability, 1, 5], [2, HeadKind::Capability, 0, 0], [3, HeadKind::Defect, 0, 0]], array_map(static fn (HeadProgress $progress): array => [$progress->head->number, $progress->kind, $progress->closed, $progress->total], array_reverse($plan->heads)));
+        self::assertSame([9, 5, 3], self::numbers($plan->ready), 'The defect with no work is its own leaf; the unframed capability is not.');
+        self::assertSame([6], self::numbers($plan->taken));
+        self::assertSame([7], self::numbers($plan->waiting));
+        self::assertSame([8 => [5]], $plan->blocked, 'Only the blockers still open.');
+        self::assertSame([9], self::numbers($plan->orphans));
+        self::assertSame([2], self::numbers($plan->toSplit));
+    }
+
     private static function assertRefused(string $message, \Closure $call): void
     {
         try {
@@ -253,7 +332,26 @@ final class InMemoryTickets implements Tickets
     public function close(int $number): void
     {
         $ticket = $this->tickets[$number];
-        $this->tickets[$number] = new Ticket($number, $ticket->title, TicketState::Done, $ticket->body, $ticket->head);
+        $this->tickets[$number] = new Ticket($number, $ticket->title, TicketState::Done, $ticket->body, $ticket->head, $ticket->marks);
+    }
+
+    public function listOpen(): array
+    {
+        return array_values(array_filter($this->recent(), static fn (Ticket $ticket): bool => TicketState::Open === $ticket->state));
+    }
+
+    public function mark(int $number, TicketMark $mark): void
+    {
+        $ticket = $this->tickets[$number];
+        $marks = array_values(array_unique([...$ticket->marks, $mark], \SORT_REGULAR));
+        $this->tickets[$number] = new Ticket($number, $ticket->title, $ticket->state, $ticket->body, $ticket->head, $marks);
+    }
+
+    public function unmark(int $number, TicketMark $mark): void
+    {
+        $ticket = $this->tickets[$number];
+        $marks = array_values(array_filter($ticket->marks, static fn (TicketMark $kept): bool => $mark !== $kept));
+        $this->tickets[$number] = new Ticket($number, $ticket->title, $ticket->state, $ticket->body, $ticket->head, $marks);
     }
 
     public function block(int $number, int $by): void

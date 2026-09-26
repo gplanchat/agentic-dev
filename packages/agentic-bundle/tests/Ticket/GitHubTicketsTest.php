@@ -6,6 +6,7 @@ namespace Gplanchat\AgenticBundle\Tests\Ticket;
 
 use Gplanchat\Agentic\Domain\Ticket\HeadKind;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
+use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 use Gplanchat\Agentic\Domain\Ticket\TicketState;
 use Gplanchat\AgenticBundle\Ticket\GitHubTickets;
 use Gplanchat\AgenticBundle\Ticket\HeadLabels;
@@ -142,6 +143,39 @@ final class GitHubTicketsTest extends TestCase
 
         $this->expectExceptionMessage('#4 hangs under #2 already: a work ticket has one head.');
         $tickets->adopt(1, 4);
+    }
+
+    public function testTheOpenTicketsCarryTheirMarks(): void
+    {
+        $forge = new RecordingForge(new JsonMockResponse([
+            ['number' => 8, 'title' => 'A PR', 'state' => 'open', 'pull_request' => ['url' => 'x']],
+            ['number' => 7, 'title' => 'T', 'state' => 'open', 'labels' => [['name' => 'p1'], ['name' => 'pris'], ['name' => 'attend:auteur']]],
+        ]));
+
+        self::assertEquals([new Ticket(7, 'T', TicketState::Open, '', null, [TicketMark::Taken, TicketMark::WaitsForAuthor])], self::tickets($forge)->listOpen());
+        self::assertSame(['GET https://api.github.com/repos/acme/app/issues?state=open&sort=created&direction=desc&per_page=100'], $forge->requests);
+    }
+
+    public function testAMarkIsALabelThatMustExist(): void
+    {
+        $forge = new RecordingForge(
+            new JsonMockResponse(['name' => 'pris']),
+            new JsonMockResponse([['name' => 'pris']]),
+            new JsonMockResponse([]),
+            new JsonMockResponse(['message' => 'Not Found'], ['http_code' => 404]),
+        );
+        $tickets = self::tickets($forge);
+
+        $tickets->mark(4, TicketMark::Taken);
+        $tickets->unmark(4, TicketMark::WaitsForAuthor);
+
+        self::assertSame([
+            'GET https://api.github.com/repos/acme/app/labels/pris',
+            'POST https://api.github.com/repos/acme/app/issues/4/labels {"labels":["pris"]}',
+            'DELETE https://api.github.com/repos/acme/app/issues/4/labels/attend%3Aauteur',
+        ], $forge->requests);
+        $this->expectExceptionMessage('The forge has no label "attend:mesure" to mark tickets with: create it.');
+        $tickets->mark(4, TicketMark::WaitsForMeasure);
     }
 
     public function testCommentsAreReadAndPosted(): void

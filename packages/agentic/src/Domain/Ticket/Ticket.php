@@ -20,6 +20,8 @@ final readonly class Ticket
         public string $body = '',
         /** `null`: not a head — a work ticket, or a ticket nobody classified. */
         public ?HeadKind $head = null,
+        /** @var list<TicketMark> who it waits on, whether it is taken */
+        public array $marks = [],
     ) {
         if ($number < 1) {
             throw new \InvalidArgumentException(\sprintf('A ticket number is positive, %d is not.', $number));
@@ -29,5 +31,18 @@ final readonly class Ticket
     public function isHead(): bool
     {
         return null !== $this->head;
+    }
+
+    public function has(TicketMark $mark): bool
+    {
+        return \in_array($mark, $this->marks, true);
+    }
+
+    /**
+     * @return list<TicketMark>
+     */
+    public function waits(): array
+    {
+        return array_values(array_filter($this->marks, static fn (TicketMark $mark): bool => $mark->isWait()));
     }
 }

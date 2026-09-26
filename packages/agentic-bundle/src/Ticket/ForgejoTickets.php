@@ -7,6 +7,7 @@ namespace Gplanchat\AgenticBundle\Ticket;
 use Gplanchat\Agentic\Application\Ticket\Tickets;
 use Gplanchat\Agentic\Domain\Ticket\HeadKind;
 use Gplanchat\Agentic\Domain\Ticket\Ticket;
+use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 use Gplanchat\Agentic\Domain\Ticket\TicketState;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -57,17 +58,7 @@ final readonly class ForgejoTickets implements Tickets
 
     public function openHead(HeadKind $kind, string $title, string $body): Ticket
     {
-        $label = $this->labels->of($kind);
-        $id = null;
-        foreach ($this->request('GET', '/labels?limit=100') as $candidate) {
-            $name = \is_array($candidate) ? ($candidate['name'] ?? null) : null;
-            if (\is_string($name) && 0 === strcasecmp($name, $label)) {
-                $id = $candidate['id'] ?? null;
-            }
-        }
-        if (!\is_int($id)) {
-            throw new \DomainException(\sprintf('The repository has no label "%s" for the %s family: create it, or name another in tickets.labels.', $label, $kind->value));
-        }
+        $id = $this->labelId($this->labels->of($kind), \sprintf('for the %s family: create it, or name another in tickets.labels', $kind->value));
 
         return $this->ticket($this->request('POST', '/issues', ['title' => $title, 'body' => $body, 'labels' => [$id]]));
     }
@@ -106,6 +97,37 @@ final readonly class ForgejoTickets implements Tickets
     public function unblock(int $number, int $by): void
     {
         $this->request('DELETE', '/issues/'.$number.'/dependencies', $this->meta($by));
+    }
+
+    public function listOpen(): array
+    {
+        // ponytail: one page of 100. A plan with more open tickets than that is read in two looks.
+        return $this->tickets($this->request('GET', '/issues?state=open&type=issues&sort=latest&limit=100'));
+    }
+
+    public function mark(int $number, TicketMark $mark): void
+    {
+        $this->request('POST', '/issues/'.$number.'/labels', ['labels' => [$this->labelId($mark->value, 'to mark tickets with: create it')]]);
+    }
+
+    public function unmark(int $number, TicketMark $mark): void
+    {
+        $this->request('DELETE', '/issues/'.$number.'/labels/'.$this->labelId($mark->value, 'to mark tickets with: create it'));
+    }
+
+    /**
+     * Forgejo labels issues by id: the name is looked up, and a missing one refused — never created.
+     */
+    private function labelId(string $label, string $why): int
+    {
+        foreach ($this->request('GET', '/labels?limit=100') as $candidate) {
+            $name = \is_array($candidate) ? ($candidate['name'] ?? null) : null;
+            if (\is_string($name) && 0 === strcasecmp($name, $label) && \is_int($candidate['id'] ?? null)) {
+                return $candidate['id'];
+            }
+        }
+
+        throw new \DomainException(\sprintf('The repository has no label "%s" %s.', $label, $why));
     }
 
     public function comments(int $number): array
@@ -219,6 +241,6 @@ final readonly class ForgejoTickets implements Tickets
             }
         }
 
-        return new Ticket($issue['number'], $issue['title'], $state, \is_string($issue['body'] ?? null) ? $issue['body'] : '', $this->labels->kindOf($labels));
+        return new Ticket($issue['number'], $issue['title'], $state, \is_string($issue['body'] ?? null) ? $issue['body'] : '', $this->labels->kindOf($labels), array_values(array_filter(array_map(TicketMark::tryFrom(...), $labels))));
     }
 }
