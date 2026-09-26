@@ -55,6 +55,9 @@ final class SkillCommandsTest extends KernelTestCase
         $verifier = $transcript->profiles->find('verifier');
         self::assertSame(AgentMode::Plan, $verifier?->ceiling);
         self::assertSame(['ticket_read', 'worktree_diff', 'read_file'], $verifier->tools);
+        $planner = $transcript->profiles->find('planner');
+        self::assertSame(AgentMode::Plan, $planner?->ceiling);
+        self::assertSame(['ticket_list', 'ticket_read'], $planner->tools, 'It reads what strangers wrote, with no tool to act on it.');
 
         self::assertSame('Use the skill `statut`.', $commands->run($id, '/statut')->send);
         self::assertSame('Use the skill `cadrer`: tickets in the chat, for everyone.', $commands->run($id, '/cadrer  tickets in the chat, for everyone ')->send);

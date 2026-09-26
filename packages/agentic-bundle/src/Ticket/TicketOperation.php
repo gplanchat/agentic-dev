@@ -26,6 +26,7 @@ enum TicketOperation: string
     case List = 'ticket_list';
     case Take = 'ticket_take';
     case Release = 'ticket_release';
+    case Wait = 'ticket_wait';
 
     public function definition(): ToolDefinition
     {
@@ -105,6 +106,16 @@ enum TicketOperation: string
                 'Gives a taken ticket back, when you stop working on it before it is done — say why in a ticket_comment.',
                 ToolEffect::External,
                 ['type' => 'object', 'properties' => ['ticket' => $number('The ticket to give back.')], 'required' => ['ticket']],
+            ),
+            self::Wait => new ToolDefinition(
+                $this->value,
+                'Marks that a ticket waits on someone — the author for a decision, a third party for a delivery, a measure for a fact nobody has —, says why in a comment, and gives it back if you had taken it. Nobody takes it again until the wait is lifted.',
+                ToolEffect::External,
+                ['type' => 'object', 'properties' => [
+                    'ticket' => $number('The ticket that waits.'),
+                    'on' => ['type' => 'string', 'enum' => ['auteur', 'tiers', 'mesure']],
+                    'reason' => $text('What it waits for, understandable without your context — a closed question, for the author.'),
+                ], 'required' => ['ticket', 'on', 'reason']],
             ),
             self::Comment => new ToolDefinition(
                 $this->value,

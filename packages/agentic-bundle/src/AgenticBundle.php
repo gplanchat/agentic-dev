@@ -187,14 +187,24 @@ final class AgenticBundle extends AbstractBundle
 
     /**
      * The sub-agents the skills rely on, where the separation of powers must be enforced rather than
-     * asked for: the `verifier` judges work it did not make, in a fresh context, at the `plan`
-     * ceiling — it can read the ticket and the diff, and change nothing.
+     * asked for, both at the `plan` ceiling: the `planner` reads the tickets strangers wrote with no
+     * tool to act on them, the `verifier` judges work it did not make, in a fresh context — it can
+     * read the ticket and the diff, and change nothing.
      *
      * @return array<string, array{description: string, prompt: string, model: null, ceiling: string, tools: list<string>, max_turns: int, roles: list<string>}>
      */
     private static function seats(): array
     {
         return [
+            'planner' => [
+                'description' => 'Reads the plan on the forge and reports what to take next — with no tool to act on what tickets say',
+                'prompt' => trim((string) file_get_contents(\dirname(__DIR__).'/seats/planner.md')),
+                'model' => null,
+                'ceiling' => 'plan',
+                'tools' => ['ticket_list', 'ticket_read'],
+                'max_turns' => 1,
+                'roles' => [],
+            ],
             'verifier' => [
                 'description' => 'Judges finished work against its ticket, in a clean context — never the one who made it',
                 'prompt' => trim((string) file_get_contents(\dirname(__DIR__).'/seats/verifier.md')),

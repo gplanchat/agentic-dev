@@ -79,6 +79,7 @@ final readonly class TicketTool implements ContextualTool, OfferedTool
                 TicketOperation::List => self::overview($backlog),
                 TicketOperation::Take => self::take($backlog, self::number($arguments, 'ticket'), null === $workspace ? 'a conversation in the project itself' : 'the conversation of '.basename($workspace), $callId),
                 TicketOperation::Release => self::release($backlog, self::number($arguments, 'ticket')),
+                TicketOperation::Wait => self::wait($backlog, self::number($arguments, 'ticket'), (string) ($arguments['on'] ?? ''), (string) ($arguments['reason'] ?? ''), $callId),
             };
         } catch (\DomainException $e) {
             // The model's request, or the forge refusing it: handed back, not retried.
@@ -192,6 +193,17 @@ final readonly class TicketTool implements ContextualTool, OfferedTool
         $backlog->take($ticket, $by, $callId);
 
         return \sprintf('#%d is yours.', $ticket);
+    }
+
+    private static function wait(Backlog $backlog, int $ticket, string $on, string $reason, ?string $callId): string
+    {
+        $mark = TicketMark::tryFrom('attend:'.$on);
+        if (null === $mark) {
+            throw new \DomainException('"on" is one of: auteur, tiers, mesure.');
+        }
+        $backlog->wait($ticket, $mark, $reason, $callId);
+
+        return \sprintf('#%d waits (%s).', $ticket, $mark->value);
     }
 
     private static function release(Backlog $backlog, int $ticket): string

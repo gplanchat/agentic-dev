@@ -69,6 +69,6 @@ final class AgentsCommandTest extends KernelTestCase
 
     public function testTheProfilesAreFrozenInTheConversation(): void
     {
-        self::assertSame(['verifier', 'sorter', 'mailer'], $this->conversations->transcript($this->id)->profiles->names());
+        self::assertSame(['planner', 'verifier', 'sorter', 'mailer'], $this->conversations->transcript($this->id)->profiles->names());
     }
 }

@@ -185,6 +185,24 @@ final class BacklogTest extends TestCase
         self::assertSame([], $forge->get($work->number)->marks);
     }
 
+    public function testATicketWaitsSaysWhyAndIsGivenBack(): void
+    {
+        $forge = new InMemoryTickets();
+        $backlog = new Backlog($forge);
+        $head = $backlog->openHead(HeadKind::Capability, 'H', '', null);
+        $work = $backlog->openWork($head->number, 'W', '', null);
+        $backlog->take($work->number, 'me', null);
+
+        $backlog->wait($work->number, TicketMark::WaitsForAuthor, ' Which cache: PSR-6 or PSR-16? ', 'call-5');
+        $backlog->wait($work->number, TicketMark::WaitsForAuthor, 'Which cache: PSR-6 or PSR-16?', 'call-5');
+
+        self::assertSame([TicketMark::WaitsForAuthor], $forge->get($work->number)->marks, 'Given back, and waiting.');
+        self::assertSame(["Taken by me.", "Waits (attend:auteur): Which cache: PSR-6 or PSR-16?\n\n<!-- agentic:call-5 -->"], $forge->comments($work->number));
+        self::assertRefused('"pris" is not a wait.', static fn () => $backlog->wait($work->number, TicketMark::Taken, 'x', null));
+        self::assertRefused('Say what it waits for: whoever lifts the wait has not your context.', static fn () => $backlog->wait($work->number, TicketMark::WaitsForMeasure, ' ', null));
+        self::assertSame([TicketMark::WaitsForAuthor], $forge->get($work->number)->marks);
+    }
+
     public function testOnlyWhatCanBeWorkedOnNowIsTaken(): void
     {
         $forge = new InMemoryTickets();

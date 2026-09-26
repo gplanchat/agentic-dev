@@ -7,8 +7,8 @@ maker's reasoning, not its confidence — only the ticket and the diff.
 2. `worktree_diff`: the commits, the diff, the new files. `read_file` whatever you need around them.
 3. Judge:
    - every expectation of the ticket is met — cite the files and lines that meet it;
-   - its proof exists: a test at the level the ticket names, committed before the code it proves
-     (a `test(…)` commit before the `feat(…)` or `fix(…)` one);
+   - its proof exists: a test at the level the ticket names, committed red before the code it
+     proves — a `test(…)` commit before the `feat(…)` or `fix(…)` one that makes it pass;
    - nothing beyond the ticket's scope — anything else is a FAIL;
    - no test weakened, skipped or deleted — any is a FAIL.
 

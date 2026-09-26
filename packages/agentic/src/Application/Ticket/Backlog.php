@@ -169,6 +169,25 @@ final readonly class Backlog
         $this->tickets->mark($number, TicketMark::Taken);
     }
 
+    /**
+     * The ticket waits on someone: marked, the reason commented once, and given back if it was taken
+     * — until the wait is lifted, nobody takes it again only to meet the same question.
+     *
+     * @throws \DomainException when the mark is not a wait
+     */
+    public function wait(int $number, TicketMark $on, string $reason, ?string $key): void
+    {
+        if (!$on->isWait()) {
+            throw new \DomainException(\sprintf('"%s" is not a wait.', $on->value));
+        }
+        if ('' === trim($reason)) {
+            throw new \DomainException('Say what it waits for: whoever lifts the wait has not your context.');
+        }
+        $this->comment($number, \sprintf('Waits (%s): %s', $on->value, trim($reason)), $key);
+        $this->tickets->mark($number, $on);
+        $this->release($number);
+    }
+
     public function release(int $number): void
     {
         if ($this->tickets->get($number)->has(TicketMark::Taken)) {

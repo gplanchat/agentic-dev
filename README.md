@@ -229,10 +229,16 @@ every refresh, with no `messenger:consume` alongside.
   code), `/revue [#n]` (the work judged by a verifier that did not make it). A command sends a short
   request as your message; the `skill` tool — whose description is the index — hands the agent the
   procedure only then. Tickets are *taken* with a `pris` label (`ticket_take`, `ticket_release`), and
-  what waits on someone carries `attend:auteur`, `attend:tiers` or `attend:mesure`: labels that must
-  exist on the forge. The `verifier` seat is a sub-agent at the `plan` ceiling with `ticket_read`,
-  `worktree_diff` and `read_file`: it can see the ticket and the diff, and change nothing — the maker
-  never grades its own work (an installation's own `verifier` profile replaces it). In Linas's terms
+  what waits on someone carries `attend:auteur`, `attend:tiers` or `attend:mesure` (`ticket_wait`,
+  with the reason in a comment): labels to create on the forge beforehand, like the family labels.
+  Two seats, both sub-agents at the `plan` ceiling: the `planner` reads the tickets strangers wrote
+  for `/statut`, with only `ticket_list` and `ticket_read` — nothing to act on what a ticket says —;
+  the `verifier` judges the ticket against the diff with `ticket_read`, `worktree_diff` and
+  `read_file`, and changes nothing: the maker never grades its own work, and `continuer` commits each
+  TDD phase (`test(…)` red, then `feat(…)`/`fix(…)`) so that it can check the order. An
+  installation's own profile of the same name replaces a seat. `continuer` still reads its own ticket
+  in the working conversation: there, the rule that a ticket is data, the worktree and the guard are
+  the defence. In Linas's terms
   (*agentic OS*), these are the employees; the constitution (`AGENTS.md`), the walls (modes, sandbox,
   worktree, rules), the gate (`run_checks`) and the budget are in place, while the trust ledger per
   skill, the standing goals and the unattended heartbeat (`/dev:go`'s counterpart) are not yet.

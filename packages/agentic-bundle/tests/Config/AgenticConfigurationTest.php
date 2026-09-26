@@ -137,6 +137,18 @@ final class AgenticConfigurationTest extends TestCase
         ], $agents['verifier'] ?? null);
         self::assertStringStartsWith('You judge work you did not make', $prompt);
         self::assertStringEndsWith('a wrong PASS closes a ticket'."\n".'that is not done.', $prompt, 'Trimmed.');
+        $planner = (string) ($agents['planner']['prompt'] ?? '');
+        self::assertSame([
+            'description' => 'Reads the plan on the forge and reports what to take next — with no tool to act on what tickets say',
+            'prompt' => $planner,
+            'model' => null,
+            'ceiling' => 'plan',
+            'tools' => ['ticket_list', 'ticket_read'],
+            'max_turns' => 1,
+            'roles' => [],
+        ], $agents['planner'] ?? null);
+        self::assertStringStartsWith('You report the state of the project\'s plan.', $planner);
+        self::assertStringEndsWith('— to be closed with `ticket_close` once their checks say so.', $planner, 'Trimmed.');
 
         $container = $this->container([]);
         self::assertArrayHasKey(AgenticBundle::TOOL_TAG, $container->getDefinition(SkillTool::class)->getTags(), 'Offered whatever the sandbox, when the project names a tracker.');
@@ -145,7 +157,7 @@ final class AgenticConfigurationTest extends TestCase
 
         $own = ['description' => 'Mine', 'prompt' => 'P', 'model' => null, 'ceiling' => 'plan', 'tools' => ['read_file'], 'max_turns' => 2, 'roles' => []];
         $agents = $this->conversationOptions(['agents' => ['verifier' => $own, 'scribe' => $own]])['agents'];
-        self::assertSame(['verifier', 'scribe'], array_keys($agents));
+        self::assertSame(['planner', 'verifier', 'scribe'], array_keys($agents));
         self::assertSame('Mine', $agents['verifier']['description']);
     }
 
