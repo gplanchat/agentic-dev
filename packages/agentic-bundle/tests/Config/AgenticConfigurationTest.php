@@ -13,6 +13,8 @@ use Gplanchat\AgenticBundle\Project\ProjectLoader;
 use Gplanchat\AgenticBundle\Project\TrustStore;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
+use Gplanchat\AgenticBundle\Skill\Skills;
+use Gplanchat\AgenticBundle\Skill\SkillTool;
 use Gplanchat\AgenticBundle\Ticket\TicketOperation;
 use Gplanchat\AgenticBundle\Ticket\TicketTool;
 use Gplanchat\AgenticBundle\Tool\CommitWorktreeTool;
@@ -115,6 +117,36 @@ final class AgenticConfigurationTest extends TestCase
         }
 
         return $tools;
+    }
+
+    /**
+     * The seat the skills rely on is there by default, and the installation's own replaces it.
+     */
+    public function testTheVerifierSeatJudgesInPlanModeUnlessTheInstallationSaysOtherwise(): void
+    {
+        $agents = $this->conversationOptions([])['agents'];
+        $prompt = (string) ($agents['verifier']['prompt'] ?? '');
+        self::assertSame([
+            'description' => 'Judges finished work against its ticket, in a clean context — never the one who made it',
+            'prompt' => $prompt,
+            'model' => null,
+            'ceiling' => 'plan',
+            'tools' => ['ticket_read', 'worktree_diff', 'read_file'],
+            'max_turns' => 1,
+            'roles' => [],
+        ], $agents['verifier'] ?? null);
+        self::assertStringStartsWith('You judge work you did not make', $prompt);
+        self::assertStringEndsWith('a wrong PASS closes a ticket'."\n".'that is not done.', $prompt, 'Trimmed.');
+
+        $container = $this->container([]);
+        self::assertArrayHasKey(AgenticBundle::TOOL_TAG, $container->getDefinition(SkillTool::class)->getTags(), 'Offered whatever the sandbox, when the project names a tracker.');
+        self::assertSame([Skills::class, 'bundled'], $container->getDefinition(Skills::class)->getFactory());
+        self::assertSame([Skills::class, Project::class], array_map(static fn (mixed $argument): string => (string) $argument, $container->getDefinition(SkillTool::class)->getArguments()));
+
+        $own = ['description' => 'Mine', 'prompt' => 'P', 'model' => null, 'ceiling' => 'plan', 'tools' => ['read_file'], 'max_turns' => 2, 'roles' => []];
+        $agents = $this->conversationOptions(['agents' => ['verifier' => $own, 'scribe' => $own]])['agents'];
+        self::assertSame(['verifier', 'scribe'], array_keys($agents));
+        self::assertSame('Mine', $agents['verifier']['description']);
     }
 
     /**

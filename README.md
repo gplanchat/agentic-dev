@@ -221,6 +221,21 @@ every refresh, with no `messenger:consume` alongside.
   rule allowing them holds in every mode unless it says `modes`. Opening survives a retry: the call's
   id is written in the body and looked for before opening again. Forgejo needs issue dependencies
   enabled in the repository's settings.
+- **Skills: the work, as procedures.** With a ticket tracker, four skills, drawn from Épopée and
+  rewritten for the forge, Mikado and the git tools: `/statut` (the plan at a glance and at most five
+  tickets worth taking, read-only), `/cadrer <need>` (a head of the right family, its OpenSpec change
+  in `openspec/changes/` when a specified behaviour moves, its work tickets with their proofs),
+  `/continuer [#n]` (one work ticket: taken, conducted with Mikado and TDD, judged, closed by its
+  code), `/revue [#n]` (the work judged by a verifier that did not make it). A command sends a short
+  request as your message; the `skill` tool — whose description is the index — hands the agent the
+  procedure only then. Tickets are *taken* with a `pris` label (`ticket_take`, `ticket_release`), and
+  what waits on someone carries `attend:auteur`, `attend:tiers` or `attend:mesure`: labels that must
+  exist on the forge. The `verifier` seat is a sub-agent at the `plan` ceiling with `ticket_read`,
+  `worktree_diff` and `read_file`: it can see the ticket and the diff, and change nothing — the maker
+  never grades its own work (an installation's own `verifier` profile replaces it). In Linas's terms
+  (*agentic OS*), these are the employees; the constitution (`AGENTS.md`), the walls (modes, sandbox,
+  worktree, rules), the gate (`run_checks`) and the budget are in place, while the trust ledger per
+  skill, the standing goals and the unattended heartbeat (`/dev:go`'s counterpart) are not yet.
 - **Mikado: the conduct of one task.** Inside a work ticket, the agent keeps the task's graph with
   `mikado_start` (the goal, M1, and optionally its work ticket), `mikado_note`, `mikado_done` and
   `mikado_show`: it tries the change naively, `run_checks` goes red, it notes each prerequisite,

@@ -31,6 +31,8 @@ use Gplanchat\AgenticBundle\Project\ProjectSchema;
 use Gplanchat\AgenticBundle\Project\TrustStore;
 use Gplanchat\AgenticBundle\Sandbox\Bubblewrap;
 use Gplanchat\AgenticBundle\Sandbox\Workspaces;
+use Gplanchat\AgenticBundle\Skill\Skills;
+use Gplanchat\AgenticBundle\Skill\SkillTool;
 use Gplanchat\AgenticBundle\Ticket\TicketOperation;
 use Gplanchat\AgenticBundle\Ticket\TicketTool;
 use Gplanchat\AgenticBundle\Tool\AgentTools;
@@ -184,6 +186,28 @@ final class AgenticBundle extends AbstractBundle
     }
 
     /**
+     * The sub-agents the skills rely on, where the separation of powers must be enforced rather than
+     * asked for: the `verifier` judges work it did not make, in a fresh context, at the `plan`
+     * ceiling — it can read the ticket and the diff, and change nothing.
+     *
+     * @return array<string, array{description: string, prompt: string, model: null, ceiling: string, tools: list<string>, max_turns: int, roles: list<string>}>
+     */
+    private static function seats(): array
+    {
+        return [
+            'verifier' => [
+                'description' => 'Judges finished work against its ticket, in a clean context — never the one who made it',
+                'prompt' => trim((string) file_get_contents(\dirname(__DIR__).'/seats/verifier.md')),
+                'model' => null,
+                'ceiling' => 'plan',
+                'tools' => ['ticket_read', 'worktree_diff', 'read_file'],
+                'max_turns' => 1,
+                'roles' => [],
+            ],
+        ];
+    }
+
+    /**
      * @param array{model: string, mistral_api_key: string, tickets_token: string, system_prompt: string, human_timeout_seconds: float, idle_timeout_seconds: float, rollover_after_turns: int, context_tokens: int, max_tool_calls: int, token_budget: int, max_delegation_depth: int, instructions_file: string|null, tool_rules: list<array<string, mixed>>, agents: array<string, array{description: string, prompt: string, model: string|null, ceiling: string, tools: list<string>, max_turns: int, roles: list<string>}>, mcp: array{servers: array<string, array{command: string|null, args: list<string>, cwd: string|null, env: array<string, string>, url: string|null, headers: array<string, string>, effects: array<string, string>, trust_annotations: bool, timeout_seconds: int}>}, sandbox: array{enabled: bool, hidden: list<string>, timeout_seconds: float, binary: string, worktrees: bool, shared: list<string>, auto_allow: list<string>, checks: array<string, array{command: list<string>, cwd: string, filter_option: string|null, timeout_seconds: float, description: string, tests: string, review: list<string>}>}, watch_subjects: array<string, string>} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
@@ -257,6 +281,12 @@ final class AgenticBundle extends AbstractBundle
                 ->args([$operation, service(Project::class), $config['tickets_token'], service('http_client')->nullOnInvalid()])
                 ->tag(self::TOOL_TAG);
         }
+        // Also offered only with a ticket tracker: the skills work on its tickets.
+        $services->set(Skills::class)
+            ->factory([Skills::class, 'bundled']);
+        $services->set(SkillTool::class)
+            ->args([service(Skills::class), service(Project::class)])
+            ->tag(self::TOOL_TAG);
 
         // --- The durable agent
         $services->set(DurableAgentWorkflow::class)
@@ -328,7 +358,8 @@ final class AgenticBundle extends AbstractBundle
                     'maxDepth' => $config['max_delegation_depth'],
                     'watchSubjects' => $config['watch_subjects'],
                     'toolRules' => $config['tool_rules'],
-                    'agents' => $config['agents'],
+                    // The installation's own come last: a profile it names `verifier` replaces this one.
+                    'agents' => [...self::seats(), ...$config['agents']],
                 ],
                 service(Project::class),
                 service(Workspaces::class)->nullOnInvalid(),

@@ -184,6 +184,26 @@ final class WorktreeGitToolsTest extends TestCase
         self::assertSame("feat(tickets): the adapter\n\nCloses #1", trim($this->git($path, 'log', '-1', '--format=%B')));
     }
 
+    /**
+     * The verdict comes after the work: with nothing left to commit, closing the ticket is a commit
+     * of its own — made once, however often the call is retried.
+     */
+    public function testATicketJudgedDoneClosesWithAnEmptyCommit(): void
+    {
+        $worktrees = new Worktrees($this->project);
+        $path = $worktrees->pathFor('3f2a9c1e');
+        $worktrees->ensure($path);
+        $commit = new CommitWorktreeTool(new Workspaces(new Bubblewrap($this->project), $worktrees));
+        file_put_contents($path.'/src/Code.php', '<?php // done');
+        $commit->inContext(['message' => 'feat: done'], new ToolContext('c1', $path));
+
+        self::assertStringStartsWith('Committed ', $commit->inContext(['message' => 'chore: judged done', 'closes' => 12], new ToolContext('c2', $path)));
+        self::assertSame('Nothing to commit: the worktree is as its last commit.', $commit->inContext(['message' => 'chore: judged done', 'closes' => 12], new ToolContext('c2', $path)));
+        self::assertStringStartsWith('Committed ', $commit->inContext(['message' => 'chore: judged done', 'closes' => 1], new ToolContext('c3', $path)), '#1 is not #12.');
+        self::assertSame('Nothing to commit: the worktree is as its last commit.', $commit->inContext(['message' => 'chore: nothing'], new ToolContext('c4', $path)));
+        self::assertSame("chore: judged done\n\nCloses #1\n\nchore: judged done\n\nCloses #12\n\nfeat: done", trim($this->git($path, 'log', '-3', '--format=%B')));
+    }
+
     public function testNoCommitHookTheAgentWroteRunsOnTheHost(): void
     {
         $this->git($this->project, 'config', 'core.hooksPath', '.hooks');

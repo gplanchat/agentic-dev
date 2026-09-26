@@ -14,6 +14,7 @@ use Gplanchat\Agentic\Domain\Ticket\Ticket;
 use Gplanchat\Agentic\Domain\Ticket\TicketMark;
 use Gplanchat\Agentic\Domain\Tool\ToolDefinition;
 use Gplanchat\AgenticBundle\Project\Project;
+use Gplanchat\AgenticBundle\Tool\OfferedTool;
 use Symfony\Component\HttpClient\HttpClient;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
@@ -21,7 +22,7 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
  * One ticket tool ({@see TicketOperation}) on the forge of the project the agent was launched in.
  * Offered only when that project names a ticket tracker.
  */
-final readonly class TicketTool implements ContextualTool
+final readonly class TicketTool implements ContextualTool, OfferedTool
 {
     public function __construct(
         private TicketOperation $operation,

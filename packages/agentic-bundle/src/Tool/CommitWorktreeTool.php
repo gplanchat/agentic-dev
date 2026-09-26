@@ -33,7 +33,7 @@ final readonly class CommitWorktreeTool implements ContextualTool
     {
         return new ToolDefinition(
             'commit_worktree',
-            'Commits every change of your worktree — edits and new files — on its own branch, which the human reviews before merging. Commit each green step: a later revert_worktree goes back to this commit. On the commit that finishes a work ticket, give closes: the ticket closes when the branch is merged.',
+            'Commits every change of your worktree — edits and new files — on its own branch, which the human reviews before merging. Commit each green step: a later revert_worktree goes back to this commit. Give closes once the work ticket is done and judged: with nothing else to commit, the commit only closes it. The ticket closes when the branch is merged.',
             ToolEffect::Write,
             ['type' => 'object', 'properties' => [
                 'message' => ['type' => 'string', 'description' => 'The commit message: what changed and why.'],
@@ -61,6 +61,7 @@ final readonly class CommitWorktreeTool implements ContextualTool
         if ('' === $message) {
             return 'A commit needs a message.';
         }
+        $ticket = null;
         if (isset($arguments['closes'])) {
             $ticket = filter_var($arguments['closes'], \FILTER_VALIDATE_INT, ['options' => ['min_range' => 1]]);
             if (false === $ticket) {
@@ -80,11 +81,13 @@ final readonly class CommitWorktreeTool implements ContextualTool
             $add[] = ':(exclude)'.$placeholder;
         }
         HostGit::run((string) $workspace, $add);
+        $empty = '' === HostGit::run((string) $workspace, ['diff', '--cached', '--name-only']);
         // Retried after it committed, the call finds nothing staged: done already, not an error.
-        if ('' === HostGit::run((string) $workspace, ['diff', '--cached', '--name-only'])) {
+        // Unless it closes a ticket the last commit does not: the verdict came after the work.
+        if ($empty && (null === $ticket || 1 === preg_match('/^Closes #'.$ticket.'$/m', HostGit::run((string) $workspace, ['log', '-1', '--format=%B'])))) {
             return 'Nothing to commit: the worktree is as its last commit.';
         }
-        HostGit::run((string) $workspace, ['commit', '--quiet', '--message', $message], self::IDENTITY);
+        HostGit::run((string) $workspace, ['commit', '--quiet', '--allow-empty', '--message', $message], self::IDENTITY);
 
         return \sprintf('Committed %s on %s.', trim(HostGit::run((string) $workspace, ['rev-parse', '--short', 'HEAD'])), trim(HostGit::run((string) $workspace, ['branch', '--show-current'])));
     }

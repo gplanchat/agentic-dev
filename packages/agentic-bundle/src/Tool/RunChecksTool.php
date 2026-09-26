@@ -27,7 +27,7 @@ use Symfony\Component\Console\Input\StringInput;
  * Classed `write`: tests run code, and code can write — in the workspace, inside the sandbox. It
  * asks in `standard`, passes in `edition` and `auto`.
  */
-final readonly class RunChecksTool implements ContextualTool
+final readonly class RunChecksTool implements ContextualTool, OfferedTool
 {
     public const TOOL = 'run_checks';
 
@@ -65,7 +65,7 @@ final readonly class RunChecksTool implements ContextualTool
     /**
      * No layer, nothing to run: the tool is not offered.
      */
-    public function hasLayers(): bool
+    public function isOffered(): bool
     {
         return [] !== $this->layers;
     }
